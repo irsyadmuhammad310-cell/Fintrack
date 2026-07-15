@@ -67,9 +67,8 @@ function updateUserDisplay() {
 }
 
 function init() {
-  // Check if encryption is enabled
-  if (FT_ENCRYPTION_ENABLED) {
-    // Wait for DOM to be ready before showing unlock screen
+  // Check if app lock is enabled (simple PIN, no encryption)
+  if (FT_APP_LOCK) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() { showUnlockScreen(); });
     } else {
@@ -82,19 +81,8 @@ function init() {
 }
 
 async function initWithPasskey(passkey) {
-  var success = await ftUnlockData(passkey);
-  if (!success) { return false; }
-  // Decrypt and load all data
-  await loadTXNAsync();
-  // Decrypt other stores
-  var schemaRaw = localStorage.getItem('ft_schema');
-  if (schemaRaw) { var dec = await ftDecrypt(schemaRaw); if (dec) { try { SCHEMA = JSON.parse(dec); } catch(e) {} } }
-  var accRaw = localStorage.getItem('ft_accounts');
-  if (accRaw) { var dec2 = await ftDecrypt(accRaw); if (dec2) { try { ACCOUNTS = JSON.parse(dec2); } catch(e) {} } }
-  var goalRaw = localStorage.getItem('ft_goals');
-  if (goalRaw) { var dec3 = await ftDecrypt(goalRaw); if (dec3) { try { GOALS = JSON.parse(dec3); } catch(e) {} } }
-  var invRaw = localStorage.getItem('ft_investments');
-  if (invRaw) { var dec4 = await ftDecrypt(invRaw); if (dec4) { try { INVESTMENTS = JSON.parse(dec4); } catch(e) {} } }
+  if (passkey !== getPK()) return false;
+  loadTXN();
   initApp();
   return true;
 }
@@ -102,7 +90,7 @@ async function initWithPasskey(passkey) {
 function showUnlockScreen() {
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = 'none';
-  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your passkey to decrypt and access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:16px;text-align:center;outline:none" placeholder="Enter passkey"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong passkey. Cannot decrypt data.</div></div></div>';
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your PIN to access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="PIN"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong PIN. Try again.</div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   if (typeof lucide !== 'undefined') lucide.createIcons();
   setTimeout(function() {
@@ -119,36 +107,39 @@ function showUnlockScreen() {
     }
     if (eye) {
       eye.addEventListener('click', function(e) { e.preventDefault(); if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; } else { inp.type = 'password'; eye.textContent = '👁'; } });
-      eye.addEventListener('touchend', function(e) { e.preventDefault(); if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; } else { inp.type = 'password'; eye.textContent = '👁'; } });
     }
+    // Try biometric auth automatically on mobile
+    if ('ontouchstart' in window) { ftTryBiometric(); }
   }, 200);
+}
+
+async function ftTryBiometric() {
+  var success = await ftBiometricAuth();
+  if (success) {
+    loadTXN();
+    initApp();
+    var unlockEl = document.getElementById('ftUnlock');
+    if (unlockEl) unlockEl.remove();
+    var appEl = document.getElementById('app');
+    if (appEl) appEl.style.display = '';
+  }
 }
 
 async function ftDoUnlock() {
   var input = document.getElementById('ftUnlockInput');
-  var btn = document.getElementById('ftUnlockBtn');
   var passkey = input ? input.value : '';
   if (!passkey) return;
-  // Disable button to prevent double-tap
-  if (btn) { btn.disabled = true; btn.textContent = 'Unlocking...'; }
-  try {
-    var success = await initWithPasskey(passkey);
-    if (success) {
-      var unlockEl = document.getElementById('ftUnlock');
-      if (unlockEl) unlockEl.remove();
-      var appEl = document.getElementById('app');
-      if (appEl) appEl.style.display = '';
-    } else {
-      var err = document.getElementById('ftUnlockErr');
-      if (err) err.style.display = 'block';
-      if (input) { input.value = ''; input.focus(); }
-      if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
-    }
-  } catch (e) {
-    // crypto.subtle might fail on non-secure context
-    var err2 = document.getElementById('ftUnlockErr');
-    if (err2) { err2.textContent = 'Encryption not supported on this browser/connection. Use HTTPS.'; err2.style.display = 'block'; }
-    if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
+  if (passkey === getPK()) {
+    loadTXN();
+    initApp();
+    var unlockEl = document.getElementById('ftUnlock');
+    if (unlockEl) unlockEl.remove();
+    var appEl = document.getElementById('app');
+    if (appEl) appEl.style.display = '';
+  } else {
+    var err = document.getElementById('ftUnlockErr');
+    if (err) err.style.display = 'block';
+    if (input) { input.value = ''; input.focus(); }
   }
 }
 
