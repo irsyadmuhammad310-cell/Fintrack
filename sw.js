@@ -1,5 +1,5 @@
 // === FinTrack Premium - Service Worker (PWA Offline) ===
-const CACHE_NAME = 'fintrack-v15';
+const CACHE_NAME = 'fintrack-v15c';
 const ASSETS = [
   './',
   './index.html',
