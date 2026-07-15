@@ -249,25 +249,13 @@ function adjustAccountBalance(id) {
 
 // === SECURITY TAB ===
 function renderSecurityTab(c) {
-  var encStatus = FT_ENCRYPTION_ENABLED ? 'Enabled' : 'Disabled';
-  var encColor = FT_ENCRYPTION_ENABLED ? 'var(--emerald)' : 'var(--text-tertiary)';
-  c.innerHTML = `<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">${t('set_sec_title')}</h3><p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">${t('set_sec_desc')}</p><div class="fg"><label class="fl">${t('set_cur_pk')}</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">${t('set_new_pk')}</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><button class="btn bp" onclick="chgPK()">${t('set_update')}</button><div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Data Encryption (AES-256-GCM)</div><div style="font-size:10px;color:var(--text-tertiary)">Encrypt all financial data at rest using your passkey</div></div></div><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:${encColor}">Status: ${encStatus}</span><button class="btn ${FT_ENCRYPTION_ENABLED ? 'bd' : 'bp'}" style="font-size:11px;padding:6px 14px" onclick="${FT_ENCRYPTION_ENABLED ? 'handleDisableEncryption()' : 'handleEnableEncryption()'}">${FT_ENCRYPTION_ENABLED ? 'Disable Encryption' : 'Enable Encryption'}</button></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6;max-width:400px">When enabled, all your transactions, accounts, goals, and investments are encrypted with AES-256-GCM. Data is unreadable without your passkey. <b>If you forget your passkey, data cannot be recovered.</b></div></div><div style="margin-top:20px"><div class="trow"><div class="tinf"><div class="tna">${t('set_2fa')}</div><div class="tde">${t('set_2fa_desc')}</div></div><div class="tsw" onclick="this.classList.toggle('on')"></div></div></div>`;
+  var lockStatus = FT_APP_LOCK ? 'Enabled' : 'Disabled';
+  var lockColor = FT_APP_LOCK ? 'var(--emerald)' : 'var(--text-tertiary)';
+  c.innerHTML = `<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">${t('set_sec_title')}</h3><p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">${t('set_sec_desc')}</p><div class="fg"><label class="fl">${t('set_cur_pk')}</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">${t('set_new_pk')}</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><button class="btn bp" onclick="chgPK()">${t('set_update')}</button><div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">App Lock (PIN + Biometric)</div><div style="font-size:10px;color:var(--text-tertiary)">Require PIN or fingerprint to open FinTrack</div></div></div><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:${lockColor}">Status: ${lockStatus}</span><button class="btn ${FT_APP_LOCK ? 'bd' : 'bp'}" style="font-size:11px;padding:6px 14px" onclick="${FT_APP_LOCK ? 'disableAppLock();renderSecurityTabRefresh()' : 'enableAppLock();renderSecurityTabRefresh()'}">${FT_APP_LOCK ? 'Disable Lock' : 'Enable Lock'}</button></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6;max-width:400px">When enabled, FinTrack asks for your PIN on launch. On mobile devices with fingerprint/face unlock, biometric authentication is used automatically.</div></div>`;
   lucide.createIcons();
 }
 
-async function handleEnableEncryption() {
-  if (!confirm('Enable AES-256 encryption?\n\nYour passkey will be used as the encryption key.\nIMPORTANT: If you forget your passkey, your data CANNOT be recovered.\n\nCurrent passkey: ' + getPK().replace(/./g, '*') + ' (' + getPK().length + ' chars)\n\nProceed?')) return;
-  await enableEncryption();
-  renderGeneralTab(document.getElementById('setc'));
-  setTab(document.querySelector('.sni:nth-child(2)'), 'security');
-}
-
-async function handleDisableEncryption() {
-  if (!confirm('Disable encryption? Data will be stored in plain text again.')) return;
-  await disableEncryption();
-  renderGeneralTab(document.getElementById('setc'));
-  setTab(document.querySelector('.sni:nth-child(2)'), 'security');
-}
+function renderSecurityTabRefresh() { renderSecurityTab(document.getElementById('setc')); }
 
 // === IMPORT / EXPORT TAB (v10.4 Functional) ===
 function renderImportExportTab(c) {
@@ -611,28 +599,8 @@ function chgPK() {
   const cur = document.getElementById('spkc')?.value, nw = document.getElementById('spkn')?.value;
   if (cur !== getPK()) { toast(t('set_pk_wrong')); return; }
   if (!nw || nw.length < 4) { toast(t('set_pk_min')); return; }
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) {
-    // Re-encrypt all data with new passkey
-    (async function() {
-      var sensitiveKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments', 'ft_inv_activities', 'ft_inv_watchlist', 'ft_budget_plans', 'ft_reminders'];
-      var decryptedData = {};
-      for (var i = 0; i < sensitiveKeys.length; i++) {
-        var k = sensitiveKeys[i];
-        var val = localStorage.getItem(k);
-        if (val && val.length > 0) { var dec = await ftDecrypt(val); if (dec) decryptedData[k] = dec; }
-      }
-      localStorage.setItem('ft_pk', nw);
-      _ftCryptoKey = await ftDeriveKey(nw);
-      for (var k in decryptedData) {
-        var enc = await ftEncrypt(decryptedData[k]);
-        localStorage.setItem(k, enc);
-      }
-      toast(t('set_pk_ok'));
-    })();
-  } else {
-    localStorage.setItem('ft_pk', nw);
-    toast(t('set_pk_ok'));
-  }
+  localStorage.setItem('ft_pk', nw);
+  toast(t('set_pk_ok'));
 }
 
 // === NOTIFICATIONS TAB (v10.9.1 — Full Notification Manager) ===
