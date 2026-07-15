@@ -58,6 +58,9 @@ async function secureGet(key) {
 async function enableEncryption() {
   var pk = getPK();
   _ftCryptoKey = await ftDeriveKey(pk);
+  // Store a verification token (encrypted known string) to validate passkey on unlock
+  var verifyToken = await ftEncrypt('FINTRACK_VERIFY_OK');
+  localStorage.setItem('ft_verify', verifyToken);
   // Re-save all sensitive data encrypted (NEVER encrypt ft_pk, ft_encrypted, theme, ft_lang, ft_currency, ft_onboarded)
   var sensitiveKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments', 'ft_inv_activities', 'ft_inv_watchlist', 'ft_budget_plans', 'ft_reminders'];
   for (var i = 0; i < sensitiveKeys.length; i++) {
@@ -94,21 +97,28 @@ async function disableEncryption() {
 // Unlock encrypted data on app load
 async function ftUnlockData(passkey) {
   _ftCryptoKey = await ftDeriveKey(passkey);
-  // Test decryption on any available encrypted key
+  // Always validate against the verification token
+  var verifyRaw = localStorage.getItem('ft_verify');
+  if (verifyRaw) {
+    var result = await ftDecrypt(verifyRaw);
+    if (result !== 'FINTRACK_VERIFY_OK') { _ftCryptoKey = null; return false; }
+    return true;
+  }
+  // Fallback: no verify token (legacy), try decrypting data
   var testKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments'];
   for (var i = 0; i < testKeys.length; i++) {
     var test = localStorage.getItem(testKeys[i]);
-    if (test && test.length > 0) {
-      // Check if it looks like encrypted data (base64)
-      if (/^[A-Za-z0-9+/=]+$/.test(test.replace(/\s/g, '')) && test.length > 20) {
-        var result = await ftDecrypt(test);
-        if (result === null) { _ftCryptoKey = null; return false; }
+    if (test && test.length > 20) {
+      if (/^[A-Za-z0-9+/=]+$/.test(test.replace(/\s/g, ''))) {
+        var dec = await ftDecrypt(test);
+        if (dec === null) { _ftCryptoKey = null; return false; }
         return true;
       }
     }
   }
-  // No encrypted data found, key is valid (empty/new user)
-  return true;
+  // No data at all, reject (shouldn't happen if encryption was enabled)
+  _ftCryptoKey = null;
+  return false;
 }
 
 const fmt = n => {
