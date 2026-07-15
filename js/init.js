@@ -126,16 +126,29 @@ function showUnlockScreen() {
 
 async function ftDoUnlock() {
   var input = document.getElementById('ftUnlockInput');
+  var btn = document.getElementById('ftUnlockBtn');
   var passkey = input ? input.value : '';
   if (!passkey) return;
-  var success = await initWithPasskey(passkey);
-  if (success) {
-    document.getElementById('ftUnlock').remove();
-    document.getElementById('app').style.display = '';
-  } else {
-    var err = document.getElementById('ftUnlockErr');
-    if (err) err.style.display = 'block';
-    if (input) { input.value = ''; input.focus(); }
+  // Disable button to prevent double-tap
+  if (btn) { btn.disabled = true; btn.textContent = 'Unlocking...'; }
+  try {
+    var success = await initWithPasskey(passkey);
+    if (success) {
+      var unlockEl = document.getElementById('ftUnlock');
+      if (unlockEl) unlockEl.remove();
+      var appEl = document.getElementById('app');
+      if (appEl) appEl.style.display = '';
+    } else {
+      var err = document.getElementById('ftUnlockErr');
+      if (err) err.style.display = 'block';
+      if (input) { input.value = ''; input.focus(); }
+      if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
+    }
+  } catch (e) {
+    // crypto.subtle might fail on non-secure context
+    var err2 = document.getElementById('ftUnlockErr');
+    if (err2) { err2.textContent = 'Encryption not supported on this browser/connection. Use HTTPS.'; err2.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Unlock'; }
   }
 }
 
