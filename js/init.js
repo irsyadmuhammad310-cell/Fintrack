@@ -69,7 +69,12 @@ function updateUserDisplay() {
 function init() {
   // Check if encryption is enabled
   if (FT_ENCRYPTION_ENABLED) {
-    showUnlockScreen();
+    // Wait for DOM to be ready before showing unlock screen
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() { showUnlockScreen(); });
+    } else {
+      showUnlockScreen();
+    }
     return;
   }
   loadTXN();
@@ -95,17 +100,28 @@ async function initWithPasskey(passkey) {
 }
 
 function showUnlockScreen() {
-  document.getElementById('app').style.display = 'none';
-  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your passkey to decrypt and access your data</div><input id="ftUnlockInput" type="password" class="fi" placeholder="Enter passkey" style="text-align:center;font-size:16px;margin-bottom:12px"><button id="ftUnlockBtn" class="btn bp" style="width:100%;justify-content:center;padding:12px">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:var(--rose);margin-top:10px;display:none">Wrong passkey. Cannot decrypt data.</div></div></div>';
+  var appEl = document.getElementById('app');
+  if (appEl) appEl.style.display = 'none';
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your passkey to decrypt and access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:16px;text-align:center;outline:none" placeholder="Enter passkey"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-tertiary);cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong passkey. Cannot decrypt data.</div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
-  lucide.createIcons();
-  // Attach events properly (not inline, avoids quote escaping issues)
+  if (typeof lucide !== 'undefined') lucide.createIcons();
   setTimeout(function() {
     var inp = document.getElementById('ftUnlockInput');
     var btn = document.getElementById('ftUnlockBtn');
-    if (inp) { inp.focus(); inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') ftDoUnlock(); }); }
-    if (btn) { btn.addEventListener('click', function() { ftDoUnlock(); }); }
-  }, 100);
+    var eye = document.getElementById('ftUnlockEye');
+    if (inp) {
+      inp.focus();
+      inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ftDoUnlock(); } });
+    }
+    if (btn) {
+      btn.addEventListener('click', function(e) { e.preventDefault(); ftDoUnlock(); });
+      btn.addEventListener('touchend', function(e) { e.preventDefault(); ftDoUnlock(); });
+    }
+    if (eye) {
+      eye.addEventListener('click', function(e) { e.preventDefault(); if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; } else { inp.type = 'password'; eye.textContent = '👁'; } });
+      eye.addEventListener('touchend', function(e) { e.preventDefault(); if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; } else { inp.type = 'password'; eye.textContent = '👁'; } });
+    }
+  }, 200);
 }
 
 async function ftDoUnlock() {
