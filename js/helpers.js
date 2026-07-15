@@ -1,26 +1,8 @@
 // === HELPERS & UI UTILITIES ===
 const getPK = () => localStorage.getItem('ft_pk') || '1234';
 
-// === APP LOCK (PIN + Biometric) ===
+// === APP LOCK (Simple PIN) ===
 var FT_APP_LOCK = localStorage.getItem('ft_app_lock') === 'true';
-
-async function ftBiometricAuth() {
-  // Use Web Authentication API (fingerprint/face) if available
-  if (!window.PublicKeyCredential) return false;
-  try {
-    var available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-    if (!available) return false;
-    var credential = await navigator.credentials.get({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        timeout: 60000,
-        userVerification: 'required',
-        rpId: location.hostname
-      }
-    });
-    return !!credential;
-  } catch (e) { return false; }
-}
 
 function enableAppLock() {
   localStorage.setItem('ft_app_lock', 'true');
