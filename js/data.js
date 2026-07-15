@@ -94,11 +94,7 @@ const DEFAULT_SCHEMA = {
   Savings: {}
 };
 let SCHEMA = JSON.parse(localStorage.getItem('ft_schema') || 'null') || JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
-function saveSCHEMA() {
-  var data = JSON.stringify(SCHEMA);
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) { ftEncrypt(data).then(function(enc) { localStorage.setItem('ft_schema', enc); }); }
-  else { localStorage.setItem('ft_schema', data); }
-}
+function saveSCHEMA() { localStorage.setItem('ft_schema', JSON.stringify(SCHEMA)); }
 
 // === ACCOUNTS SYSTEM (v10.3) ===
 const ACCOUNT_TYPES = {
@@ -108,12 +104,7 @@ const ACCOUNT_TYPES = {
 const DEFAULT_ACCOUNTS = [];
 let ACCOUNTS = JSON.parse(localStorage.getItem('ft_accounts') || 'null') || JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
 let accNxId = parseInt(localStorage.getItem('ft_accNxId') || '10');
-function saveACCOUNTS() {
-  var data = JSON.stringify(ACCOUNTS);
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) { ftEncrypt(data).then(function(enc) { localStorage.setItem('ft_accounts', enc); }); }
-  else { localStorage.setItem('ft_accounts', data); }
-  localStorage.setItem('ft_accNxId', accNxId);
-}
+function saveACCOUNTS() { localStorage.setItem('ft_accounts', JSON.stringify(ACCOUNTS)); localStorage.setItem('ft_accNxId', accNxId); }
 
 function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
@@ -354,24 +345,13 @@ let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
-  var data = JSON.stringify(TXN);
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) { ftEncrypt(data).then(function(enc) { localStorage.setItem(STORAGE_KEY, enc); }); }
-  else { localStorage.setItem(STORAGE_KEY, data); }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(TXN));
   localStorage.setItem('ft_nxId', nxId);
 }
 function loadTXN() {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
   const sid = localStorage.getItem('ft_nxId');
-  if (sid) nxId = parseInt(sid);
-  else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
-}
-async function loadTXNAsync() {
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { var dec = await ftDecrypt(raw); if (dec) { try { TXN = JSON.parse(dec); } catch(e) {} } }
-  } else { loadTXN(); }
-  var sid = localStorage.getItem('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
 }
