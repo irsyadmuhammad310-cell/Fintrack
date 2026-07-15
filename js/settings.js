@@ -611,8 +611,28 @@ function chgPK() {
   const cur = document.getElementById('spkc')?.value, nw = document.getElementById('spkn')?.value;
   if (cur !== getPK()) { toast(t('set_pk_wrong')); return; }
   if (!nw || nw.length < 4) { toast(t('set_pk_min')); return; }
-  localStorage.setItem('ft_pk', nw);
-  toast(t('set_pk_ok'));
+  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) {
+    // Re-encrypt all data with new passkey
+    (async function() {
+      var sensitiveKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments', 'ft_inv_activities', 'ft_inv_watchlist', 'ft_budget_plans', 'ft_reminders'];
+      var decryptedData = {};
+      for (var i = 0; i < sensitiveKeys.length; i++) {
+        var k = sensitiveKeys[i];
+        var val = localStorage.getItem(k);
+        if (val && val.length > 0) { var dec = await ftDecrypt(val); if (dec) decryptedData[k] = dec; }
+      }
+      localStorage.setItem('ft_pk', nw);
+      _ftCryptoKey = await ftDeriveKey(nw);
+      for (var k in decryptedData) {
+        var enc = await ftEncrypt(decryptedData[k]);
+        localStorage.setItem(k, enc);
+      }
+      toast(t('set_pk_ok'));
+    })();
+  } else {
+    localStorage.setItem('ft_pk', nw);
+    toast(t('set_pk_ok'));
+  }
 }
 
 // === NOTIFICATIONS TAB (v10.9.1 — Full Notification Manager) ===
