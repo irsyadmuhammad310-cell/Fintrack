@@ -1,124 +1,37 @@
 // === HELPERS & UI UTILITIES ===
 const getPK = () => localStorage.getItem('ft_pk') || '1234';
 
-// === AES-256-GCM ENCRYPTION (Web Crypto API) ===
-var _ftCryptoKey = null;
-var FT_ENCRYPTION_ENABLED = localStorage.getItem('ft_encrypted') === 'true';
+// === APP LOCK (PIN + Biometric) ===
+var FT_APP_LOCK = localStorage.getItem('ft_app_lock') === 'true';
 
-async function ftDeriveKey(passkey) {
-  var enc = new TextEncoder();
-  var keyMaterial = await crypto.subtle.importKey('raw', enc.encode(passkey), 'PBKDF2', false, ['deriveKey']);
-  var salt = enc.encode('FinTrackPremiumV15Salt2026');
-  return await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-}
-
-async function ftEncrypt(plaintext) {
-  if (!_ftCryptoKey) return plaintext;
-  var enc = new TextEncoder();
-  var iv = crypto.getRandomValues(new Uint8Array(12));
-  var encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, _ftCryptoKey, enc.encode(plaintext));
-  var combined = new Uint8Array(iv.length + encrypted.byteLength);
-  combined.set(iv);
-  combined.set(new Uint8Array(encrypted), iv.length);
-  return btoa(String.fromCharCode.apply(null, combined));
-}
-
-async function ftDecrypt(ciphertext) {
-  if (!_ftCryptoKey) return ciphertext;
+async function ftBiometricAuth() {
+  // Use Web Authentication API (fingerprint/face) if available
+  if (!window.PublicKeyCredential) return false;
   try {
-    var raw = Uint8Array.from(atob(ciphertext), function(c) { return c.charCodeAt(0); });
-    var iv = raw.slice(0, 12);
-    var data = raw.slice(12);
-    var decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, _ftCryptoKey, data);
-    return new TextDecoder().decode(decrypted);
-  } catch (e) { return null; }
-}
-
-// Secure localStorage wrapper
-async function secureSet(key, value) {
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) {
-    var encrypted = await ftEncrypt(value);
-    localStorage.setItem(key, encrypted);
-  } else {
-    localStorage.setItem(key, value);
-  }
-}
-
-async function secureGet(key) {
-  var raw = localStorage.getItem(key);
-  if (!raw) return null;
-  if (FT_ENCRYPTION_ENABLED && _ftCryptoKey) {
-    var decrypted = await ftDecrypt(raw);
-    return decrypted;
-  }
-  return raw;
-}
-
-// Enable encryption (called from Settings)
-async function enableEncryption() {
-  var pk = getPK();
-  _ftCryptoKey = await ftDeriveKey(pk);
-  // Store a verification token (encrypted known string) to validate passkey on unlock
-  var verifyToken = await ftEncrypt('FINTRACK_VERIFY_OK');
-  localStorage.setItem('ft_verify', verifyToken);
-  // Re-save all sensitive data encrypted (NEVER encrypt ft_pk, ft_encrypted, theme, ft_lang, ft_currency, ft_onboarded)
-  var sensitiveKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments', 'ft_inv_activities', 'ft_inv_watchlist', 'ft_budget_plans', 'ft_reminders'];
-  for (var i = 0; i < sensitiveKeys.length; i++) {
-    var k = sensitiveKeys[i];
-    var val = localStorage.getItem(k);
-    if (val && val.length > 0) {
-      var encrypted = await ftEncrypt(val);
-      localStorage.setItem(k, encrypted);
-    }
-  }
-  localStorage.setItem('ft_encrypted', 'true');
-  FT_ENCRYPTION_ENABLED = true;
-  toast('🔐 Encryption enabled. Data secured with AES-256.');
-}
-
-// Disable encryption (decrypt everything back to plain)
-async function disableEncryption() {
-  if (!_ftCryptoKey) return;
-  var sensitiveKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments', 'ft_inv_activities', 'ft_inv_watchlist', 'ft_budget_plans', 'ft_reminders'];
-  for (var i = 0; i < sensitiveKeys.length; i++) {
-    var k = sensitiveKeys[i];
-    var val = localStorage.getItem(k);
-    if (val) {
-      var decrypted = await ftDecrypt(val);
-      if (decrypted) localStorage.setItem(k, decrypted);
-    }
-  }
-  localStorage.removeItem('ft_encrypted');
-  FT_ENCRYPTION_ENABLED = false;
-  _ftCryptoKey = null;
-  toast('🔓 Encryption disabled.');
-}
-
-// Unlock encrypted data on app load
-async function ftUnlockData(passkey) {
-  _ftCryptoKey = await ftDeriveKey(passkey);
-  // Always validate against the verification token
-  var verifyRaw = localStorage.getItem('ft_verify');
-  if (verifyRaw) {
-    var result = await ftDecrypt(verifyRaw);
-    if (result !== 'FINTRACK_VERIFY_OK') { _ftCryptoKey = null; return false; }
-    return true;
-  }
-  // Fallback: no verify token (legacy), try decrypting data
-  var testKeys = ['ft_txn_data', 'ft_schema', 'ft_accounts', 'ft_goals', 'ft_investments'];
-  for (var i = 0; i < testKeys.length; i++) {
-    var test = localStorage.getItem(testKeys[i]);
-    if (test && test.length > 20) {
-      if (/^[A-Za-z0-9+/=]+$/.test(test.replace(/\s/g, ''))) {
-        var dec = await ftDecrypt(test);
-        if (dec === null) { _ftCryptoKey = null; return false; }
-        return true;
+    var available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!available) return false;
+    var credential = await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        timeout: 60000,
+        userVerification: 'required',
+        rpId: location.hostname
       }
-    }
-  }
-  // No data at all, reject (shouldn't happen if encryption was enabled)
-  _ftCryptoKey = null;
-  return false;
+    });
+    return !!credential;
+  } catch (e) { return false; }
+}
+
+function enableAppLock() {
+  localStorage.setItem('ft_app_lock', 'true');
+  FT_APP_LOCK = true;
+  toast('🔐 App lock enabled');
+}
+
+function disableAppLock() {
+  localStorage.removeItem('ft_app_lock');
+  FT_APP_LOCK = false;
+  toast('🔓 App lock disabled');
 }
 
 const fmt = n => {
