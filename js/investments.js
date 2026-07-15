@@ -19,12 +19,7 @@ let invNxId = parseInt(localStorage.getItem('ft_invNxId') || '20');
 let invActNxId = parseInt(localStorage.getItem('ft_invActNxId') || '20');
 let invWlNxId = parseInt(localStorage.getItem('ft_invWlNxId') || '10');
 
-function saveINV() {
-  var data = JSON.stringify(INVESTMENTS);
-  if (typeof FT_ENCRYPTION_ENABLED !== 'undefined' && FT_ENCRYPTION_ENABLED && _ftCryptoKey) { ftEncrypt(data).then(function(enc) { localStorage.setItem(INV_STORAGE, enc); }); }
-  else { localStorage.setItem(INV_STORAGE, data); }
-  localStorage.setItem('ft_invNxId', invNxId);
-}
+function saveINV() { localStorage.setItem(INV_STORAGE, JSON.stringify(INVESTMENTS)); localStorage.setItem('ft_invNxId', invNxId); }
 function saveINV_ACT() { localStorage.setItem(INV_ACT_STORAGE, JSON.stringify(INV_ACTIVITIES)); localStorage.setItem('ft_invActNxId', invActNxId); }
 function saveINV_WL() { localStorage.setItem(INV_WL_STORAGE, JSON.stringify(INV_WATCHLIST)); localStorage.setItem('ft_invWlNxId', invWlNxId); }
 
