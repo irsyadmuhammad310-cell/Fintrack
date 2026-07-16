@@ -118,6 +118,7 @@ async function ftTryBiometric() {
   if (!localStorage.getItem('ft_bio_cred')) return;
   var success = await ftBiometricAuth();
   if (success) {
+    ftIsUnlocked = true;
     loadTXN();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
@@ -199,11 +200,41 @@ function ftBiometricRemove() {
   toast('🗑 Biometric removed');
 }
 
+// === VISIBILITY LOCK (v15.2 — Banking-style re-lock) ===
+// Re-locks the app when user switches away and comes back
+var ftLastVisible = Date.now();
+var ftIsUnlocked = false;
+var FT_LOCK_TIMEOUT = 5000; // Re-lock after 5 seconds away
+
+document.addEventListener('visibilitychange', function() {
+  if (!FT_APP_LOCK || !ftIsUnlocked) return;
+  if (document.hidden) {
+    ftLastVisible = Date.now();
+  } else {
+    var away = Date.now() - ftLastVisible;
+    if (away >= FT_LOCK_TIMEOUT) {
+      ftIsUnlocked = false;
+      showUnlockScreen();
+    }
+  }
+});
+
+// Also handle page freeze/resume (PWA background)
+document.addEventListener('resume', function() {
+  if (!FT_APP_LOCK || !ftIsUnlocked) return;
+  var away = Date.now() - ftLastVisible;
+  if (away >= FT_LOCK_TIMEOUT) {
+    ftIsUnlocked = false;
+    showUnlockScreen();
+  }
+});
+
 async function ftDoUnlock() {
   var input = document.getElementById('ftUnlockInput');
   var passkey = input ? input.value : '';
   if (!passkey) return;
   if (passkey === getPK()) {
+    ftIsUnlocked = true;
     loadTXN();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
