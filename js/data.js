@@ -62,7 +62,7 @@ function getYearlyBudgetTotal(year) {
       }
     }
   }
-  return hasAnyPlan ? total : 52740;
+  return hasAnyPlan ? total : 0;
 }
 
 function getMonthlyBudget(year, monthIdx) {
