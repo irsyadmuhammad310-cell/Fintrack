@@ -1,6 +1,6 @@
 // === SETTINGS (v11.5) ===
 let setSubTab = 'currency';
-const FINTRACK_VERSION = 'v15.0';
+const FINTRACK_VERSION = 'v15.1';
 
 function renderSettings(c) {
   c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div><div class="sni" onclick="setTab(this,'importexport')"><i data-lucide="arrow-left-right" width="14" height="14"></i>Import / Export</div><div class="sni" onclick="setTab(this,'backup')"><i data-lucide="hard-drive" width="14" height="14"></i>${t('set_backup')}</div><div class="sni" onclick="setTab(this,'about')"><i data-lucide="info" width="14" height="14"></i>About</div></div><div class="setc" id="setc"></div></div>`;
@@ -148,20 +148,36 @@ function renderAccountsTab(c) {
   const liabilities = ACCOUNTS.filter(a => a.type === 'liability');
   let html = `<div style="border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:18px;background:var(--bg-primary)"><div style="display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="wallet" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Opening Balance</div><div style="font-size:10px;color:var(--text-tertiary)">Starting balance before any transactions (carry-forward anchor)</div></div></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum';color:var(--accent)">${fmt(INITIAL_DEPOSIT)}</span><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="editOpeningBalance()">Edit</button></div></div></div>`;
 
+  // Exchange rate info banner (v15.1)
+  const hasMultiCurrency = ACCOUNTS.some(a => (a.currency || 'MYR') !== displayCurrency);
+  if (hasMultiCurrency) {
+    const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
+    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');setSubTab='accounts';renderGeneralTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
+  }
+
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:13px;font-weight:600">Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
 
   if (assets.length) {
     html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assets</div>`;
     assets.forEach(a => {
       const bal = getAccountBalance(a.id);
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${a.currency || 'MYR'}${a.notes ? ' · ' + a.notes : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Initial: ${fmt(a.initialBalance)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmt(bal)}</div><div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
+      const cur = a.currency || 'MYR';
+      const showDual = cur !== displayCurrency;
+      const displayBal = showDual ? convertToDisplay(bal, cur) : bal;
+      const nativeBalStr = fmtIn(bal, cur);
+      const displayBalStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(displayBal)}</div>` : '';
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}${a.notes ? ' · ' + a.notes : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Starting: ${fmtIn(a.initialBalance, cur)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${nativeBalStr}</div>${displayBalStr}<div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
     });
   }
 
   if (liabilities.length) {
     html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Liabilities</div>`;
     liabilities.forEach(a => {
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmt(-Math.abs(a.initialBalance))}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
+      const cur = a.currency || 'MYR';
+      const showDual = cur !== displayCurrency;
+      const nativeStr = fmtIn(-Math.abs(a.initialBalance), cur);
+      const displayStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(-convertToDisplay(Math.abs(a.initialBalance), cur))}</div>` : '';
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
     });
   }
 
@@ -173,7 +189,7 @@ function renderAccountsTab(c) {
 function openAccountModal(editAcc) {
   const isEdit = !!editAcc;
   const typeOptions = [...ACCOUNT_TYPES.asset.map(tp => `<option value="asset|${tp}"${isEdit && editAcc.type === 'asset' && editAcc.accountType === tp ? ' selected' : ''}>[Asset] ${tp}</option>`), ...ACCOUNT_TYPES.liability.map(tp => `<option value="liability|${tp}"${isEdit && editAcc.type === 'liability' && editAcc.accountType === tp ? ' selected' : ''}>[Liability] ${tp}</option>`)].join('');
-  const h = `<div class="mo show" id="maccadd" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'Add'} Account</div><div class="mds">Account details</div></div><button class="mx" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveAccount(event,'${isEdit ? editAcc.id : ''}')"><div class="fg"><label class="fl">Account Name *</label><input class="fi" id="acc_name" required value="${isEdit ? editAcc.name : ''}" placeholder="e.g. Maybank Savings"></div><div class="fg"><label class="fl">Account Type *</label><select class="fi" id="acc_type" required>${typeOptions}</select></div><div class="fr"><div class="fg"><label class="fl">Currency</label><select class="fi" id="acc_cur">${Object.keys(CURRENCY_CONFIG).map(cx => `<option value="${cx}"${(isEdit ? editAcc.currency : 'MYR') === cx ? ' selected' : ''}>${cx}</option>`).join('')}</select></div><div class="fg"><label class="fl">Initial Balance</label><input class="fi" type="number" step="0.01" id="acc_bal" value="${isEdit ? editAcc.initialBalance : '0'}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="acc_notes" value="${isEdit ? (editAcc.notes || '') : ''}" placeholder="Optional"></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="maccadd" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'Add'} Account</div><div class="mds">Account details</div></div><button class="mx" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveAccount(event,'${isEdit ? editAcc.id : ''}')"><div class="fg"><label class="fl">Account Name *</label><input class="fi" id="acc_name" required value="${isEdit ? editAcc.name : ''}" placeholder="e.g. Maybank Savings"></div><div class="fg"><label class="fl">Account Type *</label><select class="fi" id="acc_type" required>${typeOptions}</select></div><div class="fr"><div class="fg"><label class="fl">Account Currency</label><select class="fi" id="acc_cur">${Object.keys(CURRENCY_CONFIG).map(cx => `<option value="${cx}"${(isEdit ? editAcc.currency : 'MYR') === cx ? ' selected' : ''}>${cx}</option>`).join('')}</select></div><div class="fg"><label class="fl">Starting Account Balance</label><input class="fi" type="number" step="0.01" id="acc_bal" value="${isEdit ? editAcc.initialBalance : '0'}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="acc_notes" value="${isEdit ? (editAcc.notes || '') : ''}" placeholder="Optional"></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
@@ -190,16 +206,11 @@ function saveAccount(e, editId) {
     if (acc) {
       const oldInitialBalance = acc.initialBalance;
       acc.name = name; acc.type = type; acc.accountType = accountType; acc.currency = currency; acc.notes = notes;
-      if (acc.type === 'asset' && newInitialBalance !== oldInitialBalance) {
+      if (newInitialBalance !== oldInitialBalance) {
         const diff = newInitialBalance - oldInitialBalance;
-        const reasons = ['Salary correction', 'Cash deposit', 'Cash withdrawal', 'Bank adjustment', 'Balance correction', 'Transfer adjustment', 'Other'];
-        const reason = prompt(`Initial balance changed by ${diff > 0 ? '+' : ''}${fmt(Math.abs(diff))}.\nReason:\n${reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\nEnter number or custom reason:`);
-        if (!reason) { toast('❌ Reason required for balance change'); return; }
-        const finalReason = parseInt(reason) > 0 && parseInt(reason) <= reasons.length ? reasons[parseInt(reason) - 1] : reason;
         acc.initialBalance = newInitialBalance;
-        createBalanceAdjustment(acc.id, oldInitialBalance, newInitialBalance, finalReason);
-      } else if (acc.type === 'liability') {
-        acc.initialBalance = newInitialBalance;
+        // Create adjustment transaction for the difference only (v15.1)
+        createBalanceAdjustment(acc.id, oldInitialBalance, newInitialBalance, 'Starting Account Balance Adjustment');
       }
     }
     TXN.forEach(tx => { if (tx.acc === editId && tx.dt && tx.dt.includes('Adj:')) tx.dt = `Adj: ${name}`; });
@@ -207,10 +218,7 @@ function saveAccount(e, editId) {
   } else {
     const id = 'acc_' + (accNxId++);
     ACCOUNTS.push({ id, name, type, accountType, currency, initialBalance: newInitialBalance, notes, createdAt: new Date().toISOString().split('T')[0] });
-    if (type === 'asset' && newInitialBalance > 0) {
-      TXN.push({ id: nxId++, d: new Date().toISOString().split('T')[0], t: 'Income', c: 'Opening Balance', s: name, a: newInitialBalance, dt: `Opening: ${name}`, acc: id });
-      saveTXN();
-    }
+    // v15.1: Starting Account Balance is NOT a transaction. No TXN created.
     toast('✅ Account created');
   }
   saveACCOUNTS(); saveTXN();
@@ -234,15 +242,12 @@ function adjustAccountBalance(id) {
   const acc = ACCOUNTS.find(a => a.id === id);
   if (!acc || acc.type !== 'asset') return;
   const currentBal = getAccountBalance(id);
-  const newBalStr = prompt(`Current balance: ${fmt(currentBal)}\nEnter new balance:`, currentBal);
+  const cur = acc.currency || 'MYR';
+  const newBalStr = prompt(`Current balance: ${fmtIn(currentBal, cur)}\nEnter new balance (in ${cur}):`, currentBal);
   if (newBalStr === null) return;
   const newBal = parseFloat(newBalStr);
   if (isNaN(newBal) || newBal === currentBal) return;
-  const reasons = ['Salary correction', 'Cash deposit', 'Cash withdrawal', 'Bank adjustment', 'Balance correction', 'Transfer adjustment', 'Other'];
-  const reason = prompt(`Reason for adjustment:\n${reasons.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\nEnter number or custom reason:`);
-  if (!reason) { toast('❌ Reason required'); return; }
-  const finalReason = parseInt(reason) > 0 && parseInt(reason) <= reasons.length ? reasons[parseInt(reason) - 1] : reason;
-  createBalanceAdjustment(id, currentBal, newBal, finalReason);
+  createBalanceAdjustment(id, currentBal, newBal, 'Manual Balance Adjustment');
   toast('✅ Balance adjusted');
   renderGeneralTab(document.getElementById('setc'));
 }
@@ -593,6 +598,8 @@ async function handleCurrencyChange(currency) {
   if (!success && statusEl) statusEl.textContent = t('set_rate_failed');
   else if (statusEl) statusEl.textContent = `${t('set_rate_info')}: ${new Date().toLocaleString()}`;
   setCurrency(currency);
+  // v15.1: Re-render accounts tab if visible to reflect new conversion
+  if (setSubTab === 'accounts') { setTimeout(() => renderGeneralTab(document.getElementById('setc')), 100); }
 }
 
 function chgPK() {
