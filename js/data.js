@@ -117,9 +117,23 @@ function getAccountBalance(accId) {
   return acc.initialBalance + txnTotal;
 }
 
+// Get account balance converted to display currency (v15.1)
+function getAccountBalanceInDisplay(accId) {
+  const acc = ACCOUNTS.find(a => a.id === accId);
+  if (!acc) return 0;
+  const nativeBal = getAccountBalance(accId);
+  return convertToDisplay(nativeBal, acc.currency || 'MYR');
+}
+
+// Get account's native currency (v15.1)
+function getAccountCurrency(accId) {
+  const acc = ACCOUNTS.find(a => a.id === accId);
+  return acc ? (acc.currency || 'MYR') : 'MYR';
+}
+
 function getNetWorth() {
-  const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalance(a.id), 0);
-  const liabilities = ACCOUNTS.filter(a => a.type === 'liability').reduce((sum, a) => sum + Math.abs(a.initialBalance), 0);
+  const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalanceInDisplay(a.id), 0);
+  const liabilities = ACCOUNTS.filter(a => a.type === 'liability').reduce((sum, a) => sum + convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'), 0);
   return assets - liabilities;
 }
 
@@ -180,14 +194,14 @@ function getNetWorthByPeriod(year, month) {
     else if (tx.t === 'Expense') nw -= tx.a;
     else if (tx.t === 'Savings') nw -= tx.a;
   });
-  // Subtract liability balances
-  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => { nw -= Math.abs(a.initialBalance); });
+  // Subtract liability balances (converted to display currency) (v15.1)
+  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => { nw -= convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'); });
   return nw;
 }
 
-// Financial Freedom Months: Available Assets / Average Monthly Expense
+// Financial Freedom Months: Available Assets / Average Monthly Expense (v15.1 multi-currency)
 function getFinancialFreedomMonths(year, month) {
-  const totalAssets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalance(a.id), 0);
+  const totalAssets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalanceInDisplay(a.id), 0);
   let expenses, months;
   if (month === 'total') {
     expenses = TXN.filter(tx => tx.t === 'Expense' && new Date(tx.d).getFullYear() === year).reduce((s, tx) => s + tx.a, 0);
@@ -358,11 +372,16 @@ function loadTXN() {
 
 const BANKS = null; // Deprecated: use getBANKS() instead
 function getBANKS() {
-  return ACCOUNTS.filter(a => a.type === 'asset').map(a => ({
-    name: a.name, type: a.accountType, balance: getAccountBalance(a.id),
-    updated: 'Live', cls: a.name.toLowerCase().includes('maybank') ? 'maybank' : a.name.toLowerCase().includes('cimb') ? 'cimb' : a.name.toLowerCase().includes('wise') ? 'wise' : 'cash',
-    tag: a.name.split(' ')[0].substring(0, 4).toUpperCase()
-  }));
+  return ACCOUNTS.filter(a => a.type === 'asset').map(a => {
+    const nativeBal = getAccountBalance(a.id);
+    const cur = a.currency || 'MYR';
+    const displayBal = convertToDisplay(nativeBal, cur);
+    return {
+      name: a.name, type: a.accountType, balance: displayBal, nativeBalance: nativeBal, currency: cur,
+      updated: 'Live', cls: a.name.toLowerCase().includes('maybank') ? 'maybank' : a.name.toLowerCase().includes('cimb') ? 'cimb' : a.name.toLowerCase().includes('wise') ? 'wise' : 'cash',
+      tag: a.name.split(' ')[0].substring(0, 4).toUpperCase()
+    };
+  });
 }
 
 // === COMPUTED DATA (derived from TXN) ===
