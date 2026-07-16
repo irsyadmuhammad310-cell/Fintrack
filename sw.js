@@ -1,6 +1,14 @@
 // === FinTrack Premium - Service Worker (PWA Offline + Auto-Update) ===
 // IMPORTANT: Bump this version string on EVERY deploy to trigger update
 const CACHE_NAME = 'fintrack-v15.2';
+
+// Listen for skip waiting message from the app
+self.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 const ASSETS = [
   './',
   './index.html',
