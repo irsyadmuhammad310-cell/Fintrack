@@ -114,6 +114,8 @@ function showUnlockScreen() {
 }
 
 async function ftTryBiometric() {
+  // Only attempt if biometric is registered
+  if (!localStorage.getItem('ft_bio_cred')) return;
   var success = await ftBiometricAuth();
   if (success) {
     loadTXN();
@@ -123,6 +125,78 @@ async function ftTryBiometric() {
     var appEl = document.getElementById('app');
     if (appEl) appEl.style.display = '';
   }
+}
+
+// === BIOMETRIC AUTHENTICATION (v15.2 — WebAuthn) ===
+// Uses device biometric (fingerprint/face) via Web Authentication API
+// Credential stored in localStorage as base64. Works fully client-side on GitHub Pages.
+
+function ftBiometricSupported() {
+  return window.PublicKeyCredential && navigator.credentials && typeof navigator.credentials.create === 'function';
+}
+
+async function ftBiometricRegister() {
+  if (!ftBiometricSupported()) { toast('❌ Biometric not supported on this device'); return false; }
+  try {
+    // Check if platform authenticator is available (fingerprint/face)
+    var available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!available) { toast('❌ No biometric sensor found'); return false; }
+
+    var userId = new Uint8Array(16);
+    crypto.getRandomValues(userId);
+
+    var credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: 'FinTrack Premium', id: location.hostname },
+        user: { id: userId, name: getUserName() || 'user', displayName: getUserName() || 'FinTrack User' },
+        pubKeyCredParams: [{ alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
+        timeout: 60000
+      }
+    });
+
+    if (credential) {
+      // Store credential ID for future authentication
+      var credId = btoa(String.fromCharCode.apply(null, new Uint8Array(credential.rawId)));
+      localStorage.setItem('ft_bio_cred', credId);
+      toast('✅ Biometric registered');
+      return true;
+    }
+  } catch (e) {
+    console.warn('Biometric registration failed:', e);
+    if (e.name === 'NotAllowedError') toast('❌ Biometric cancelled');
+    else toast('❌ Biometric setup failed');
+  }
+  return false;
+}
+
+async function ftBiometricAuth() {
+  if (!ftBiometricSupported()) return false;
+  var credId = localStorage.getItem('ft_bio_cred');
+  if (!credId) return false;
+
+  try {
+    var rawId = Uint8Array.from(atob(credId), function(c) { return c.charCodeAt(0); });
+    var assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rpId: location.hostname,
+        allowCredentials: [{ id: rawId, type: 'public-key', transports: ['internal'] }],
+        userVerification: 'required',
+        timeout: 60000
+      }
+    });
+    return !!assertion;
+  } catch (e) {
+    console.warn('Biometric auth failed:', e);
+    return false;
+  }
+}
+
+function ftBiometricRemove() {
+  localStorage.removeItem('ft_bio_cred');
+  toast('🗑 Biometric removed');
 }
 
 async function ftDoUnlock() {
@@ -311,7 +385,17 @@ const FINTRACK_CHANGELOG = {
       'Fixed double-counting bug on account creation',
       'Renamed Initial Balance → Starting Account Balance',
       'Exchange rate refresh banner',
-      'Smart app update system (this!)'
+      'Smart app update system'
+    ]
+  },
+  'fintrack-v15.2': {
+    version: 'v15.2',
+    date: '16 Jul 2026',
+    changes: [
+      'Biometric auth now fully functional (fingerprint/face)',
+      'WebAuthn integration for mobile PWA',
+      'Biometric register/remove in Settings → Security',
+      'Stale-while-revalidate caching for faster updates'
     ]
   }
 };
