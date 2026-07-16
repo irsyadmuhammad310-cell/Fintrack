@@ -41,6 +41,37 @@ function convertAmount(amountInMYR) {
   return amountInMYR * rate;
 }
 
+// Convert amount from one currency to another (v15.1)
+function convertFromTo(amount, fromCurrency, toCurrency) {
+  if (fromCurrency === toCurrency) return amount;
+  const fromRate = exchangeRates[fromCurrency] || FALLBACK_RATES[fromCurrency] || 1;
+  const toRate = exchangeRates[toCurrency] || FALLBACK_RATES[toCurrency] || 1;
+  // Convert to MYR first, then to target: amount / fromRate gives MYR, * toRate gives target
+  return (amount / fromRate) * toRate;
+}
+
+// Convert from any native currency to the display currency (v15.1)
+function convertToDisplay(amount, nativeCurrency) {
+  if (!nativeCurrency || nativeCurrency === displayCurrency) return amount;
+  return convertFromTo(amount, nativeCurrency, displayCurrency);
+}
+
+// Format amount in a specific currency (v15.1)
+function fmtIn(amount, currency) {
+  const cfg = CURRENCY_CONFIG[currency] || CURRENCY_CONFIG.MYR;
+  const formatted = cfg.symbol + ' ' + Math.abs(amount).toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return amount < 0 ? '-' + formatted : formatted;
+}
+
+// Dual display: native + converted (returns HTML string) (v15.1)
+function fmtDual(amount, nativeCurrency) {
+  if (!nativeCurrency || nativeCurrency === displayCurrency) return fmt(amount);
+  const nativeStr = fmtIn(amount, nativeCurrency);
+  const converted = convertToDisplay(amount, nativeCurrency);
+  const convertedStr = fmtIn(converted, displayCurrency);
+  return `${nativeStr} <span style="font-size:0.8em;color:var(--text-tertiary)">≈ ${convertedStr}</span>`;
+}
+
 function setCurrency(currency) {
   displayCurrency = currency;
   localStorage.setItem('ft_currency', currency);
