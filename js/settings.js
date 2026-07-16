@@ -146,7 +146,7 @@ function handleRemoveYear(year) {
 function renderAccountsTab(c) {
   const assets = ACCOUNTS.filter(a => a.type === 'asset');
   const liabilities = ACCOUNTS.filter(a => a.type === 'liability');
-  let html = `<div style="border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:18px;background:var(--bg-primary)"><div style="display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="wallet" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Opening Balance</div><div style="font-size:10px;color:var(--text-tertiary)">Starting balance before any transactions (carry-forward anchor)</div></div></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum';color:var(--accent)">${fmt(INITIAL_DEPOSIT)}</span><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="editOpeningBalance()">Edit</button></div></div></div>`;
+  let html = '';
 
   // Exchange rate info banner (v15.1)
   const hasMultiCurrency = ACCOUNTS.some(a => (a.currency || 'MYR') !== displayCurrency);
