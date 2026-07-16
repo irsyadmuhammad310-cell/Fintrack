@@ -172,11 +172,30 @@ function initApp() {
   fetchExchangeRates();
   // Update notification badge
   updateNotifBadge();
-  // Register Service Worker for PWA
+  // Register Service Worker for PWA with auto-update detection
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(function(reg) {
       console.log('SW registered:', reg.scope);
+      // Check for updates every 30 minutes
+      setInterval(function() { reg.update(); }, 30 * 60 * 1000);
+      // Detect when a new SW is found
+      reg.onupdatefound = function() {
+        var newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.onstatechange = function() {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available, show update banner
+            showUpdateBanner();
+          }
+        };
+      };
     }).catch(function() {});
+    // Listen for SW_UPDATED message (post-activation reload prompt)
+    navigator.serviceWorker.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'SW_UPDATED') {
+        showUpdateBanner();
+      }
+    });
   }
   // Show onboarding for first-time users, greeting toast for returning users
   if (!localStorage.getItem('ft_onboarded')) { showOnboarding(); }
@@ -279,3 +298,50 @@ const rdy = setInterval(() => {
     init();
   }
 }, 50);
+
+// === UPDATE BANNER (v15.1 — PWA User-Controlled Update) ===
+// Changelog: shown to user before they decide to update
+const FINTRACK_CHANGELOG = {
+  'fintrack-v15.1': {
+    version: 'v15.1',
+    date: '16 Jul 2026',
+    changes: [
+      'Multi-currency accounts (native currency per account)',
+      'Dual-display: native + converted balance',
+      'Fixed double-counting bug on account creation',
+      'Renamed Initial Balance → Starting Account Balance',
+      'Exchange rate refresh banner',
+      'Smart app update system (this!)'
+    ]
+  }
+};
+
+function showUpdateBanner() {
+  if (document.getElementById('ftUpdateBanner')) return;
+  // Get latest changelog entry
+  var latest = FINTRACK_CHANGELOG[Object.keys(FINTRACK_CHANGELOG).pop()] || {};
+  var changesList = (latest.changes || []).map(function(c) { return '<div style="font-size:10px;color:var(--text-secondary);padding:2px 0">• ' + c + '</div>'; }).join('');
+
+  var html = '<div id="ftUpdateBanner" style="position:fixed;bottom:70px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--accent);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow-lg);z-index:9999;max-width:360px;width:90%;animation:fi 300ms ease-out">';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div style="font-size:13px;font-weight:700;color:var(--text-primary)">Update Available ✨</div><button onclick="document.getElementById(\'ftUpdateBanner\').remove()" style="border:none;background:none;color:var(--text-tertiary);font-size:18px;cursor:pointer;padding:0 2px;line-height:1">&times;</button></div>';
+  if (latest.version) {
+    html += '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px">' + latest.version + ' · ' + (latest.date || '') + '</div>';
+    html += '<div style="max-height:120px;overflow-y:auto;margin-bottom:12px;padding:8px 10px;background:var(--bg-primary);border-radius:8px">' + changesList + '</div>';
+  }
+  html += '<div style="display:flex;gap:8px"><button onclick="applyUpdate()" style="flex:1;border:none;background:var(--accent);color:#fff;padding:9px 14px;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;font-family:var(--font)">Update Now</button><button onclick="document.getElementById(\'ftUpdateBanner\').remove()" style="flex:1;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);padding:9px 14px;border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;font-family:var(--font)">Later</button></div>';
+  html += '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function applyUpdate() {
+  var banner = document.getElementById('ftUpdateBanner');
+  if (banner) banner.innerHTML = '<div style="padding:12px;font-size:11px;color:var(--text-secondary);text-align:center;width:100%">Updating... don\'t close the app</div>';
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then(function(reg) {
+      if (reg.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); }
+      setTimeout(function() { window.location.reload(); }, 800);
+    });
+  } else {
+    window.location.reload();
+  }
+}
