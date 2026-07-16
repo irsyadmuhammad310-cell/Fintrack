@@ -1,5 +1,6 @@
-// === FinTrack Premium - Service Worker (PWA Offline) ===
-const CACHE_NAME = 'fintrack-v15c';
+// === FinTrack Premium - Service Worker (PWA Offline + Auto-Update) ===
+// IMPORTANT: Bump this version string on EVERY deploy to trigger update
+const CACHE_NAME = 'fintrack-v15.1';
 const ASSETS = [
   './',
   './index.html',
@@ -21,7 +22,7 @@ const ASSETS = [
   './manifest.json'
 ];
 
-// Install: cache all app shell assets
+// Install: cache all app shell assets, skip waiting immediately
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
@@ -31,37 +32,59 @@ self.addEventListener('install', function(e) {
   self.skipWaiting();
 });
 
-// Activate: clean old caches
+// Activate: clean ALL old caches, claim clients immediately
 self.addEventListener('activate', function(e) {
   e.waitUntil(
     caches.keys().then(function(keys) {
       return Promise.all(
         keys.filter(function(k) { return k !== CACHE_NAME; }).map(function(k) { return caches.delete(k); })
       );
+    }).then(function() {
+      // Notify all open tabs that update is active
+      return self.clients.matchAll().then(function(clients) {
+        clients.forEach(function(client) {
+          client.postMessage({ type: 'SW_UPDATED', version: CACHE_NAME });
+        });
+      });
     })
   );
   self.clients.claim();
 });
 
-// Fetch: serve from cache first, fallback to network
+// Fetch: Stale-While-Revalidate for app shell (fast + always fresh next load)
 self.addEventListener('fetch', function(e) {
-  // Skip non-GET and external requests
   if (e.request.method !== 'GET') return;
   if (!e.request.url.startsWith(self.location.origin)) return;
 
-  e.respondWith(
-    caches.match(e.request).then(function(cached) {
-      if (cached) return cached;
-      return fetch(e.request).then(function(response) {
-        // Cache new requests dynamically
-        if (response.status === 200) {
-          var clone = response.clone();
-          caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
-        }
+  // For navigation requests (HTML pages): network-first for freshness
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(function(response) {
+        var clone = response.clone();
+        caches.open(CACHE_NAME).then(function(cache) { cache.put(e.request, clone); });
         return response;
       }).catch(function() {
-        // Offline fallback
-        return caches.match('./index.html');
+        return caches.match(e.request).then(function(cached) {
+          return cached || caches.match('./index.html');
+        });
+      })
+    );
+    return;
+  }
+
+  // For other assets: stale-while-revalidate
+  e.respondWith(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.match(e.request).then(function(cached) {
+        var fetchPromise = fetch(e.request).then(function(response) {
+          if (response.status === 200) {
+            cache.put(e.request, response.clone());
+          }
+          return response;
+        }).catch(function() { return cached; });
+
+        // Return cached immediately if available, else wait for network
+        return cached || fetchPromise;
       });
     })
   );
