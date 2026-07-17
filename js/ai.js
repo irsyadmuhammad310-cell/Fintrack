@@ -1,6 +1,5 @@
-// === FLOATING AI ASSISTANT (v11.2) ===
+// === FLOATING AI ASSISTANT (v15.4 — Gemini Integration) ===
 (function() {
-  // Inject floating AI HTML (v15.3: added fallback text + explicit display)
   const fab = document.createElement('div');
   fab.id = 'aiFab';
   fab.style.display = 'block';
@@ -12,21 +11,22 @@
         <button class="ai-panel-close" onclick="toggleAIChat()"><i data-lucide="x" width="16" height="16"></i></button>
       </div>
       <div class="ai-panel-msgs" id="aiMsgs">
-        <div class="aim ast"><div class="aiav">🤖</div><div class="aib">Hi! I'm your personal finance advisor. Ask me anything about budgeting, investing, saving, debt, retirement, taxes, or your FinTrack data. How can I help?</div></div>
+        <div class="aim ast"><div class="aiav">🤖</div><div class="aib">Hey! I'm your personal finance advisor powered by AI. Ask me anything about your finances, investing, budgeting, retirement, or any money topic. I can analyze your FinTrack data and give personalized advice.</div></div>
       </div>
-      <div class="ai-panel-disclaimer">AI also can make mistake. Please seek professional advice.</div>
+      <div class="ai-panel-disclaimer">AI-generated guidance. Verify important decisions with a professional.</div>
       <div class="ai-panel-inp">
         <input id="aiInp" placeholder="Ask me anything about finance..." onkeydown="if(event.key==='Enter')sendAI()">
         <button class="aisnd" onclick="sendAI()"><i data-lucide="send" width="16" height="16"></i></button>
       </div>
     </div>`;
   document.body.appendChild(fab);
-  // Ensure icon renders even if lucide was slow
   setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 100);
   setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 500);
 })();
 
 let aiOpen = false;
+let aiChatHistory = [];
+
 function toggleAIChat() {
   aiOpen = !aiOpen;
   const panel = document.getElementById('aiPanel');
@@ -36,11 +36,132 @@ function toggleAIChat() {
   if (aiOpen) { setTimeout(() => { document.getElementById('aiInp').focus(); lucide.createIcons(); }, 200); }
 }
 
-function sendAI() {
+// === GEMINI API CONFIG ===
+function getAIKey() { return localStorage.getItem('ft_gemini_key') || ''; }
+function setAIKey(key) { localStorage.setItem('ft_gemini_key', key.trim()); }
+
+function buildFinancialContext() {
+  try {
+    const year = getSelectedYear();
+    const MD = computeMonthlyData(year);
+    const EC = computeExpenseCategories(year);
+    const ti = MD.reduce((s, m) => s + m.i, 0);
+    const te = MD.reduce((s, m) => s + m.e, 0);
+    const ts = MD.reduce((s, m) => s + m.s, 0);
+    const active = MD.filter(m => m.i > 0).length;
+    const avgI = ti / Math.max(active, 1);
+    const avgE = te / Math.max(MD.filter(m => m.e > 0).length, 1);
+    const savRate = ti > 0 ? (ts / ti * 100).toFixed(1) : '0';
+    const nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
+    const bal = typeof getCarryForwardBalance === 'function' ? getCarryForwardBalance(year, 'total') : ti - te - ts;
+    const topCats = EC.slice(0, 5).map(c => c.n + ': ' + fmt(c.a)).join(', ');
+    const accounts = ACCOUNTS.map(a => {
+      const b = typeof getAccountBalance === 'function' ? getAccountBalance(a.id) : a.initialBalance;
+      return a.name + ' (' + a.accountType + ', ' + (a.currency || 'MYR') + '): ' + fmtIn(b, a.currency || 'MYR');
+    }).join('; ');
+    const goals = typeof GOALS !== 'undefined' && GOALS.length ? GOALS.map(g => g.name + ': ' + fmt(g.current) + '/' + fmt(g.target) + ' (' + (g.target > 0 ? (g.current / g.target * 100).toFixed(0) : 0) + '%)').join('; ') : 'None set';
+    const recentTxns = TXN.sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 10).map(tx => tx.d + ' | ' + tx.t + ' | ' + tx.c + (tx.s ? '/' + tx.s : '') + ' | ' + fmt(tx.a) + (tx.dt ? ' (' + tx.dt + ')' : '')).join('\n');
+
+    return `USER FINANCIAL DATA (${year}, ${active} months recorded):
+- Total Income: ${fmt(ti)} (avg ${fmt(avgI)}/mo)
+- Total Expenses: ${fmt(te)} (avg ${fmt(te / Math.max(active, 1))}/mo)
+- Total Savings: ${fmt(ts)} (savings rate: ${savRate}%)
+- Balance: ${fmt(bal)}
+- Net Worth: ${fmt(nw)}
+- Top expense categories: ${topCats}
+- Accounts: ${accounts}
+- Goals: ${goals}
+- Display currency: ${displayCurrency}
+- Recent transactions:\n${recentTxns}`;
+  } catch (e) {
+    return 'Financial data temporarily unavailable.';
+  }
+}
+
+const AI_SYSTEM_PROMPT = `You are FinTrack AI Advisor, a friendly and knowledgeable personal finance coach built into the FinTrack app.
+
+PERSONALITY:
+- Professional yet approachable, like a smart friend who happens to be a financial expert
+- Patient, encouraging, honest, and clear
+- Explain complex topics in plain language
+- Give concise answers first, offer more detail if asked
+- Use bullet points and bold text (<b>text</b>) for structure in HTML format
+- Be opinionated when it helps: recommend actions, not just list options
+
+CAPABILITIES:
+- Analyze the user's actual financial data (provided below)
+- Provide personalized advice based on their numbers
+- Explain any financial concept (investing, tax, insurance, retirement, debt, etc.)
+- Discuss global financial topics (markets, economy, interest rates, etc.)
+- Identify spending trends, anomalies, and opportunities
+- Calculate projections and scenarios
+
+RULES:
+- ALWAYS use the user's real data when relevant
+- If you reference their data, cite specific numbers
+- For financial/investment/tax topics, end with a brief disclaimer
+- Never invent transaction data or account balances
+- If you don't know something current (live market prices, today's news), say so honestly
+- Distinguish between facts, historical trends, and forecasts
+- Format responses in HTML (use <b>, <br>, bullet points with •)
+- Keep responses focused and scannable, not walls of text
+- Currency context: user works in Singapore, finances span MYR/SGD
+
+DISCLAIMER (append ONLY for investment/tax/legal/insurance topics):
+<br><br><span style="font-size:9px;color:var(--text-tertiary);border-top:1px solid var(--border-light);display:block;padding-top:6px;margin-top:8px"><b>Disclaimer:</b> AI-generated guidance. For important financial decisions, consult a qualified professional.</span>`;
+
+async function callGemini(userMsg) {
+  const key = getAIKey();
+  if (!key) return null;
+
+  const context = buildFinancialContext();
+  
+  // Build conversation with history (last 6 messages for context)
+  const messages = [];
+  const recentHistory = aiChatHistory.slice(-6);
+  recentHistory.forEach(h => {
+    messages.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text }] });
+  });
+  messages.push({ role: 'user', parts: [{ text: userMsg }] });
+
+  const body = {
+    systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT + '\n\n' + context }] },
+    contents: messages,
+    generationConfig: {
+      temperature: 0.75,
+      maxOutputTokens: 1200,
+      topP: 0.9
+    }
+  };
+
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + key, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('Gemini API error:', res.status, err);
+      if (res.status === 400 || res.status === 403) return '__INVALID_KEY__';
+      return null;
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    return text || null;
+  } catch (e) {
+    console.warn('Gemini fetch error:', e);
+    return null;
+  }
+}
+
+async function sendAI() {
   const inp = document.getElementById('aiInp'), msg = inp.value.trim();
   if (!msg) return;
   const box = document.getElementById('aiMsgs');
-  box.innerHTML += `<div class="aim usr"><div class="aiav">MI</div><div class="aib">${msg}</div></div>`;
+  box.innerHTML += `<div class="aim usr"><div class="aiav">${getUserInitials()}</div><div class="aib">${msg}</div></div>`;
   inp.value = '';
   box.scrollTop = box.scrollHeight;
 
@@ -49,74 +170,57 @@ function sendAI() {
   box.innerHTML += `<div class="aim ast" id="${typingId}"><div class="aiav">🤖</div><div class="aib ai-typing"><span></span><span></span><span></span></div></div>`;
   box.scrollTop = box.scrollHeight;
 
-  setTimeout(() => {
+  let response = '';
+
+  // Check if API key is configured
+  if (!getAIKey()) {
+    // No key: prompt to configure
+    setTimeout(() => {
+      const el = document.getElementById(typingId);
+      if (el) el.remove();
+      response = `<b>Gemini AI not configured yet.</b><br><br>To enable smart AI responses:<br><br>1. Go to <b>Settings → General</b><br>2. Find the <b>AI Assistant</b> section<br>3. Paste your Gemini API key<br><br>Get a free key at <b>aistudio.google.com</b> → Get API Key → Create. It's free, no credit card needed.<br><br>Once configured, I can answer ANY financial question intelligently.`;
+      box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">${response}</div></div>`;
+      box.scrollTop = box.scrollHeight;
+    }, 500);
+    return;
+  }
+
+  // Call Gemini API
+  try {
+    response = await callGemini(msg);
+
     const el = document.getElementById(typingId);
     if (el) el.remove();
-    try {
-      const r = generateAIResponse(msg);
-      box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">${r}</div></div>`;
-    } catch (err) {
-      console.error('AI Error:', err);
-      box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">Sorry, I hit a snag processing that. Try rephrasing your question, or ask something like "what's my savings rate?" or "explain compound interest".</div></div>`;
+
+    if (response === '__INVALID_KEY__') {
+      response = `<b>API key error.</b> Your Gemini key seems invalid or expired. Go to <b>Settings → General → AI Assistant</b> to update it. Get a new key at aistudio.google.com.`;
+    } else if (!response) {
+      response = `Sorry, I couldn't reach the AI service right now. Check your internet connection and try again. If this persists, your API key might need refreshing in Settings → General.`;
+    } else {
+      // Store in history for context
+      aiChatHistory.push({ role: 'user', text: msg });
+      aiChatHistory.push({ role: 'assistant', text: response });
+      // Keep history manageable
+      if (aiChatHistory.length > 20) aiChatHistory = aiChatHistory.slice(-12);
     }
+
+    box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">${response}</div></div>`;
     box.scrollTop = box.scrollHeight;
-  }, 800 + Math.random() * 600);
-}
-
-// === AI CONVERSATION ENGINE (v15.4 — Reformation) ===
-let aiConversation = [];
-let aiLastTopic = null;
-
-function getFinancialSnapshot() {
-  const year = getSelectedYear();
-  const MD = computeMonthlyData(year);
-  const EC = computeExpenseCategories(year);
-  const ti = MD.reduce((s, m) => s + m.i, 0);
-  const te = MD.reduce((s, m) => s + m.e, 0);
-  const ts = MD.reduce((s, m) => s + m.s, 0);
-  const activeMonths = MD.filter(m => m.i > 0).length;
-  const avgI = ti / Math.max(activeMonths, 1);
-  const avgE = te / Math.max(MD.filter(m => m.e > 0).length, 1);
-  const avgS = ts / Math.max(MD.filter(m => m.s > 0).length, 1);
-  const savRate = ti > 0 ? (ts / ti * 100) : 0;
-  const expRate = ti > 0 ? (te / ti * 100) : 0;
-  const bal = typeof getCarryForwardBalance === 'function' ? getCarryForwardBalance(year, 'total') : ti - te - ts;
-  const nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
-  const topCat = EC.length ? EC[0] : { n: 'None', a: 0 };
-  const top3 = EC.slice(0, 3);
-  const monthlyTrend = MD.map((m, i) => ({ month: MONTH_NAMES[i], income: m.i, expense: m.e, savings: m.s, net: m.i - m.e - m.s }));
-  const recentMonths = monthlyTrend.filter(m => m.income > 0 || m.expense > 0);
-  const lastMonth = recentMonths.length >= 2 ? recentMonths[recentMonths.length - 2] : null;
-  const thisMonth = recentMonths.length >= 1 ? recentMonths[recentMonths.length - 1] : null;
-  return { year, MD, EC, ti, te, ts, activeMonths, avgI, avgE, avgS, savRate, expRate, bal, nw, topCat, top3, monthlyTrend, recentMonths, lastMonth, thisMonth };
-}
-
-function detectSpendingTrends(snap) {
-  const trends = [];
-  const recent = snap.recentMonths.slice(-3);
-  if (recent.length >= 3) {
-    const expTrend = recent[2].expense - recent[0].expense;
-    if (expTrend > snap.avgE * 0.2) trends.push({ type: 'rising_expense', detail: `Spending increased by ${fmt(expTrend)} over the last 3 months.` });
-    if (expTrend < -snap.avgE * 0.2) trends.push({ type: 'falling_expense', detail: `Spending decreased by ${fmt(Math.abs(expTrend))} over the last 3 months. Good trend.` });
-    const savTrend = recent[2].savings - recent[0].savings;
-    if (savTrend > 0) trends.push({ type: 'improving_savings', detail: `Savings are trending up.` });
+  } catch (err) {
+    const el = document.getElementById(typingId);
+    if (el) el.remove();
+    console.error('AI send error:', err);
+    box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">Something went wrong. Please try again.</div></div>`;
+    box.scrollTop = box.scrollHeight;
   }
-  if (snap.thisMonth && snap.lastMonth) {
-    const spike = snap.thisMonth.expense - snap.lastMonth.expense;
-    if (spike > snap.avgE * 0.4) trends.push({ type: 'expense_spike', detail: `This month's spending is ${fmt(spike)} higher than last month.` });
-  }
-  if (snap.savRate < 10) trends.push({ type: 'low_savings', detail: `Savings rate at ${snap.savRate.toFixed(1)}% is below the recommended 20% minimum.` });
-  if (snap.expRate > 80) trends.push({ type: 'high_expense_ratio', detail: `Expenses consume ${snap.expRate.toFixed(0)}% of income, leaving little room for growth.` });
-  return trends;
 }
 
-function aiDisclaimer(topic) {
-  const needsDisclaimer = ['invest', 'tax', 'insurance', 'retire', 'legal', 'loan', 'mortgage', 'stock', 'etf', 'bond', 'reit', 'crypto', 'property', 'fire', 'epf', 'kwsp', 'asb', 'unit trust'];
-  if (needsDisclaimer.some(k => topic.includes(k))) {
-    return '\n\n<b>Disclaimer:</b> <span style="font-size:10px;color:var(--text-tertiary)">This guidance is based on your FinTrack data and general financial knowledge. AI can make mistakes. For important financial, tax, or investment decisions, please consult a qualified professional.</span>';
-  }
-  return '';
-}
+// Old keyword-based AI engine removed in v15.4
+// All responses now powered by Gemini API
+// Fallback: if no API key, user is prompted to configure in Settings → General
+
+// Helper functions kept for other modules that may reference them
+function generateAIResponse(msg) { return 'Please configure your Gemini API key in Settings → General to enable AI responses.'; }
 
 function generateAIResponse(msg) {
   const l = msg.toLowerCase();
