@@ -1,6 +1,6 @@
 // === SETTINGS (v15.3) ===
 let setSubTab = 'profile';
-const FINTRACK_VERSION = 'v15.3';
+const FINTRACK_VERSION = 'v15.4';
 
 function renderSettings(c) {
   c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'appearance')"><i data-lucide="palette" width="14" height="14"></i>Appearance</div><div class="sni" onclick="setTab(this,'currency')"><i data-lucide="coins" width="14" height="14"></i>${t('set_currency')}</div><div class="sni" onclick="setTab(this,'language')"><i data-lucide="languages" width="14" height="14"></i>${t('set_language')}</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div></div><div class="setc" id="setc"></div></div>`;
