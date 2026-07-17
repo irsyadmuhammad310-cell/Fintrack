@@ -503,7 +503,7 @@ tr:hover td { background: var(--bg-primary); }
 .rc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
 
 /* Floating AI Assistant */
-#aiFab { position: fixed; bottom: 24px; right: 24px; z-index: 8000; }
+#aiFab { position: fixed; bottom: 24px; right: 24px; z-index: 8000; display: block !important; visibility: visible !important; pointer-events: auto; }
 .ai-fab-btn { width: 52px; height: 52px; border-radius: 50%; background: linear-gradient(135deg, oklch(0.55 0.2 260), oklch(0.45 0.22 280)); color: #fff; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 20px oklch(0.5 0.2 260/0.35); transition: all 200ms var(--ease-out); }
 .ai-fab-btn:hover { transform: scale(1.08); box-shadow: 0 6px 28px oklch(0.5 0.2 260/0.45); }
 .ai-fab-btn.active { transform: scale(0.9); opacity: 0.7; }
