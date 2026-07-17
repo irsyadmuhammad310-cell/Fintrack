@@ -548,6 +548,36 @@ tr:hover td { background: var(--bg-primary); }
   .ai-fab-btn { width: 46px; height: 46px; }
 }
 
+/* Transaction FAB (v15.3) */
+.txn-fab {
+  position: fixed;
+  bottom: 88px;
+  right: 24px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, oklch(0.55 0.2 260), oklch(0.45 0.22 280));
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px oklch(0.5 0.2 260/0.35);
+  transition: all 200ms var(--ease-out);
+  z-index: 100;
+}
+.txn-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px oklch(0.5 0.2 260/0.45);
+}
+.txn-fab:active {
+  transform: scale(0.95);
+}
+@media (max-width: 600px) {
+  .txn-fab { bottom: 76px; right: 16px; width: 46px; height: 46px; }
+}
+
 /* Settings */
 .setg { display: grid; grid-template-columns: 200px 1fr; gap: 20px; }
 .setn { display: flex; flex-direction: column; gap: 2px; }
@@ -646,13 +676,20 @@ tr:hover td { background: var(--bg-primary); }
   .ma { flex-direction: column; gap: 8px; }
   .ma .btn { width: 100%; justify-content: center; }
   .toast { bottom: 16px; right: 12px; left: 12px; text-align: center; font-size: 12px; padding: 12px 16px; }
-  table { font-size: 11px; min-width: 500px; }
-  th, td { padding: 8px 10px; }
-  .tw { overflow: hidden; }
+  table { font-size: 11px; min-width: 440px; }
+  th, td { padding: 7px 8px; }
+  .tw { overflow: hidden; border-radius: 10px; }
   .tw > div, .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .abtn { width: 28px; height: 28px; font-size: 11px; }
   .tsg { grid-template-columns: repeat(2, 1fr); gap: 6px; }
   .tsi { padding: 10px 12px; }
   .tsv { font-size: 14px; }
+  /* v15.3: Mobile KPI — hide count & net, show 3-column row */
+  .txn-kpi-count, .txn-kpi-net { display: none; }
+  #txsm { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #txsm .tsi { padding: 8px 6px; text-align: center; }
+  #txsm .tsv { font-size: 13px; word-break: break-all; }
+  #txsm .tsl { font-size: 8px; }
   .invg { grid-template-columns: 1fr; }
   .inv-kpi { grid-template-columns: repeat(2, 1fr); }
   .inv-hold-row { grid-template-columns: 1.5fr 1fr 1fr 0.7fr 24px; gap: 8px; }
