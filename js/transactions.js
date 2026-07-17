@@ -1,22 +1,22 @@
-// === TRANSACTIONS ===
+// === TRANSACTIONS (v15.3) ===
 function renderTransactions(c) {
-  const selYear = txnYearSel || getSelectedYear();
-  c.innerHTML = `<div class="tt"><div class="tf"><select class="fsel" id="txyr" onchange="txnYearSel=parseInt(this.value);renderTxnTable()">${buildYearOptions(selYear)}</select><select class="fsel" id="txm" onchange="txnMonthSel=this.value;renderTxnTable()"><option value="total">${t('hdr_total_year')}</option><option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option><option value="3">Apr</option><option value="4">May</option><option value="5">Jun</option><option value="6">Jul</option><option value="7">Aug</option><option value="8">Sep</option><option value="9">Oct</option><option value="10">Nov</option><option value="11">Dec</option></select><div class="sb2"><i data-lucide="search" width="14" height="14"></i><input placeholder="${t('txn_search')}" id="txs" oninput="renderTxnTable()"></div></div><div style="display:flex;gap:6px"><button class="btn bp" id="addbtn" onclick="editId=null;openAdd()"><i data-lucide="plus" width="12" height="12"></i> ${t('txn_add')}</button><button class="btn bs" onclick="toast(t('txn_exported'))"><i data-lucide="download" width="12" height="12"></i> ${t('txn_export')}</button></div></div><div class="tsg" id="txsm"></div><div class="tw"><div style="overflow-x:auto"><table><thead><tr><th>${t('txn_date')}</th><th>${t('txn_type')}</th><th>${t('txn_category')}</th><th>${t('txn_sub')}</th><th>${t('txn_details')}</th><th style="text-align:right">${t('txn_amount')}</th><th style="text-align:center;width:80px">${t('txn_actions')}</th></tr></thead><tbody id="txbody"></tbody></table></div><div class="tp"><span id="txinfo"></span><div class="pb" id="txpg"></div></div></div>`;
+  // v15.3: Sync with Global Period Selector (removed local month/year toggle + Export button)
+  const selYear = getSelectedYear();
+  const selMonth = document.getElementById('mf').value;
+  txnYearSel = selYear;
+  txnMonthSel = selMonth;
+
+  c.innerHTML = `<div class="tt"><div class="tf"><div class="sb2"><i data-lucide="search" width="14" height="14"></i><input placeholder="${t('txn_search')}" id="txs" oninput="renderTxnTable()"></div></div></div><div class="tsg" id="txsm"></div><div class="tw"><div style="overflow-x:auto"><table><thead><tr><th>${t('txn_date')}</th><th>${t('txn_type')}</th><th>${t('txn_category')}</th><th>${t('txn_sub')}</th><th>${t('txn_details')}</th><th style="text-align:right">${t('txn_amount')}</th><th style="text-align:center;width:80px">${t('txn_actions')}</th></tr></thead><tbody id="txbody"></tbody></table></div><div class="tp"><span id="txinfo"></span><div class="pb" id="txpg"></div></div></div><button class="txn-fab" id="txnFab" onclick="editId=null;openAdd()" aria-label="Add Transaction"><i data-lucide="plus" width="22" height="22"></i></button>`;
   lucide.createIcons();
-  if (!txnInitialized) {
-    const now = new Date();
-    txnMonthSel = now.getFullYear() === selYear ? String(now.getMonth()) : 'total';
-    txnYearSel = selYear;
-    txnInitialized = true;
-  }
-  document.getElementById('txyr').value = txnYearSel;
-  document.getElementById('txm').value = txnMonthSel || 'total';
   renderTxnTable();
 }
 
 function renderTxnTable() {
-  const year = txnYearSel || parseInt(document.getElementById('txyr')?.value || CURRENT_YEAR);
-  const m = txnMonthSel || document.getElementById('txm')?.value || 'total';
+  // v15.3: Always read from global period selector
+  const year = getSelectedYear();
+  const m = document.getElementById('mf').value;
+  txnYearSel = year;
+  txnMonthSel = m;
   const s = (document.getElementById('txs')?.value || '').toLowerCase();
   const f = TXN.filter(tx => {
     const dt = new Date(tx.d);
@@ -30,7 +30,7 @@ function renderTxnTable() {
   const sav = f.filter(tx => tx.t === 'Savings').reduce((s, tx) => s + tx.a, 0);
   const net = inc - exp - sav;
   const sm = document.getElementById('txsm');
-  if (sm) sm.innerHTML = `<div class="tsi"><div class="tsl">${t('txn_count')}</div><div class="tsv">${f.length}</div></div><div class="tsi"><div class="tsl">${t('dash_income')}</div><div class="tsv" style="color:var(--emerald)">${fmt(inc)}</div></div><div class="tsi"><div class="tsl">${t('dash_expense')}</div><div class="tsv" style="color:var(--rose)">${fmt(exp)}</div></div><div class="tsi"><div class="tsl">${t('dash_savings')}</div><div class="tsv" style="color:var(--blue)">${fmt(sav)}</div></div><div class="tsi"><div class="tsl">${t('txn_net')}</div><div class="tsv" style="color:${net >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmt(net)}</div></div>`;
+  if (sm) sm.innerHTML = `<div class="tsi txn-kpi-count"><div class="tsl">${t('txn_count')}</div><div class="tsv">${f.length}</div></div><div class="tsi txn-kpi-income"><div class="tsl">${t('dash_income')}</div><div class="tsv" style="color:var(--emerald)">${fmt(inc)}</div></div><div class="tsi txn-kpi-expense"><div class="tsl">${t('dash_expense')}</div><div class="tsv" style="color:var(--rose)">${fmt(exp)}</div></div><div class="tsi txn-kpi-savings"><div class="tsl">${t('dash_savings')}</div><div class="tsv" style="color:var(--blue)">${fmt(sav)}</div></div><div class="tsi txn-kpi-net"><div class="tsl">${t('txn_net')}</div><div class="tsv" style="color:${net >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmt(net)}</div></div>`;
   const pp = 50, start = (txnPg - 1) * pp, pg = f.slice(start, start + pp);
   const body = document.getElementById('txbody');
   if (!pg.length) {
@@ -79,7 +79,7 @@ function cascCat() {
 
 function tryClose() {
   const el = document.getElementById('madd');
-  if (el) { el.remove(); document.body.style.overflow = ''; editId = null; document.getElementById('addbtn')?.focus(); }
+  if (el) { el.remove(); document.body.style.overflow = ''; editId = null; }
 }
 
 function saveTxn(e) {
