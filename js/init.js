@@ -59,6 +59,10 @@ function updateUserDisplay() {
   const avatarEl = document.querySelector('.sb-avatar');
   if (nameEl) nameEl.textContent = name || 'User';
   if (avatarEl) avatarEl.textContent = getUserInitials();
+  // v15.3: Auto-update version from single source (FINTRACK_VERSION in settings.js)
+  const versionEl = document.getElementById('sb-version');
+  if (versionEl && typeof FINTRACK_VERSION !== 'undefined') versionEl.textContent = 'FinTrack Premium ' + FINTRACK_VERSION;
+  document.title = 'FinTrack Premium' + (typeof FINTRACK_VERSION !== 'undefined' ? ' ' + FINTRACK_VERSION : '');
   // Update greeting in header subtitle on dashboard
   if (curPage === 'dashboard') {
     const ps = document.getElementById('ps');
@@ -427,6 +431,23 @@ const FINTRACK_CHANGELOG = {
       'WebAuthn integration for mobile PWA',
       'Biometric register/remove in Settings → Security',
       'Stale-while-revalidate caching for faster updates'
+    ]
+  },
+  'fintrack-v15.3': {
+    version: 'v15.3',
+    date: '17 Jul 2026',
+    changes: [
+      'Transaction FAB replaces old Add button',
+      'Removed duplicate Export from Transactions (use Reports)',
+      'Transaction page syncs with Global Period Selector',
+      'Mobile KPI cards simplified (Income/Expense/Savings only)',
+      'Compact mobile transaction table',
+      'Settings reorganized: Profile, General, Appearance, Currency, Language, Categories & Accounts, Security',
+      'Categories & Accounts merged into one page',
+      'Appearance is now a standalone settings page',
+      'Import/Export removed from Settings (use Reports)',
+      'Secure Reset requires PIN or biometric verification',
+      'Single-source version management (FINTRACK_VERSION constant)'
     ]
   }
 };
