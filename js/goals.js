@@ -333,9 +333,64 @@ function syncGoalsWithSavings() {
     if (!cats.length) return;
     const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && cats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
     if (g.c !== totalFromTxn) {
+      const oldC = g.c;
       g.c = totalFromTxn;
       changed = true;
+      // v15.4: Check milestones
+      checkGoalMilestones(g, oldC, totalFromTxn);
     }
   });
   if (changed) saveGOALS();
+}
+
+// === GOAL MILESTONES (v15.4 — Actually functional) ===
+function checkGoalMilestones(goal, oldAmount, newAmount) {
+  if (localStorage.getItem('ft_milestone_alerts') === 'off') return;
+  if (goal.t <= 0) return;
+  const milestones = [100];
+  const oldPct = (oldAmount / goal.t) * 100;
+  const newPct = (newAmount / goal.t) * 100;
+  const achieved = JSON.parse(localStorage.getItem('ft_milestones_' + goal.id) || '[]');
+
+  milestones.forEach(m => {
+    if (newPct >= m && oldPct < m && !achieved.includes(m)) {
+      achieved.push(m);
+      localStorage.setItem('ft_milestones_' + goal.id, JSON.stringify(achieved));
+      const emoji = '🎉';
+      const msg = `${emoji} Goal "${goal.n}" completed! You reached ${fmt(goal.t)}!`;
+      toast(msg);
+      // Also add to notification panel
+      if (typeof addSystemNotification === 'function') addSystemNotification(msg, 'milestone');
+    }
+  });
+}
+
+// === BUDGET ALERTS (v15.4 — Actually functional) ===
+function checkBudgetAlerts() {
+  if (localStorage.getItem('ft_budget_alerts') === 'off') return;
+  const year = getSelectedYear();
+  const currentMonth = new Date().getMonth();
+  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const yearKey = String(year);
+  const monthPlan = BUDGET_PLANS[yearKey] && BUDGET_PLANS[yearKey][currentMonth];
+  if (!monthPlan || !monthPlan.expCats) return;
+
+  const monthTxns = TXN.filter(tx => {
+    const d = new Date(tx.d);
+    return d.getFullYear() === year && d.getMonth() === currentMonth && tx.t === 'Expense';
+  });
+
+  const dismissed = JSON.parse(localStorage.getItem('ft_budget_alerts_dismissed_' + year + '_' + currentMonth) || '[]');
+
+  Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
+    if (budget <= 0) return;
+    const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
+    if (spent > budget && !dismissed.includes(cat)) {
+      dismissed.push(cat);
+      localStorage.setItem('ft_budget_alerts_dismissed_' + year + '_' + currentMonth, JSON.stringify(dismissed));
+      const overBy = spent - budget;
+      toast(`⚠️ Budget exceeded: ${cat} is over by ${fmt(overBy)} (${fmt(spent)} / ${fmt(budget)})`);
+      if (typeof addSystemNotification === 'function') addSystemNotification(`Budget exceeded: ${cat} over by ${fmt(overBy)}`, 'budget');
+    }
+  });
 }
