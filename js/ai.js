@@ -52,9 +52,13 @@ function sendAI() {
   setTimeout(() => {
     const el = document.getElementById(typingId);
     if (el) el.remove();
-
-    const r = generateAIResponse(msg);
-    box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">${r}\n\n<span class="ai-disclaimer-inline">AI also can make mistake. Please seek professional advice.</span></div></div>`;
+    try {
+      const r = generateAIResponse(msg);
+      box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">${r}</div></div>`;
+    } catch (err) {
+      console.error('AI Error:', err);
+      box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib">Sorry, I hit a snag processing that. Try rephrasing your question, or ask something like "what's my savings rate?" or "explain compound interest".</div></div>`;
+    }
     box.scrollTop = box.scrollHeight;
   }, 800 + Math.random() * 600);
 }
@@ -119,6 +123,7 @@ function generateAIResponse(msg) {
   aiConversation.push({ role: 'user', text: msg });
   const snap = getFinancialSnapshot();
   const { year, EC, ti, te, ts, activeMonths, avgI, avgE, avgS, savRate, expRate, bal, nw, topCat, top3, recentMonths, lastMonth, thisMonth } = snap;
+  const active = activeMonths;
   const trends = detectSpendingTrends(snap);
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const has = (...w) => w.some(x => l.includes(x));
@@ -232,7 +237,7 @@ function generateAIResponse(msg) {
   if (has('dividend','dividen','passive income')) { const needed = avgE * 12 / 0.05; return `<b>Dividends:</b> Need ${fmt(needed)} at 5% yield to cover ${fmt(avgE)}/mo. Sources: ASB 5%, REITs 5-8%, blue chips 4-6%. Reinvested dividends double every ~14 years.` + disclaimer('invest'); }
   if (has('debt','loan','hutang','pinjam','ptptn','car loan','personal loan','mortgage')) { const loanExp = EC.find(c => c.n === 'Loan' || c.n === 'Loans'); return `<b>Debt Framework:</b>\n${loanExp ? 'Your loans: ' + fmt(loanExp.a) + '/year\n\n' : ''}<b>Kill order:</b> Credit card (18%) → Personal loan (8%+) → Car loan → PTPTN → Mortgage (keep it)` + disclaimer('loan'); }
   if (has('tax','cukai','lhdn','relief','pelepasan')) return `<b>Tax:</b> Key reliefs: Lifestyle RM2.5K, Medical parents RM8K, SSPN RM8K, PRS RM3K. At 24% bracket, every RM1K relief = RM240 saved. Check MY-SG double-tax agreement.` + disclaimer('tax');
-  if (has('retire','pencen','fire','financial freedom')) { const f = avgE * 12 * 25; return `<b>FIRE number:</b> ${fmt(f)} (25x expenses). At ${fmt(nw)} you're ${nw > 0 ? (nw/f*100).toFixed(0) + '%' : '0%'} there.` + disclaimer('fire retire'); }
+  if (has('retire','pencen','fire','financial freedom','retirement','pension','plan for retire','retirement plan')) { const f = avgE * 12 * 25; return `<b>Retirement Plan (Age ${l.match(/(\d+)\s*(?:year|tahun|y\.?o)/)?.[1] || '?'})</b>\n\n<b>Your FIRE number (25x annual expenses):</b> ${fmt(f)}\n<b>Current net worth:</b> ${fmt(nw)} (${nw > 0 ? (nw/f*100).toFixed(1) + '% there' : 'starting'})\n\n<b>Retirement framework by age:</b>\n• 20s: Maximize growth. 80-90% equities. Time is your weapon. Even RM500/mo at 8% = RM1.5M by 55.\n• 30s: Keep aggressive but start diversifying. Max EPF voluntary. Build property equity.\n• 40s: Shift toward 60/40 stocks/bonds. Focus on passive income streams.\n• 50s: Protect capital. 40% equities, 40% bonds, 20% cash/FD.\n\n<b>Action plan for a 27-year-old:</b>\n1. Emergency fund: ${fmt(avgE * 6)} (6 months)\n2. Max ASB: RM200K limit (4-6% guaranteed)\n3. EPF voluntary: extra RM4K/year = tax relief\n4. Monthly DCA into S&P 500 ETF (long runway = aggressive allocation)\n5. Insurance: medical card + term life if dependents\n6. Avoid lifestyle inflation as salary grows\n\n<b>The math:</b> At 27, you have ~30 years to retirement. RM1,000/mo at 8% = RM1.5M. RM2,000/mo = RM3M. Starting NOW vs at 35 doubles your outcome due to compounding.\n\n<b>Key insight:</b> Your biggest asset at 27 isn't money, it's TIME. Every year you delay costs exponentially more to catch up.` + disclaimer('fire retire'); }
   if (has('insurance','insurans','takaful','medical card')) return `<b>Insurance priority:</b> 1) Medical RM1M+ 2) Life 10x income 3) Critical illness 4) PA. Buy TERM not ILP.` + disclaimer('insurance');
   if (has('property','house','rumah','condo','down payment')) return `<b>Property:</b> Max installment 33% income = ${fmt(avgI*0.33)}/mo. Supports ~${fmt(avgI*0.33*200)} property. Need ~13% upfront.` + disclaimer('property mortgage');
   if (has('emergency','kecemasan','rainy day')) { const t = avgE * 6; return `<b>Emergency fund:</b> Target ${fmt(t)} (6mo expenses). Current: ${fmt(bal)} (${Math.floor(bal/avgE)} months). Keep in high-yield savings, not stocks.` + disclaimer('emergency'); }
