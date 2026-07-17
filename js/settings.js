@@ -1,67 +1,97 @@
-// === SETTINGS (v11.5) ===
-let setSubTab = 'currency';
-const FINTRACK_VERSION = 'v15.2';
+// === SETTINGS (v15.3) ===
+let setSubTab = 'profile';
+const FINTRACK_VERSION = 'v15.3';
 
 function renderSettings(c) {
-  c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div><div class="sni" onclick="setTab(this,'importexport')"><i data-lucide="arrow-left-right" width="14" height="14"></i>Import / Export</div><div class="sni" onclick="setTab(this,'backup')"><i data-lucide="hard-drive" width="14" height="14"></i>${t('set_backup')}</div><div class="sni" onclick="setTab(this,'about')"><i data-lucide="info" width="14" height="14"></i>About</div></div><div class="setc" id="setc"></div></div>`;
+  c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'appearance')"><i data-lucide="palette" width="14" height="14"></i>Appearance</div><div class="sni" onclick="setTab(this,'currency')"><i data-lucide="coins" width="14" height="14"></i>${t('set_currency')}</div><div class="sni" onclick="setTab(this,'language')"><i data-lucide="languages" width="14" height="14"></i>${t('set_language')}</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
-  setTab(null, 'general');
+  setTab(null, 'profile');
 }
 
 function setTab(el, tab) {
   if (el) { document.querySelectorAll('.sni').forEach(i => i.classList.remove('active')); el.classList.add('active'); }
   const c = document.getElementById('setc');
-  if (tab === 'general') { renderGeneralTab(c); }
+  if (tab === 'profile') { renderProfileTab(c); }
+  else if (tab === 'general') { renderGeneralTab(c); }
+  else if (tab === 'appearance') { renderAppearanceTab(c); }
+  else if (tab === 'currency') { renderCurrencyTab(c); }
+  else if (tab === 'language') { renderLanguageTab(c); }
+  else if (tab === 'cataccounts') { renderCatAccountsTab(c); }
   else if (tab === 'security') { renderSecurityTab(c); }
-  else if (tab === 'importexport') { renderImportExportTab(c); }
-  else if (tab === 'backup') { renderBackupTab(c); }
-  else if (tab === 'about') { renderAboutTab(c); }
 }
 
-// === GENERAL TAB (v10.9.1 — Expandable Sections) ===
+// === PROFILE TAB (v15.3) ===
+function renderProfileTab(c) {
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your name and greeting preference</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveProfileSettings()">Save</button></div><div style="font-size:10px;color:var(--text-tertiary)">Preview: "${getGreeting()}"</div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="info" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">FinTrack ${FINTRACK_VERSION}</div><div style="font-size:10px;color:var(--text-tertiary)">Personal Finance Tracker · Premium Edition</div></div></div></div>`;
+  lucide.createIcons();
+}
+
+function saveProfileSettings() {
+  const name = document.getElementById('set_username').value.trim();
+  const title = document.getElementById('set_usertitle').value;
+  if (name) setUserName(name);
+  setUserTitle(title);
+  updateUserDisplay();
+  toast('✅ Profile saved');
+  renderProfileTab(document.getElementById('setc'));
+}
+
+// === GENERAL TAB (v15.3 — Notifications + Years sections) ===
 function renderGeneralTab(c) {
-  const currencyOptions = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol}) - ${cfg.name}</option>`).join('');
-  const langOptions = [['en','English'],['zh','简体中文'],['ja','日本語']].map(([code, name]) => `<option value="${code}"${code === currentLang ? ' selected' : ''}>${name}</option>`).join('');
-  const rateInfo = ratesLastUpdated ? `${t('set_rate_info')}: ${new Date(ratesLastUpdated).toLocaleString()}` : '';
-
-  c.innerHTML = `<div style="display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap">
-    <button class="btn ${setSubTab === 'currency' ? 'bp' : 'bs'}" onclick="setSubTab='currency';renderGeneralTab(document.getElementById('setc'))">Appearance</button>
-    <button class="btn ${setSubTab === 'categories' ? 'bp' : 'bs'}" onclick="setSubTab='categories';renderGeneralTab(document.getElementById('setc'))">Categories</button>
-    <button class="btn ${setSubTab === 'accounts' ? 'bp' : 'bs'}" onclick="setSubTab='accounts';renderGeneralTab(document.getElementById('setc'))">Accounts</button>
-    <button class="btn ${setSubTab === 'years' ? 'bp' : 'bs'}" onclick="setSubTab='years';renderGeneralTab(document.getElementById('setc'))">Years</button>
-    <button class="btn ${setSubTab === 'notifications' ? 'bp' : 'bs'}" onclick="setSubTab='notifications';renderGeneralTab(document.getElementById('setc'))">Notifications</button>
-  </div><div id="genContent"></div>`;
-
-  const gc = document.getElementById('genContent');
-  if (setSubTab === 'currency') {
-    gc.innerHTML = `<div style="display:grid;gap:16px"><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your name and greeting preference</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveProfileSettings()">Save</button></div><div style="font-size:10px;color:var(--text-tertiary)">Preview: "${getGreeting()}"</div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_dark_mode')}</div><div class="tde">${t('set_theme')}</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="toggleTheme();this.classList.toggle('on')"></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--gold-light);color:var(--gold);display:flex;align-items:center;justify-content:center"><i data-lucide="coins" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_currency')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_currency_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_currency" onchange="handleCurrencyChange(this.value)">${currencyOptions}</select><div style="margin-top:6px;font-size:10px;color:var(--text-tertiary)" id="rateStatus">${rateInfo}</div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="languages" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_language')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_language_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_lang" onchange="setLang(this.value)">${langOptions}</select></div></div>`;
-    lucide.createIcons();
-  } else if (setSubTab === 'categories') {
-    renderCategoriesTab(gc);
-  } else if (setSubTab === 'accounts') {
-    renderAccountsTab(gc);
-  } else if (setSubTab === 'years') {
-    renderYearsTab(gc);
-  } else if (setSubTab === 'notifications') {
-    renderNotificationsTab(gc);
-  }
+  let html = '';
+  // Notifications section
+  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_notifications')}</div><div style="font-size:10px;color:var(--text-tertiary)">Manage notification preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_budget_alerts')}</div><div class="tde">Get notified when budget is exceeded</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div><div class="trow"><div class="tinf"><div class="tna">Goal Milestones</div><div class="tde">Celebrate when you hit savings goals</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div></div>`;
+  // Years section
+  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="calendar" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Global Year Management</div><div style="font-size:10px;color:var(--text-tertiary)">Manage available years across all modules. Changes sync instantly.</div></div></div>`;
+  html += `<div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()"><i data-lucide="plus" width="11" height="11"></i> Add Year</button></div>`;
+  html += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
+  YEARS.forEach(y => {
+    const hasData = yearHasData(y);
+    const isCurrent = y === CURRENT_YEAR;
+    html += `<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'};border-radius:7px;background:${isCurrent ? 'var(--accent-light)' : 'var(--bg-primary)'};font-size:12px;font-weight:${isCurrent ? '600' : '500'}"><span>${y}</span>${hasData ? '<span style="font-size:8px;color:var(--emerald);font-weight:600;margin-left:2px">DATA</span>' : ''}<button style="border:none;background:none;color:${hasData ? 'var(--border)' : 'var(--rose)'};cursor:${hasData ? 'not-allowed' : 'pointer'};font-size:12px;padding:0 2px;opacity:${hasData ? '0.3' : '1'}" onclick="${hasData ? '' : 'handleRemoveYear(' + y + ')'}" title="${hasData ? 'Cannot remove (has data)' : 'Remove year'}">✕</button></div>`;
+  });
+  html += `</div><div style="margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px;font-size:10px;color:var(--text-tertiary)"><b>Note:</b> Years with existing transaction data cannot be removed. Adding a year does not create or modify any financial data.</div></div>`;
+  c.innerHTML = html;
+  lucide.createIcons();
 }
 
-// === CATEGORIES (v10.4 Redesigned) ===
-let catTypeFilter = 'Income';
-function renderCategoriesTab(c) {
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="display:flex;gap:4px">`;
+// === APPEARANCE TAB (v15.3 — Standalone) ===
+function renderAppearanceTab(c) {
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_dark_mode')}</div><div class="tde">${t('set_theme')}</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="toggleTheme();this.classList.toggle('on')"></div></div><div class="trow"><div class="tinf"><div class="tna">Accent Color</div><div class="tde">Primary brand color used across the app</div></div><div style="display:flex;gap:6px;align-items:center"><div style="width:24px;height:24px;border-radius:6px;background:var(--accent);border:2px solid var(--border)"></div><span style="font-size:11px;color:var(--text-tertiary)">Indigo</span></div></div></div>`;
+  lucide.createIcons();
+}
+
+// === CURRENCY TAB (v15.3 — Standalone) ===
+function renderCurrencyTab(c) {
+  const currencyOptions = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol}) - ${cfg.name}</option>`).join('');
+  const rateInfo = ratesLastUpdated ? `${t('set_rate_info')}: ${new Date(ratesLastUpdated).toLocaleString()}` : '';
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--gold-light);color:var(--gold);display:flex;align-items:center;justify-content:center"><i data-lucide="coins" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_currency')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_currency_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_currency" onchange="handleCurrencyChange(this.value)">${currencyOptions}</select><div style="margin-top:6px;font-size:10px;color:var(--text-tertiary)" id="rateStatus">${rateInfo}</div></div>`;
+  lucide.createIcons();
+}
+
+// === LANGUAGE TAB (v15.3 — Standalone) ===
+function renderLanguageTab(c) {
+  const langOptions = [['en','English'],['zh','简体中文'],['ja','日本語']].map(([code, name]) => `<option value="${code}"${code === currentLang ? ' selected' : ''}>${name}</option>`).join('');
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="languages" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_language')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_language_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_lang" onchange="setLang(this.value)">${langOptions}</select></div>`;
+  lucide.createIcons();
+}
+
+// === CATEGORIES & ACCOUNTS TAB (v15.3 — Combined Page) ===
+function renderCatAccountsTab(c) {
+  let html = '<div style="margin-bottom:24px">';
+  // Categories Section
+  html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="display:flex;gap:4px">`;
   ['Income','Expense','Savings'].forEach(tp => {
-    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderGeneralTab(document.getElementById('setc'))">${tp}</button>`;
+    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderCatAccountsTab(document.getElementById('setc'))">${tp}</button>`;
   });
   html += `</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="promptAddCategory()"><i data-lucide="plus" width="11" height="11"></i> Category</button></div>`;
-
   const cats = SCHEMA[catTypeFilter] || {};
   if (!Object.keys(cats).length) {
-    html += `<div style="padding:30px;text-align:center;color:var(--text-tertiary);font-size:12px">No categories yet. Add one above.</div>`;
+    html += `<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px solid var(--border);border-radius:10px">No categories yet. Add one above.</div>`;
   } else {
     Object.entries(cats).forEach(([cat, subs]) => {
-      html += `<div style="margin-bottom:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">`;
+      html += `<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">`;
       html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--bg-primary)"><span style="font-size:13px;font-weight:600">${cat}</span><div style="display:flex;gap:4px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="promptRenameCat('${catTypeFilter}','${cat}')" title="Rename">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="promptDeleteCat('${catTypeFilter}','${cat}')" title="Delete">🗑</button></div></div>`;
       if (subs.length) {
         html += `<div style="padding:8px 14px;display:flex;flex-direction:column;gap:4px">`;
@@ -73,90 +103,26 @@ function renderCategoriesTab(c) {
       html += `<div style="padding:6px 14px 10px;border-top:1px solid var(--border-light)"><button style="border:none;background:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font);font-weight:500" onclick="promptAddSub('${catTypeFilter}','${cat}')">+ Add subcategory</button></div></div>`;
     });
   }
+  html += '</div>';
+  // Accounts Section
+  html += `<div style="border-top:2px solid var(--border);padding-top:20px">`;
+  html += renderAccountsSection();
+  html += `</div>`;
   c.innerHTML = html;
   lucide.createIcons();
 }
 
-function promptAddCategory() {
-  const name = prompt(`New ${catTypeFilter} category name:`);
-  if (!name) return;
-  if (addCategory(catTypeFilter, name)) { toast('✅ Category added'); renderGeneralTab(document.getElementById('setc')); }
-  else toast('❌ Already exists');
-}
-function promptRenameCat(type, oldName) {
-  const newName = prompt(`Rename "${oldName}" to:`, oldName);
-  if (!newName || newName === oldName) return;
-  if (renameCategory(type, oldName, newName)) { toast('✅ Renamed'); renderGeneralTab(document.getElementById('setc')); }
-  else toast('❌ Failed');
-}
-function promptDeleteCat(type, cat) {
-  if (!confirm(`Delete category "${cat}" and all its subcategories?`)) return;
-  if (deleteCategory(type, cat)) { toast('🗑 Deleted'); renderGeneralTab(document.getElementById('setc')); }
-}
-function promptAddSub(type, cat) {
-  const name = prompt(`New subcategory for "${cat}":`);
-  if (!name) return;
-  if (addSubcategory(type, cat, name)) { toast('✅ Added'); renderGeneralTab(document.getElementById('setc')); }
-  else toast('❌ Already exists');
-}
-function promptRenameSub(type, cat, oldName) {
-  const newName = prompt(`Rename "${oldName}" to:`, oldName);
-  if (!newName || newName === oldName) return;
-  if (renameSubcategory(type, cat, oldName, newName)) { toast('✅ Renamed'); renderGeneralTab(document.getElementById('setc')); }
-  else toast('❌ Failed');
-}
-function promptDeleteSub(type, cat, sub) {
-  if (!confirm(`Delete subcategory "${sub}"?`)) return;
-  if (deleteSubcategory(type, cat, sub)) { toast('🗑 Deleted'); renderGeneralTab(document.getElementById('setc')); }
-}
-
-// === YEAR MANAGEMENT (v11.5) ===
-function renderYearsTab(c) {
-  let html = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="calendar" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Global Year Management</div><div style="font-size:10px;color:var(--text-tertiary)">Manage available years across all modules. Changes sync instantly.</div></div></div>`;
-  html += `<div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()"><i data-lucide="plus" width="11" height="11"></i> Add Year</button></div>`;
-  html += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
-  YEARS.forEach(y => {
-    const hasData = yearHasData(y);
-    const isCurrent = y === CURRENT_YEAR;
-    html += `<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'};border-radius:7px;background:${isCurrent ? 'var(--accent-light)' : 'var(--bg-primary)'};font-size:12px;font-weight:${isCurrent ? '600' : '500'}"><span>${y}</span>${hasData ? '<span style="font-size:8px;color:var(--emerald);font-weight:600;margin-left:2px">DATA</span>' : ''}<button style="border:none;background:none;color:${hasData ? 'var(--border)' : 'var(--rose)'};cursor:${hasData ? 'not-allowed' : 'pointer'};font-size:12px;padding:0 2px;opacity:${hasData ? '0.3' : '1'}" onclick="${hasData ? '' : 'handleRemoveYear(' + y + ')'}" title="${hasData ? 'Cannot remove (has data)' : 'Remove year'}">✕</button></div>`;
-  });
-  html += `</div></div>`;
-  html += `<div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;font-size:10px;color:var(--text-tertiary)"><b>Note:</b> Years with existing transaction data cannot be removed. Adding a year does not create or modify any financial data.</div>`;
-  c.innerHTML = html;
-  lucide.createIcons();
-}
-
-function handleAddYear() {
-  const input = document.getElementById('addYearInput');
-  const year = parseInt(input.value);
-  if (!year) { toast('❌ Enter a valid year'); return; }
-  if (addYear(year)) { toast('✅ Year ' + year + ' added'); input.value = ''; setSubTab = 'years'; renderGeneralTab(document.getElementById('setc')); }
-  else { toast('❌ Year already exists or invalid'); }
-}
-
-function handleRemoveYear(year) {
-  if (!confirm('Remove year ' + year + ' from all selectors?')) return;
-  if (removeYear(year)) { toast('🗑 Year ' + year + ' removed'); setSubTab = 'years'; renderGeneralTab(document.getElementById('setc')); }
-  else { toast('❌ Cannot remove (has data)'); }
-}
-
-
-
-// === ACCOUNTS (v10.4 Redesigned) ===
-function renderAccountsTab(c) {
+function renderAccountsSection() {
   const assets = ACCOUNTS.filter(a => a.type === 'asset');
   const liabilities = ACCOUNTS.filter(a => a.type === 'liability');
   let html = '';
-
   // Exchange rate info banner (v15.1)
   const hasMultiCurrency = ACCOUNTS.some(a => (a.currency || 'MYR') !== displayCurrency);
   if (hasMultiCurrency) {
     const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
-    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');setSubTab='accounts';renderGeneralTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
+    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');renderCatAccountsTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
   }
-
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:13px;font-weight:600">Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
-
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
   if (assets.length) {
     html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assets</div>`;
     assets.forEach(a => {
@@ -169,7 +135,6 @@ function renderAccountsTab(c) {
       html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}${a.notes ? ' · ' + a.notes : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Starting: ${fmtIn(a.initialBalance, cur)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${nativeBalStr}</div>${displayBalStr}<div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
     });
   }
-
   if (liabilities.length) {
     html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Liabilities</div>`;
     liabilities.forEach(a => {
@@ -180,11 +145,64 @@ function renderAccountsTab(c) {
       html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
     });
   }
-
   html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">Net Worth</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
-  c.innerHTML = html;
-  lucide.createIcons();
+  return html;
 }
+
+// === CATEGORIES (v10.4 Redesigned — helpers kept) ===
+let catTypeFilter = 'Income';
+
+function promptAddCategory() {
+  const name = prompt(`New ${catTypeFilter} category name:`);
+  if (!name) return;
+  if (addCategory(catTypeFilter, name)) { toast('✅ Category added'); renderCatAccountsTab(document.getElementById('setc')); }
+  else toast('❌ Already exists');
+}
+function promptRenameCat(type, oldName) {
+  const newName = prompt(`Rename "${oldName}" to:`, oldName);
+  if (!newName || newName === oldName) return;
+  if (renameCategory(type, oldName, newName)) { toast('✅ Renamed'); renderCatAccountsTab(document.getElementById('setc')); }
+  else toast('❌ Failed');
+}
+function promptDeleteCat(type, cat) {
+  if (!confirm(`Delete category "${cat}" and all its subcategories?`)) return;
+  if (deleteCategory(type, cat)) { toast('🗑 Deleted'); renderCatAccountsTab(document.getElementById('setc')); }
+}
+function promptAddSub(type, cat) {
+  const name = prompt(`New subcategory for "${cat}":`);
+  if (!name) return;
+  if (addSubcategory(type, cat, name)) { toast('✅ Added'); renderCatAccountsTab(document.getElementById('setc')); }
+  else toast('❌ Already exists');
+}
+function promptRenameSub(type, cat, oldName) {
+  const newName = prompt(`Rename "${oldName}" to:`, oldName);
+  if (!newName || newName === oldName) return;
+  if (renameSubcategory(type, cat, oldName, newName)) { toast('✅ Renamed'); renderCatAccountsTab(document.getElementById('setc')); }
+  else toast('❌ Failed');
+}
+function promptDeleteSub(type, cat, sub) {
+  if (!confirm(`Delete subcategory "${sub}"?`)) return;
+  if (deleteSubcategory(type, cat, sub)) { toast('🗑 Deleted'); renderCatAccountsTab(document.getElementById('setc')); }
+}
+
+// === YEAR MANAGEMENT (v15.3 — within General tab) ===
+function handleAddYear() {
+  const input = document.getElementById('addYearInput');
+  const year = parseInt(input.value);
+  if (!year) { toast('❌ Enter a valid year'); return; }
+  if (addYear(year)) { toast('✅ Year ' + year + ' added'); input.value = ''; renderGeneralTab(document.getElementById('setc')); }
+  else { toast('❌ Year already exists or invalid'); }
+}
+
+function handleRemoveYear(year) {
+  if (!confirm('Remove year ' + year + ' from all selectors?')) return;
+  if (removeYear(year)) { toast('🗑 Year ' + year + ' removed'); renderGeneralTab(document.getElementById('setc')); }
+  else { toast('❌ Cannot remove (has data)'); }
+}
+
+
+
+// === ACCOUNTS (v15.3 — within Categories & Accounts tab) ===
 
 function openAccountModal(editAcc) {
   const isEdit = !!editAcc;
@@ -223,7 +241,7 @@ function saveAccount(e, editId) {
   }
   saveACCOUNTS(); saveTXN();
   document.getElementById('maccadd').remove(); document.body.style.overflow = '';
-  setSubTab = 'accounts'; renderGeneralTab(document.getElementById('setc'));
+  renderCatAccountsTab(document.getElementById('setc'));
 }
 
 function openEditAccount(id) { const acc = ACCOUNTS.find(a => a.id === id); if (acc) openAccountModal(acc); }
@@ -235,7 +253,7 @@ function deleteAccount(id) {
   ACCOUNTS = ACCOUNTS.filter(a => a.id !== id);
   saveACCOUNTS();
   toast('🗑 Account deleted');
-  renderGeneralTab(document.getElementById('setc'));
+  renderCatAccountsTab(document.getElementById('setc'));
 }
 
 function adjustAccountBalance(id) {
@@ -249,10 +267,10 @@ function adjustAccountBalance(id) {
   if (isNaN(newBal) || newBal === currentBal) return;
   createBalanceAdjustment(id, currentBal, newBal, 'Manual Balance Adjustment');
   toast('✅ Balance adjusted');
-  renderGeneralTab(document.getElementById('setc'));
+  renderCatAccountsTab(document.getElementById('setc'));
 }
 
-// === SECURITY TAB (v15.2) ===
+// === SECURITY TAB (v15.3 — with Secure Reset) ===
 function renderSecurityTab(c) {
   var lockStatus = FT_APP_LOCK ? 'Enabled' : 'Disabled';
   var lockColor = FT_APP_LOCK ? 'var(--emerald)' : 'var(--text-tertiary)';
@@ -260,43 +278,69 @@ function renderSecurityTab(c) {
   var bioSupported = typeof ftBiometricSupported === 'function' && ftBiometricSupported();
   var bioColor = bioRegistered ? 'var(--emerald)' : 'var(--text-tertiary)';
   var bioSection = bioSupported ? '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:' + bioColor + '">Status: ' + (bioRegistered ? 'Registered ✓' : 'Not set up') + '</span>' + (bioRegistered ? '<button class="btn bd" style="font-size:11px;padding:6px 14px" onclick="ftBiometricRemove();renderSecurityTabRefresh()">Remove</button>' : '<button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="ftBiometricRegister().then(function(){renderSecurityTabRefresh()})">Set Up</button>') + '</div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6;max-width:400px">When registered and App Lock is active, FinTrack prompts for fingerprint/face on launch. Falls back to PIN if cancelled.</div>' : '<div style="font-size:11px;color:var(--text-tertiary)">Biometric not available on this device/browser. Use a mobile device with fingerprint or Face ID.</div>';
-  c.innerHTML = '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">' + t('set_sec_title') + '</h3><p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">' + t('set_sec_desc') + '</p><div class="fg"><label class="fl">' + t('set_cur_pk') + '</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">' + t('set_new_pk') + '</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><button class="btn bp" onclick="chgPK()">' + t('set_update') + '</button><div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">App Lock (PIN)</div><div style="font-size:10px;color:var(--text-tertiary)">Require PIN on every app open</div></div></div><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:' + lockColor + '">Status: ' + lockStatus + '</span><button class="btn ' + (FT_APP_LOCK ? 'bd' : 'bp') + '" style="font-size:11px;padding:6px 14px" onclick="' + (FT_APP_LOCK ? 'disableAppLock();renderSecurityTabRefresh()' : 'enableAppLock();renderSecurityTabRefresh()') + '">' + (FT_APP_LOCK ? 'Disable Lock' : 'Enable Lock') + '</button></div></div><div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="fingerprint" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Biometric Unlock</div><div style="font-size:10px;color:var(--text-tertiary)">Fingerprint or Face ID on mobile</div></div></div>' + bioSection + '</div>';
+  c.innerHTML = '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">' + t('set_sec_title') + '</h3><p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">' + t('set_sec_desc') + '</p><div class="fg"><label class="fl">' + t('set_cur_pk') + '</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">' + t('set_new_pk') + '</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><button class="btn bp" onclick="chgPK()">' + t('set_update') + '</button><div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">App Lock (PIN)</div><div style="font-size:10px;color:var(--text-tertiary)">Require PIN on every app open</div></div></div><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:' + lockColor + '">Status: ' + lockStatus + '</span><button class="btn ' + (FT_APP_LOCK ? 'bd' : 'bp') + '" style="font-size:11px;padding:6px 14px" onclick="' + (FT_APP_LOCK ? 'disableAppLock();renderSecurityTabRefresh()' : 'enableAppLock();renderSecurityTabRefresh()') + '">' + (FT_APP_LOCK ? 'Disable Lock' : 'Enable Lock') + '</button></div></div><div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="fingerprint" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Biometric Unlock</div><div style="font-size:10px;color:var(--text-tertiary)">Fingerprint or Face ID on mobile</div></div></div>' + bioSection + '</div><div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--rose-light);color:var(--rose);display:flex;align-items:center;justify-content:center"><i data-lucide="trash-2" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600;color:var(--rose)">Danger Zone</div><div style="font-size:10px;color:var(--text-tertiary)">Permanently delete all data (requires verification)</div></div></div><p style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">This will erase all transactions, accounts, categories, goals, and settings. Consider creating a backup from Reports first.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bd" onclick="secureResetAllData()">Reset All Data</button><button class="btn bs" style="color:var(--rose);border-color:var(--rose)" onclick="secureResetTransactions()">Clear Transactions Only</button></div></div>';
   lucide.createIcons();
 }
 function renderSecurityTabRefresh() { renderSecurityTab(document.getElementById('setc')); }
 
-// === IMPORT / EXPORT TAB (v10.4 Functional) ===
-function renderImportExportTab(c) {
-  c.innerHTML = `<h3 style="font-size:15px;font-weight:600;margin-bottom:4px">Import / Export</h3><p style="font-size:11px;color:var(--text-tertiary);margin-bottom:20px">Export your data for backup or import previously exported files.</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-    <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Export</div>
-      <p style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px">Download all transactions, accounts, categories, and goals.</p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn bp" onclick="exportJSON()" style="width:100%;justify-content:center"><i data-lucide="download" width="12" height="12"></i> Export JSON</button>
-        <button class="btn bs" onclick="exportCSV()" style="width:100%;justify-content:center"><i data-lucide="file-text" width="12" height="12"></i> Export CSV</button>
-        <button class="btn bs" onclick="exportExcel()" style="width:100%;justify-content:center"><i data-lucide="table" width="12" height="12"></i> Export Excel</button>
-      </div>
-    </div>
-    <div style="border:1px solid var(--border);border-radius:10px;padding:16px">
-      <div style="font-size:13px;font-weight:600;margin-bottom:4px">Import</div>
-      <p style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px">Restore from a previously exported JSON, CSV, or Excel file.</p>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <button class="btn bp" onclick="document.getElementById('impJSON').click()" style="width:100%;justify-content:center"><i data-lucide="upload" width="12" height="12"></i> Import JSON</button>
-        <button class="btn bs" onclick="document.getElementById('impCSV').click()" style="width:100%;justify-content:center"><i data-lucide="file-text" width="12" height="12"></i> Import CSV</button>
-        <button class="btn bs" onclick="document.getElementById('impExcel').click()" style="width:100%;justify-content:center"><i data-lucide="table" width="12" height="12"></i> Import Excel</button>
-      </div>
-      <input type="file" id="impJSON" accept=".json" style="display:none" onchange="importJSON(this)">
-      <input type="file" id="impCSV" accept=".csv" style="display:none" onchange="importCSV(this)">
-      <input type="file" id="impExcel" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
-    </div>
-  </div>
-  <div style="margin-top:16px;padding:10px 14px;background:var(--bg-primary);border-radius:8px;font-size:10px;color:var(--text-tertiary)">
-    <b>JSON</b> includes: transactions, accounts, categories, goals, and settings.<br>
-    <b>CSV</b> includes: transactions only (date, type, category, subcategory, amount, description, account).<br>
-    <b>Excel</b> includes: transactions with formatted columns (.xlsx).
-  </div>`;
-  lucide.createIcons();
+// === SECURE RESET (v15.3 — Requires PIN or Biometric) ===
+function secureResetAllData() {
+  showResetAuthModal('all');
+}
+
+function secureResetTransactions() {
+  showResetAuthModal('transactions');
+}
+
+function showResetAuthModal(resetType) {
+  const bioAvailable = typeof ftBiometricSupported === 'function' && ftBiometricSupported() && !!localStorage.getItem('ft_bio_cred');
+  const title = resetType === 'all' ? '⚠️ Reset All Data' : '⚠️ Clear Transactions';
+  const desc = resetType === 'all' ? 'This will permanently delete ALL your financial data.' : 'This will delete all transactions. Accounts and settings are kept.';
+  const bioBtn = bioAvailable ? '<button class="btn bp" style="width:100%;justify-content:center;margin-bottom:8px" onclick="verifyResetBiometric(\'' + resetType + '\')"><i data-lucide="fingerprint" width="14" height="14"></i> Verify with Biometric</button>' : '';
+  const h = '<div class="mo show" id="mresetauth" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">' + title + '</div><div class="mds">' + desc + '</div></div><button class="mx" onclick="document.getElementById(\'mresetauth\').remove();document.body.style.overflow=\'\'">✕</button></div><div style="padding:12px;background:var(--rose-light);border-radius:8px;font-size:12px;margin-bottom:16px;color:var(--rose);text-align:center"><b>Verify your identity to proceed</b></div>' + bioBtn + '<div class="fg"><label class="fl">Enter PIN to confirm</label><input class="fi" type="password" id="reset_pin" placeholder="Enter your PIN" autofocus></div><div id="resetPinErr" class="ferr"></div><div class="ma"><button class="btn bs" onclick="document.getElementById(\'mresetauth\').remove();document.body.style.overflow=\'\'">Cancel</button><button class="btn bd" onclick="verifyResetPin(\'' + resetType + '\')">Confirm Reset</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+  document.body.style.overflow = 'hidden';
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  setTimeout(function() { var inp = document.getElementById('reset_pin'); if (inp) inp.focus(); }, 100);
+}
+
+function verifyResetPin(resetType) {
+  var pin = document.getElementById('reset_pin').value;
+  if (pin === getPK()) {
+    document.getElementById('mresetauth').remove();
+    document.body.style.overflow = '';
+    executeReset(resetType);
+  } else {
+    var err = document.getElementById('resetPinErr');
+    if (err) { err.textContent = '❌ Incorrect PIN. Try again.'; err.classList.add('show'); }
+    document.getElementById('reset_pin').value = '';
+  }
+}
+
+async function verifyResetBiometric(resetType) {
+  var success = await ftBiometricAuth();
+  if (success) {
+    document.getElementById('mresetauth').remove();
+    document.body.style.overflow = '';
+    executeReset(resetType);
+  } else {
+    toast('❌ Biometric verification failed');
+  }
+}
+
+function executeReset(resetType) {
+  if (resetType === 'all') {
+    if (!confirm('FINAL WARNING: All financial data will be permanently erased. This cannot be undone.')) return;
+    localStorage.clear();
+    toast('🗑 All data cleared. Reloading...');
+    setTimeout(function() { location.reload(); }, 800);
+  } else {
+    localStorage.removeItem('ft_txn_data');
+    localStorage.removeItem('ft_nxId');
+    TXN = []; nxId = 100;
+    toast('🗑 Transactions cleared');
+    render();
+  }
 }
 
 function exportJSON() {
@@ -554,45 +598,7 @@ function importCSV(input) {
   reader.readAsText(file);
 }
 
-// === BACKUP TAB ===
-function renderBackupTab(c) {
-  c.innerHTML = `<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">${t('set_bak_title')}</h3><button class="btn bp" onclick="exportJSON()">Create Backup (JSON)</button> <button class="btn bs" onclick="document.getElementById('impJSON2').click()">Restore</button><input type="file" id="impJSON2" accept=".json" style="display:none" onchange="importJSON(this)"><div style="margin-top:16px"><div class="trow"><div class="tinf"><div class="tna">${t('set_auto_bak')}</div><div class="tde">${t('set_auto_bak_desc')}</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div></div><div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border)"><div style="font-size:13px;font-weight:600;margin-bottom:4px;color:var(--rose)">Danger Zone</div><p style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">Permanently delete all data. This cannot be undone. Consider creating a backup first.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bd" onclick="resetAllData()">Reset All Data</button><button class="btn bs" style="color:var(--rose);border-color:var(--rose)" onclick="resetTransactionsOnly()">Clear Transactions Only</button></div></div>`;
-}
-
-// === ABOUT TAB ===
-function renderAboutTab(c) {
-  c.innerHTML = `<div style="text-align:center;padding:30px 0"><div style="width:56px;height:56px;background:linear-gradient(135deg, oklch(0.6 0.2 260), oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 14px"><i data-lucide="wallet" width="26" height="26" style="color:#fff"></i></div><div style="font-size:18px;font-weight:700;margin-bottom:4px">FinTrack Premium</div><div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px">Version <b>${FINTRACK_VERSION}</b></div><div style="font-size:11px;color:var(--text-tertiary);margin-bottom:20px">Personal Finance Tracker</div><div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:left;max-width:360px;margin:0 auto"><div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px">Build Info</div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:var(--text-secondary)">Version</span><span style="font-weight:600">${FINTRACK_VERSION}</span></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:var(--text-secondary)">Architecture</span><span style="font-weight:600">Modular (14 files)</span></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:var(--text-secondary)">Storage</span><span style="font-weight:600">localStorage</span></div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px"><span style="color:var(--text-secondary)">Transactions</span><span style="font-weight:600">${TXN.length} records</span></div><div style="display:flex;justify-content:space-between;font-size:12px"><span style="color:var(--text-secondary)">Goals</span><span style="font-weight:600">${GOALS.length} active</span></div></div><div style="font-size:10px;color:var(--text-tertiary);margin-top:16px">Built by Irsyad · Zero framework · 30-year lifespan</div></div>`;
-  lucide.createIcons();
-}
-
-// === SHARED SETTINGS HANDLERS ===
-function saveProfileSettings() {
-  const name = document.getElementById('set_username').value.trim();
-  const title = document.getElementById('set_usertitle').value;
-  if (name) setUserName(name);
-  else localStorage.removeItem('ft_username');
-  setUserTitle(title);
-  updateUserDisplay();
-  toast('✅ Profile updated');
-  renderGeneralTab(document.getElementById('setc'));
-}
-
-function resetAllData() {
-  if (!confirm('⚠️ This will DELETE all data:\n\n• Transactions\n• Accounts\n• Categories\n• Goals\n• Reminders\n• Budget plans\n• Settings\n\nThis CANNOT be undone. Are you sure?')) return;
-  if (!confirm('FINAL WARNING: All your financial data will be permanently erased. Type "yes" mentally and click OK.')) return;
-  localStorage.clear();
-  toast('🗑 All data cleared. Reloading...');
-  setTimeout(() => location.reload(), 800);
-}
-
-function resetTransactionsOnly() {
-  if (!confirm('Delete all transactions? Accounts, goals, and settings will be kept.\n\nThis cannot be undone.')) return;
-  localStorage.removeItem('ft_txn_data');
-  localStorage.removeItem('ft_nxId');
-  TXN = []; nxId = 100;
-  toast('🗑 Transactions cleared');
-  render();
-}
+// === SHARED SETTINGS HANDLERS (v15.3) ===
 
 async function handleCurrencyChange(currency) {
   const statusEl = document.getElementById('rateStatus');
@@ -601,8 +607,6 @@ async function handleCurrencyChange(currency) {
   if (!success && statusEl) statusEl.textContent = t('set_rate_failed');
   else if (statusEl) statusEl.textContent = `${t('set_rate_info')}: ${new Date().toLocaleString()}`;
   setCurrency(currency);
-  // v15.1: Re-render accounts tab if visible to reflect new conversion
-  if (setSubTab === 'accounts') { setTimeout(() => renderGeneralTab(document.getElementById('setc')), 100); }
 }
 
 function chgPK() {
