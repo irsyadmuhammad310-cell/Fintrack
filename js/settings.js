@@ -36,9 +36,11 @@ function saveProfileSettings() {
   renderProfileTab(document.getElementById('setc'));
 }
 
-// === GENERAL TAB (v15.3 — Notifications + Years sections) ===
+// === GENERAL TAB (v15.4 — Notifications + Years + AI Config) ===
 function renderGeneralTab(c) {
   let html = '';
+  // AI Assistant section
+  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="sparkles" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">AI Assistant (Gemini)</div><div style="font-size:10px;color:var(--text-tertiary)">Connect to Google Gemini for intelligent AI responses</div></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">API Key</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_gemini_key" value="${getAIKey()}" placeholder="Paste your Gemini API key" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGeminiKey()">Save</button></div></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6">Get a free key: <b>aistudio.google.com</b> → Get API Key → Create API Key. Free tier: 1,500 requests/day, no credit card needed, never expires.</div><div id="geminiKeyStatus" style="margin-top:8px"></div></div>`;
   // Notifications section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_notifications')}</div><div style="font-size:10px;color:var(--text-tertiary)">Manage notification preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_budget_alerts')}</div><div class="tde">Get notified when budget is exceeded</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div><div class="trow"><div class="tinf"><div class="tna">Goal Milestones</div><div class="tde">Celebrate when you hit savings goals</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div></div>`;
   // Years section
@@ -186,6 +188,17 @@ function promptDeleteSub(type, cat, sub) {
 }
 
 // === YEAR MANAGEMENT (v15.3 — within General tab) ===
+function saveGeminiKey() {
+  const key = document.getElementById('set_gemini_key').value.trim();
+  setAIKey(key);
+  const status = document.getElementById('geminiKeyStatus');
+  if (key) {
+    status.innerHTML = '<span style="color:var(--emerald);font-size:11px;font-weight:500">✅ Key saved. AI chat is now powered by Gemini.</span>';
+  } else {
+    status.innerHTML = '<span style="color:var(--text-tertiary);font-size:11px">Key removed. AI will prompt for setup.</span>';
+  }
+}
+
 function handleAddYear() {
   const input = document.getElementById('addYearInput');
   const year = parseInt(input.value);
