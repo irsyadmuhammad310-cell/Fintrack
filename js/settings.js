@@ -1,6 +1,7 @@
-// === SETTINGS (v15.3) ===
+// === SETTINGS (v15.5) ===
 let setSubTab = 'profile';
-const FINTRACK_VERSION = 'v15.4';
+
+const FINTRACK_VERSION = 'v15.5';
 
 function renderSettings(c) {
   c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'appearance')"><i data-lucide="palette" width="14" height="14"></i>Appearance</div><div class="sni" onclick="setTab(this,'currency')"><i data-lucide="coins" width="14" height="14"></i>${t('set_currency')}</div><div class="sni" onclick="setTab(this,'language')"><i data-lucide="languages" width="14" height="14"></i>${t('set_language')}</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div></div><div class="setc" id="setc"></div></div>`;
@@ -20,7 +21,7 @@ function setTab(el, tab) {
   else if (tab === 'security') { renderSecurityTab(c); }
 }
 
-// === PROFILE TAB (v15.3) ===
+// === PROFILE TAB (v15.5) ===
 function renderProfileTab(c) {
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your name and greeting preference</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveProfileSettings()">Save</button></div><div style="font-size:10px;color:var(--text-tertiary)">Preview: "${getGreeting()}"</div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="info" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">FinTrack ${FINTRACK_VERSION}</div><div style="font-size:10px;color:var(--text-tertiary)">Personal Finance Tracker · Premium Edition</div></div></div></div>`;
   lucide.createIcons();
@@ -36,13 +37,28 @@ function saveProfileSettings() {
   renderProfileTab(document.getElementById('setc'));
 }
 
-// === GENERAL TAB (v15.4 — Notifications + Years + AI Config) ===
+// === GENERAL TAB (v15.5 — Notifications + Years + AI Config) ===
 function renderGeneralTab(c) {
   let html = '';
   // AI Assistant section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="sparkles" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">AI Assistant (Gemini)</div><div style="font-size:10px;color:var(--text-tertiary)">Connect to Google Gemini for intelligent AI responses</div></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">API Key</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_gemini_key" value="${getAIKey()}" placeholder="Paste your Gemini API key" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGeminiKey()">Save</button></div></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6">Get a free key: <b>aistudio.google.com</b> → Get API Key → Create API Key. Free tier: 1,500 requests/day, no credit card needed, never expires.</div><div id="geminiKeyStatus" style="margin-top:8px"></div></div>`;
   // Notifications section
-  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_notifications')}</div><div style="font-size:10px;color:var(--text-tertiary)">Manage notification preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_budget_alerts')}</div><div class="tde">Get notified when budget is exceeded</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div><div class="trow"><div class="tinf"><div class="tna">Goal Milestones</div><div class="tde">Celebrate when you hit savings goals</div></div><div class="tsw on" onclick="this.classList.toggle('on')"></div></div></div>`;
+  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_notifications')}</div><div style="font-size:10px;color:var(--text-tertiary)">Alerts, milestones, and reminders</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_budget_alerts')}</div><div class="tde">Get notified when spending exceeds budget</div></div><div class="tsw ${localStorage.getItem('ft_budget_alerts') !== 'off' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_budget_alerts',this.classList.contains('on')?'on':'off')"></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_milestone_alerts')}</div><div class="tde">Celebrate when reaching savings goals at 25%, 50%, 75%, 100%</div></div><div class="tsw ${localStorage.getItem('ft_milestone_alerts') !== 'off' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_milestone_alerts',this.classList.contains('on')?'on':'off')"></div></div>`;
+
+  if (typeof REMINDERS !== 'undefined' && REMINDERS.length) {
+    html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">`;
+    REMINDERS.forEach(r => {
+      const rDate = new Date(r.date); const today = new Date(); today.setHours(0,0,0,0); rDate.setHours(0,0,0,0);
+      const diff = Math.ceil((rDate - today) / (1000*60*60*24));
+      const statusIcon = r.completed ? '✅' : diff < 0 ? '🔴' : diff <= 3 ? '🟡' : '🟢';
+      const freq = r.repeat === 'monthly' ? 'Monthly' : r.repeat === 'yearly' ? 'Yearly' : 'Once';
+      html += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid var(--border-light);border-radius:8px;font-size:11px${r.completed ? ';opacity:0.5' : ''}"><div style="flex:1;min-width:0"><span style="font-weight:600">${statusIcon} ${r.title}</span><span style="color:var(--text-tertiary);margin-left:8px">${freq} · ${r.date}</span></div><div style="display:flex;gap:3px"><button class="abtn" style="width:20px;height:20px;font-size:8px" onclick="editReminder(${r.id})">✏️</button><button class="abtn del" style="width:20px;height:20px;font-size:8px" onclick="deleteReminder(${r.id});renderGeneralTab(document.getElementById('setc'))">🗑</button></div></div>`;
+    });
+    html += `</div>`;
+  } else {
+    html += `<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px;border:1px dashed var(--border);border-radius:8px;margin-top:12px">No reminders yet. Add recurring payments (rent, insurance, subscriptions) to get notified.</div>`;
+  }
+  html += `</div>`;
   // Years section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="calendar" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Global Year Management</div><div style="font-size:10px;color:var(--text-tertiary)">Manage available years across all modules. Changes sync instantly.</div></div></div>`;
   html += `<div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()"><i data-lucide="plus" width="11" height="11"></i> Add Year</button></div>`;
@@ -57,13 +73,13 @@ function renderGeneralTab(c) {
   lucide.createIcons();
 }
 
-// === APPEARANCE TAB (v15.3 — Standalone) ===
+// === APPEARANCE TAB (v15.5) ===
 function renderAppearanceTab(c) {
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_dark_mode')}</div><div class="tde">${t('set_theme')}</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="toggleTheme();this.classList.toggle('on')"></div></div><div class="trow"><div class="tinf"><div class="tna">Accent Color</div><div class="tde">Primary brand color used across the app</div></div><div style="display:flex;gap:6px;align-items:center"><div style="width:24px;height:24px;border-radius:6px;background:var(--accent);border:2px solid var(--border)"></div><span style="font-size:11px;color:var(--text-tertiary)">Indigo</span></div></div></div>`;
   lucide.createIcons();
 }
 
-// === CURRENCY TAB (v15.3 — Standalone) ===
+// === CURRENCY TAB (v15.5) ===
 function renderCurrencyTab(c) {
   const currencyOptions = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol}) - ${cfg.name}</option>`).join('');
   const rateInfo = ratesLastUpdated ? `${t('set_rate_info')}: ${new Date(ratesLastUpdated).toLocaleString()}` : '';
@@ -71,17 +87,16 @@ function renderCurrencyTab(c) {
   lucide.createIcons();
 }
 
-// === LANGUAGE TAB (v15.3 — Standalone) ===
+// === LANGUAGE TAB (v15.5) ===
 function renderLanguageTab(c) {
   const langOptions = [['en','English'],['zh','简体中文'],['ja','日本語']].map(([code, name]) => `<option value="${code}"${code === currentLang ? ' selected' : ''}>${name}</option>`).join('');
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="languages" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_language')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_language_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_lang" onchange="setLang(this.value)">${langOptions}</select></div>`;
   lucide.createIcons();
 }
 
-// === CATEGORIES & ACCOUNTS TAB (v15.3 — Combined Page) ===
+// === CATEGORIES & ACCOUNTS TAB (v15.5) ===
 function renderCatAccountsTab(c) {
   let html = '<div style="margin-bottom:24px">';
-  // Categories Section
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="display:flex;gap:4px">`;
   ['Income','Expense','Savings'].forEach(tp => {
@@ -106,7 +121,6 @@ function renderCatAccountsTab(c) {
     });
   }
   html += '</div>';
-  // Accounts Section
   html += `<div style="border-top:2px solid var(--border);padding-top:20px">`;
   html += renderAccountsSection();
   html += `</div>`;
@@ -118,7 +132,6 @@ function renderAccountsSection() {
   const assets = ACCOUNTS.filter(a => a.type === 'asset');
   const liabilities = ACCOUNTS.filter(a => a.type === 'liability');
   let html = '';
-  // Exchange rate info banner (v15.1)
   const hasMultiCurrency = ACCOUNTS.some(a => (a.currency || 'MYR') !== displayCurrency);
   if (hasMultiCurrency) {
     const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
@@ -151,7 +164,7 @@ function renderAccountsSection() {
   return html;
 }
 
-// === CATEGORIES (v10.4 Redesigned — helpers kept) ===
+// === CATEGORIES HELPERS ===
 let catTypeFilter = 'Income';
 
 function promptAddCategory() {
@@ -187,7 +200,7 @@ function promptDeleteSub(type, cat, sub) {
   if (deleteSubcategory(type, cat, sub)) { toast('🗑 Deleted'); renderCatAccountsTab(document.getElementById('setc')); }
 }
 
-// === YEAR MANAGEMENT (v15.3 — within General tab) ===
+// === YEAR MANAGEMENT & AI KEY ===
 function saveGeminiKey() {
   const key = document.getElementById('set_gemini_key').value.trim();
   setAIKey(key);
@@ -213,10 +226,7 @@ function handleRemoveYear(year) {
   else { toast('❌ Cannot remove (has data)'); }
 }
 
-
-
-// === ACCOUNTS (v15.3 — within Categories & Accounts tab) ===
-
+// === ACCOUNTS ===
 function openAccountModal(editAcc) {
   const isEdit = !!editAcc;
   const typeOptions = [...ACCOUNT_TYPES.asset.map(tp => `<option value="asset|${tp}"${isEdit && editAcc.type === 'asset' && editAcc.accountType === tp ? ' selected' : ''}>[Asset] ${tp}</option>`), ...ACCOUNT_TYPES.liability.map(tp => `<option value="liability|${tp}"${isEdit && editAcc.type === 'liability' && editAcc.accountType === tp ? ' selected' : ''}>[Liability] ${tp}</option>`)].join('');
@@ -238,9 +248,7 @@ function saveAccount(e, editId) {
       const oldInitialBalance = acc.initialBalance;
       acc.name = name; acc.type = type; acc.accountType = accountType; acc.currency = currency; acc.notes = notes;
       if (newInitialBalance !== oldInitialBalance) {
-        const diff = newInitialBalance - oldInitialBalance;
         acc.initialBalance = newInitialBalance;
-        // Create adjustment transaction for the difference only (v15.1)
         createBalanceAdjustment(acc.id, oldInitialBalance, newInitialBalance, 'Starting Account Balance Adjustment');
       }
     }
@@ -249,7 +257,6 @@ function saveAccount(e, editId) {
   } else {
     const id = 'acc_' + (accNxId++);
     ACCOUNTS.push({ id, name, type, accountType, currency, initialBalance: newInitialBalance, notes, createdAt: new Date().toISOString().split('T')[0] });
-    // v15.1: Starting Account Balance is NOT a transaction. No TXN created.
     toast('✅ Account created');
   }
   saveACCOUNTS(); saveTXN();
@@ -274,7 +281,8 @@ function adjustAccountBalance(id) {
   if (!acc || acc.type !== 'asset') return;
   const currentBal = getAccountBalance(id);
   const cur = acc.currency || 'MYR';
-  const newBalStr = prompt(`Current balance: ${fmtIn(currentBal, cur)}\nEnter new balance (in ${cur}):`, currentBal);
+  const newBalStr = prompt(`Current balance: ${fmtIn(currentBal, cur)}
+Enter new balance (in ${cur}):`, currentBal);
   if (newBalStr === null) return;
   const newBal = parseFloat(newBalStr);
   if (isNaN(newBal) || newBal === currentBal) return;
@@ -283,7 +291,7 @@ function adjustAccountBalance(id) {
   renderCatAccountsTab(document.getElementById('setc'));
 }
 
-// === SECURITY TAB (v15.3 — with Secure Reset) ===
+// === SECURITY TAB (v15.5) ===
 function renderSecurityTab(c) {
   var lockStatus = FT_APP_LOCK ? 'Enabled' : 'Disabled';
   var lockColor = FT_APP_LOCK ? 'var(--emerald)' : 'var(--text-tertiary)';
@@ -296,14 +304,9 @@ function renderSecurityTab(c) {
 }
 function renderSecurityTabRefresh() { renderSecurityTab(document.getElementById('setc')); }
 
-// === SECURE RESET (v15.3 — Requires PIN or Biometric) ===
-function secureResetAllData() {
-  showResetAuthModal('all');
-}
-
-function secureResetTransactions() {
-  showResetAuthModal('transactions');
-}
+// === SECURE RESET ===
+function secureResetAllData() { showResetAuthModal('all'); }
+function secureResetTransactions() { showResetAuthModal('transactions'); }
 
 function showResetAuthModal(resetType) {
   const bioAvailable = typeof ftBiometricSupported === 'function' && ftBiometricSupported() && !!localStorage.getItem('ft_bio_cred');
@@ -356,6 +359,7 @@ function executeReset(resetType) {
   }
 }
 
+// === EXPORT/IMPORT ===
 function exportJSON() {
   const data = { version: 'fintrack-' + FINTRACK_VERSION, exportedAt: new Date().toISOString(), transactions: TXN, schema: SCHEMA, accounts: ACCOUNTS, goals: GOALS, settings: { currency: displayCurrency, language: currentLang, theme: document.documentElement.dataset.theme } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -371,7 +375,8 @@ function exportCSV() {
     const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
     return [tx.d, tx.t, tx.c, tx.s || '', tx.a, tx.dt || '', accName].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
   });
-  const csv = [headers.join(','), ...rows].join('\n');
+  const csv = [headers.join(','), ...rows].join('
+');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = `fintrack-transactions-${new Date().toISOString().split('T')[0]}.csv`;
@@ -380,7 +385,6 @@ function exportCSV() {
 }
 
 function exportExcel() {
-  // Generate Excel XML (compatible with Excel, no library needed)
   const headers = ['Date','Type','Category','Subcategory','Amount','Description','Account'];
   let xml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
   xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
@@ -408,15 +412,12 @@ function exportExcel() {
 
 function importExcel(input) {
   const file = input.files[0]; if (!file) return;
-
-  // Load SheetJS library dynamically if not already loaded
   function loadSheetJS(callback) {
     if (window.XLSX) { callback(); return; }
     const script = document.createElement('script');
     script.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
     script.onload = callback;
     script.onerror = () => {
-      // Fallback CDN
       const s2 = document.createElement('script');
       s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
       s2.onload = callback;
@@ -425,38 +426,25 @@ function importExcel(input) {
     };
     document.head.appendChild(script);
   }
-
   loadSheetJS(() => {
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-
-        // Use first sheet
         const sheetName = workbook.SheetNames[0];
         if (!sheetName) { toast('❌ No sheets found in file'); input.value = ''; return; }
         const sheet = workbook.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
-
         if (rows.length < 2) { toast('❌ Excel file is empty or has no data rows'); input.value = ''; return; }
-
-        // Detect header row (find row with Date/Type/Amount keywords)
         let headerIdx = 0;
         for (let i = 0; i < Math.min(rows.length, 5); i++) {
           const rowLower = (rows[i] || []).map(c => String(c || '').toLowerCase()).join(' ');
-          if (rowLower.includes('date') && (rowLower.includes('type') || rowLower.includes('category') || rowLower.includes('amount'))) {
-            headerIdx = i;
-            break;
-          }
+          if (rowLower.includes('date') && (rowLower.includes('type') || rowLower.includes('category') || rowLower.includes('amount'))) { headerIdx = i; break; }
         }
-
         const headers = (rows[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
         const dataRows = rows.slice(headerIdx + 1).filter(r => r && r.some(c => c !== null && c !== undefined && String(c).trim()));
-
         if (!dataRows.length) { toast('❌ No data rows found after header'); input.value = ''; return; }
-
-        // Map column indices flexibly
         const findCol = (...keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
         const colMap = {};
         colMap.date = findCol('date', 'tarikh', 'dt');
@@ -466,25 +454,18 @@ function importExcel(input) {
         colMap.amount = findCol('amount', 'jumlah', 'amt', 'value', 'total');
         colMap.description = findCol('description', 'desc', 'details', 'note', 'keterangan', 'remark');
         colMap.account = findCol('account', 'akaun', 'acc', 'bank');
-
-        // Fallback: positional if can't detect headers
         if (colMap.date < 0 && colMap.amount < 0) {
-          if (headers.length >= 5) {
-            colMap.date = 0; colMap.type = 1; colMap.category = 2; colMap.subcategory = 3; colMap.amount = 4;
-            colMap.description = 5; colMap.account = 6;
-          } else {
-            toast('❌ Cannot detect columns. Expected: Date, Type, Category, Subcategory, Amount');
-            input.value = ''; return;
-          }
+          if (headers.length >= 5) { colMap.date = 0; colMap.type = 1; colMap.category = 2; colMap.subcategory = 3; colMap.amount = 4; colMap.description = 5; colMap.account = 6; }
+          else { toast('❌ Cannot detect columns. Expected: Date, Type, Category, Subcategory, Amount'); input.value = ''; return; }
         }
-
         const detected = Object.entries(colMap).filter(([k,v]) => v >= 0).map(([k,v]) => k + '="' + (headers[v] || 'col' + v) + '"').join(', ');
-        if (!confirm(`Found ${dataRows.length} rows in sheet "${sheetName}".\nColumns: ${detected}\n\nThis will ADD new transactions. Continue?`)) { input.value = ''; return; }
+        if (!confirm(`Found ${dataRows.length} rows in sheet "${sheetName}".
+Columns: ${detected}
 
+This will ADD new transactions. Continue?`)) { input.value = ''; return; }
         let added = 0, skipped = 0;
         dataRows.forEach(row => {
           const getVal = (col) => col >= 0 && col < row.length ? String(row[col] || '').trim() : '';
-
           let d = getVal(colMap.date);
           const tp = getVal(colMap.type) || 'Expense';
           const cat = getVal(colMap.category);
@@ -492,51 +473,28 @@ function importExcel(input) {
           let amtStr = getVal(colMap.amount);
           const desc = getVal(colMap.description);
           const accName = getVal(colMap.account);
-
-          // Parse amount
           amtStr = amtStr.replace(/[^\d.\-\(\)]/g, '');
           if (amtStr.includes('(') && amtStr.includes(')')) amtStr = '-' + amtStr.replace(/[\(\)]/g, '');
           const parsedAmt = parseFloat(amtStr);
           if (!parsedAmt || parsedAmt === 0) { skipped++; return; }
-
-          // Parse date
           if (d) {
             if (/^\d{4}-\d{2}-\d{2}/.test(d)) { d = d.substring(0, 10); }
-            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) {
-              const parts = d.split(/[\/\-]/);
-              d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-            }
-            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) {
-              const parts = d.split(/[\/\-]/);
-              d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-            }
-            else if (/^\d{5}$/.test(d)) {
-              const excelEpoch = new Date(1899, 11, 30);
-              const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000);
-              d = parsed.toISOString().split('T')[0];
-            }
-            else {
-              const parsed = new Date(d);
-              if (!isNaN(parsed.getTime())) d = parsed.toISOString().split('T')[0];
-              else { skipped++; return; }
-            }
+            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; }
+            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; }
+            else if (/^\d{5}$/.test(d)) { const excelEpoch = new Date(1899, 11, 30); const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000); d = parsed.toISOString().split('T')[0]; }
+            else { const parsed = new Date(d); if (!isNaN(parsed.getTime())) d = parsed.toISOString().split('T')[0]; else { skipped++; return; } }
           } else { skipped++; return; }
-
           if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { skipped++; return; }
-
-          // Normalize type
           let normalizedType = tp;
           const tpLower = tp.toLowerCase();
           if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income';
           else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung')) normalizedType = 'Savings';
           else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense';
           else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
-
           const accMatch = accName ? ACCOUNTS.find(a => a.name.toLowerCase() === accName.toLowerCase()) : null;
           TXN.push({ id: nxId++, d, t: normalizedType, c: cat || 'Uncategorized', s: sub, a: Math.abs(parsedAmt), dt: desc, acc: accMatch ? accMatch.id : undefined });
           added++;
         });
-
         saveTXN();
         toast(`✅ Imported ${added} transactions${skipped ? ' (' + skipped + ' skipped)' : ''}`);
       } catch (err) { toast('❌ Error reading Excel file: ' + (err.message || 'Unknown error')); console.error('Excel import error:', err); }
@@ -588,7 +546,8 @@ function importCSV(input) {
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const lines = e.target.result.split('
+').filter(l => l.trim());
       if (lines.length < 2) { toast('❌ Empty CSV file'); return; }
       const header = lines[0].toLowerCase();
       if (!header.includes('date') || !header.includes('type') || !header.includes('amount')) { toast('❌ Invalid CSV: missing required columns (Date, Type, Amount)'); return; }
@@ -611,8 +570,7 @@ function importCSV(input) {
   reader.readAsText(file);
 }
 
-// === SHARED SETTINGS HANDLERS (v15.3) ===
-
+// === SHARED SETTINGS HANDLERS ===
 async function handleCurrencyChange(currency) {
   const statusEl = document.getElementById('rateStatus');
   if (statusEl) statusEl.textContent = t('set_fetching');
@@ -630,7 +588,7 @@ function chgPK() {
   toast(t('set_pk_ok'));
 }
 
-// === NOTIFICATIONS TAB (v10.9.1 — Full Notification Manager) ===
+// === NOTIFICATION MANAGER ===
 function renderNotificationsTab(c) {
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Notification Manager</div><div style="font-size:10px;color:var(--text-tertiary)">Manage reminders and alerts</div></div></div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openReminderModal()"><i data-lucide="plus" width="11" height="11"></i> New Reminder</button></div>`;
   if (!REMINDERS.length) {
@@ -655,7 +613,9 @@ function renderNotificationsTab(c) {
 }
 
 function editOpeningBalance() {
-  const newVal = prompt('Opening Balance (your total balance before FinTrack tracking began):\n\nThis is the carry-forward anchor. All balance calculations start from this value.', INITIAL_DEPOSIT);
+  const newVal = prompt('Opening Balance (your total balance before FinTrack tracking began):
+
+This is the carry-forward anchor. All balance calculations start from this value.', INITIAL_DEPOSIT);
   if (newVal === null) return;
   const parsed = parseFloat(newVal);
   if (isNaN(parsed)) { toast('❌ Invalid number'); return; }
