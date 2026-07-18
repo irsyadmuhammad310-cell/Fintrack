@@ -253,21 +253,64 @@ async function ftDoUnlock() {
   }
 }
 
-// === FORGOT PIN (v15.7 — Recovery Code) ===
+// === FORGOT PIN (v15.7 — Recovery Code + Security Questions) ===
 function showForgotPIN() {
-  if (!hasRecoverySetup()) {
-    alert('No recovery code has been set up. You can reset the app by clearing site data, or use the default PIN: 1234');
+  var hasCode = hasRecoverySetup();
+  var hasQuestions = hasSecurityQuestions();
+  if (!hasCode && !hasQuestions) {
+    alert('No recovery method has been set up. You can reset the app by clearing site data, or use the default PIN: 1234');
     return;
   }
   var unlockEl = document.getElementById('ftUnlock');
   if (unlockEl) unlockEl.remove();
-  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.18 155),oklch(0.5 0.18 180));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="key" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">PIN Recovery</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your 12-character recovery code</div><input id="ftRecoveryInput" type="text" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:16px;text-align:center;outline:none;letter-spacing:2px;font-family:monospace;text-transform:uppercase" placeholder="XXXX-XXXX-XXXX"><button id="ftRecoveryBtn" onclick="verifyAndResetPIN()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.18 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">Verify & Reset PIN</button><div id="ftRecoveryErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Invalid recovery code.</div><div style="margin-top:16px"><button onclick="showUnlockScreen()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Back to PIN</button></div></div></div>';
+  // Show method selection if both available
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.18 155),oklch(0.5 0.18 180));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="key" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">PIN Recovery</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Choose your recovery method</div><div id="ftRecoveryMethods" style="display:flex;flex-direction:column;gap:10px">';
+  if (hasCode) {
+    html += '<button onclick="showRecoveryCodeInput()" style="width:100%;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-primary);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:10px;justify-content:center"><span style="font-size:18px">🔑</span> Recovery Code</button>';
+  }
+  if (hasQuestions) {
+    html += '<button onclick="showSecurityQuestionsInput()" style="width:100%;padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-primary);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:10px;justify-content:center"><span style="font-size:18px">❓</span> Security Questions</button>';
+  }
+  html += '</div><div style="margin-top:16px"><button onclick="showUnlockScreen()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Back to PIN</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  // If only one method, go directly
+  if (hasCode && !hasQuestions) { showRecoveryCodeInput(); }
+  else if (!hasCode && hasQuestions) { showSecurityQuestionsInput(); }
+}
+
+function showRecoveryCodeInput() {
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.18 155),oklch(0.5 0.18 180));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="key" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Recovery Code</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your 12-character recovery code</div><input id="ftRecoveryInput" type="text" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:16px;text-align:center;outline:none;letter-spacing:2px;font-family:monospace;text-transform:uppercase" placeholder="XXXX-XXXX-XXXX"><button onclick="verifyAndResetPIN()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.18 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">Verify & Reset PIN</button><div id="ftRecoveryErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Invalid recovery code.</div><div style="margin-top:16px"><button onclick="showForgotPIN()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Try another method</button></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   if (typeof lucide !== 'undefined') lucide.createIcons();
   var inp = document.getElementById('ftRecoveryInput');
-  if (inp) {
-    inp.focus();
-    inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); verifyAndResetPIN(); } });
+  if (inp) { inp.focus(); inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); verifyAndResetPIN(); } }); }
+}
+
+function showSecurityQuestionsInput() {
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  var indices = getSecurityQuestionIndices();
+  if (!indices) { alert('Security questions not configured.'); showUnlockScreen(); return; }
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:380px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.15 220),oklch(0.5 0.18 250));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="help-circle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Security Questions</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Answer both questions to reset your PIN</div><div style="text-align:left;margin-bottom:12px"><label style="font-size:11px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px">' + SECURITY_QUESTIONS[indices.q1] + '</label><input id="ftSQ1" type="text" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:13px;outline:none" placeholder="Your answer"></div><div style="text-align:left;margin-bottom:16px"><label style="font-size:11px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px">' + SECURITY_QUESTIONS[indices.q2] + '</label><input id="ftSQ2" type="text" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:13px;outline:none" placeholder="Your answer"></div><button onclick="verifyQuestionsAndReset()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.18 250);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Verify & Reset PIN</button><div id="ftSQErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Incorrect answers. Try again.</div><div style="margin-top:16px"><button onclick="showForgotPIN()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Try another method</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  var inp = document.getElementById('ftSQ1');
+  if (inp) inp.focus();
+}
+
+async function verifyQuestionsAndReset() {
+  var a1 = document.getElementById('ftSQ1') ? document.getElementById('ftSQ1').value : '';
+  var a2 = document.getElementById('ftSQ2') ? document.getElementById('ftSQ2').value : '';
+  if (!a1 || !a2) { toast('Please answer both questions'); return; }
+  var valid = await verifySecurityAnswers(a1, a2);
+  if (valid) {
+    promptNewPINAfterRecovery();
+  } else {
+    var err = document.getElementById('ftSQErr');
+    if (err) { err.textContent = 'Incorrect answers. Try again.'; err.style.display = 'block'; }
   }
 }
 
@@ -277,24 +320,46 @@ async function verifyAndResetPIN() {
   if (!code) return;
   var valid = await verifyRecoveryCode(code);
   if (valid) {
-    var newPin = prompt('Recovery successful! Enter your new PIN (minimum 4 digits):');
-    if (!newPin || newPin.length < 4) { alert('PIN must be at least 4 characters.'); return; }
-    var confirmPin = prompt('Confirm your new PIN:');
-    if (newPin !== confirmPin) { alert('PINs do not match. Try again.'); return; }
-    await setPINSecure(newPin);
-    toast('\✅ PIN reset successfully');
-    var unlockEl = document.getElementById('ftUnlock');
-    if (unlockEl) unlockEl.remove();
-    ftIsUnlocked = true;
-    loadTXN();
-    initApp();
-    var appEl = document.getElementById('app');
-    if (appEl) appEl.style.display = '';
+    promptNewPINAfterRecovery();
   } else {
     var err = document.getElementById('ftRecoveryErr');
     if (err) err.style.display = 'block';
     if (input) { input.value = ''; input.focus(); }
   }
+}
+
+function promptNewPINAfterRecovery() {
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 155),oklch(0.5 0.2 130));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="check-circle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Create New PIN</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Recovery verified. Set your new PIN below.</div><div style="margin-bottom:10px"><input id="ftNewPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="New PIN (min 4)"></div><div style="margin-bottom:16px"><input id="ftConfirmPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="Confirm PIN"></div><button onclick="saveNewPINAfterRecovery()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Set New PIN</button><div id="ftNewPinErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none"></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  var inp = document.getElementById('ftNewPin');
+  if (inp) inp.focus();
+}
+
+async function saveNewPINAfterRecovery() {
+  var pin = document.getElementById('ftNewPin') ? document.getElementById('ftNewPin').value : '';
+  var confirm = document.getElementById('ftConfirmPin') ? document.getElementById('ftConfirmPin').value : '';
+  var err = document.getElementById('ftNewPinErr');
+  if (!pin || pin.length < 4) { if (err) { err.textContent = 'PIN must be at least 4 characters.'; err.style.display = 'block'; } return; }
+  if (pin !== confirm) { if (err) { err.textContent = 'PINs do not match.'; err.style.display = 'block'; } return; }
+  await setPINSecure(pin);
+  toast('✅ PIN reset successfully');
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  ftIsUnlocked = true;
+  loadTXN();
+  initApp();
+  var appEl = document.getElementById('app');
+  if (appEl) appEl.style.display = '';
+}
+
+// === FIRST-TIME SECURITY SETUP (v15.7) ===
+function showFirstTimeSecuritySetup() {
+  var html = '<div class="mo show" id="mSecSetup" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}"><div class="ml" style="max-width:420px" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">🔐 Secure Your FinTrack</div><div class="mds">Set up a PIN and recovery method to protect your data</div></div><button class="mx" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">✕</button></div><div style="padding:4px 0"><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Create a PIN (min 4 characters)</label><input class="fi" type="password" id="setup_pin" placeholder="Enter PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Confirm PIN</label><input class="fi" type="password" id="setup_pin_confirm" placeholder="Confirm PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 1</div><select class="fi" id="setup_sq1" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '">' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa1" placeholder="Your answer" style="font-size:12px"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 2</div><select class="fi" id="setup_sq2" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '"' + (i === 1 ? ' selected' : '') + '>' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa2" placeholder="Your answer" style="font-size:12px"></div></div><div class="ma"><button class="btn bs" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">Skip for now</button><button class="btn bp" onclick="completeFirstTimeSetup()">Secure My Data</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
 }
 
 function initApp() {
@@ -355,6 +420,10 @@ function initApp() {
   }
   // Show onboarding for first-time users, greeting toast for returning users
   if (!localStorage.getItem('ft_onboarded')) { showOnboarding(); }
+  else if (!localStorage.getItem('ft_security_setup_done') && !getPKHash()) {
+    // Prompt security setup if user hasn't set up PIN yet (returning users from pre-v15.7)
+    setTimeout(() => showRecoveryReminder(), 1000);
+  }
   else { setTimeout(() => toast(getGreeting()), 500); }
 }
 
@@ -437,7 +506,8 @@ function showOnboarding() {
     var el = document.getElementById('onboardOverlay');
     if (el) el.remove();
     updateUserDisplay();
-    setTimeout(() => toast(getGreeting()), 300);
+    // v15.7: Show first-time security setup after onboarding
+    setTimeout(function() { showFirstTimeSecuritySetup(); }, 400);
   };
 
   function saveOnboardName() {
@@ -454,6 +524,44 @@ const rdy = setInterval(() => {
     init();
   }
 }, 50);
+
+// === COMPLETE FIRST-TIME SETUP (v15.7) ===
+async function completeFirstTimeSetup() {
+  var pin = document.getElementById('setup_pin') ? document.getElementById('setup_pin').value : '';
+  var confirm = document.getElementById('setup_pin_confirm') ? document.getElementById('setup_pin_confirm').value : '';
+  var sq1 = document.getElementById('setup_sq1') ? parseInt(document.getElementById('setup_sq1').value) : 0;
+  var sa1 = document.getElementById('setup_sa1') ? document.getElementById('setup_sa1').value.trim() : '';
+  var sq2 = document.getElementById('setup_sq2') ? parseInt(document.getElementById('setup_sq2').value) : 1;
+  var sa2 = document.getElementById('setup_sa2') ? document.getElementById('setup_sa2').value.trim() : '';
+  if (!pin || pin.length < 4) { toast('❌ PIN must be at least 4 characters'); return; }
+  if (pin !== confirm) { toast('❌ PINs do not match'); return; }
+  if (!sa1 || !sa2) { toast('❌ Please answer both security questions'); return; }
+  if (sq1 === sq2) { toast('❌ Choose two different questions'); return; }
+  // Save PIN as hash
+  await setPINSecure(pin);
+  // Save security questions
+  await saveSecurityAnswers(sq1, sa1, sq2, sa2);
+  // Generate and show recovery code
+  var code = await setupRecoveryCode();
+  localStorage.setItem('ft_security_setup_done', 'true');
+  // Close setup modal
+  var modal = document.getElementById('mSecSetup');
+  if (modal) { modal.remove(); document.body.style.overflow = ''; }
+  // Show recovery code to user
+  showRecoveryCodeDisplay(code);
+}
+
+function showRecoveryCodeDisplay(code) {
+  var html = '<div class="mo show" id="mRecCode" onclick="event.stopPropagation()"><div class="ml" style="max-width:380px" onclick="event.stopPropagation()"><div style="text-align:center;padding:8px 0"><div style="font-size:32px;margin-bottom:12px">🔑</div><div style="font-size:16px;font-weight:700;margin-bottom:6px">Your Recovery Code</div><div style="font-size:11px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5">Save this code somewhere safe. You will need it to reset your PIN if you forget it. This code will NOT be shown again.</div><div style="background:var(--bg-primary);border:2px dashed var(--accent);border-radius:10px;padding:16px;margin-bottom:16px"><div style="font-size:22px;font-weight:800;letter-spacing:3px;font-family:monospace;color:var(--accent)">' + code + '</div></div><div style="font-size:10px;color:var(--rose);font-weight:600;margin-bottom:16px">⚠️ Screenshot this or write it down. Cannot be recovered.</div><button class="btn bp" style="width:100%" onclick="document.getElementById(\'mRecCode\').remove();document.body.style.overflow=\'\';toast(\'🔐 Security setup complete\')">I\'ve Saved My Code</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+}
+
+function showRecoveryReminder() {
+  if (hasRecoverySetup() && hasSecurityQuestions()) return;
+  var html = '<div style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--amber);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow-lg);z-index:8000;max-width:360px;width:90%;animation:fi 300ms ease-out" id="ftRecReminder"><div style="display:flex;align-items:flex-start;gap:10px"><span style="font-size:20px;flex-shrink:0">⚠️</span><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text-primary)">No recovery method set up</div><div style="font-size:10px;color:var(--text-secondary);margin-bottom:10px">If you forget your PIN, you may not be able to recover your data.</div><div style="display:flex;gap:6px"><button class="btn bp" style="font-size:10px;padding:5px 10px" onclick="document.getElementById(\'ftRecReminder\').remove();showFirstTimeSecuritySetup()">Set Up Now</button><button class="btn bs" style="font-size:10px;padding:5px 10px" onclick="document.getElementById(\'ftRecReminder\').remove()">Later</button></div></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
 
 // === UPDATE BANNER (v15.1 — PWA User-Controlled Update) ===
 // Changelog: shown to user before they decide to update
@@ -495,6 +603,20 @@ const FINTRACK_CHANGELOG = {
       'Import/Export removed from Settings (use Reports)',
       'Secure Reset requires PIN or biometric verification',
       'Single-source version management (FINTRACK_VERSION constant)'
+    ]
+  },
+  'fintrack-v15.7': {
+    version: 'v15.7',
+    date: '18 Jul 2026',
+    changes: [
+      'PIN stored as SHA-256 hash (never plain text)',
+      'First-time security setup: PIN + recovery code + security questions',
+      'Forgot PIN recovery via recovery code OR security questions',
+      'Proper new-PIN creation UI after successful recovery',
+      'Security questions as backup recovery method (8 questions, hashed answers)',
+      'Recovery reminder banner for users without recovery methods',
+      'Regenerate recovery code from Settings (requires PIN)',
+      'Security tab redesigned with card-based sections'
     ]
   }
 };
