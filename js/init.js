@@ -94,7 +94,7 @@ async function initWithPasskey(passkey) {
 function showUnlockScreen() {
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = 'none';
-  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your PIN to access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="PIN"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong PIN. Try again.</div></div></div>';
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your PIN to access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="PIN"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong PIN. Try again.</div><div style="margin-top:16px"><button onclick="showForgotPIN()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot PIN?</button></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   if (typeof lucide !== 'undefined') lucide.createIcons();
   setTimeout(function() {
@@ -237,7 +237,8 @@ async function ftDoUnlock() {
   var input = document.getElementById('ftUnlockInput');
   var passkey = input ? input.value : '';
   if (!passkey) return;
-  if (passkey === getPK()) {
+  var valid = await verifyPIN(passkey);
+  if (valid) {
     ftIsUnlocked = true;
     loadTXN();
     initApp();
@@ -247,6 +248,50 @@ async function ftDoUnlock() {
     if (appEl) appEl.style.display = '';
   } else {
     var err = document.getElementById('ftUnlockErr');
+    if (err) err.style.display = 'block';
+    if (input) { input.value = ''; input.focus(); }
+  }
+}
+
+// === FORGOT PIN (v15.7 — Recovery Code) ===
+function showForgotPIN() {
+  if (!hasRecoverySetup()) {
+    alert('No recovery code has been set up. You can reset the app by clearing site data, or use the default PIN: 1234');
+    return;
+  }
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.18 155),oklch(0.5 0.18 180));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="key" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">PIN Recovery</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your 12-character recovery code</div><input id="ftRecoveryInput" type="text" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:16px;text-align:center;outline:none;letter-spacing:2px;font-family:monospace;text-transform:uppercase" placeholder="XXXX-XXXX-XXXX"><button id="ftRecoveryBtn" onclick="verifyAndResetPIN()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.18 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">Verify & Reset PIN</button><div id="ftRecoveryErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Invalid recovery code.</div><div style="margin-top:16px"><button onclick="showUnlockScreen()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Back to PIN</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+  var inp = document.getElementById('ftRecoveryInput');
+  if (inp) {
+    inp.focus();
+    inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); verifyAndResetPIN(); } });
+  }
+}
+
+async function verifyAndResetPIN() {
+  var input = document.getElementById('ftRecoveryInput');
+  var code = input ? input.value : '';
+  if (!code) return;
+  var valid = await verifyRecoveryCode(code);
+  if (valid) {
+    var newPin = prompt('Recovery successful! Enter your new PIN (minimum 4 digits):');
+    if (!newPin || newPin.length < 4) { alert('PIN must be at least 4 characters.'); return; }
+    var confirmPin = prompt('Confirm your new PIN:');
+    if (newPin !== confirmPin) { alert('PINs do not match. Try again.'); return; }
+    await setPINSecure(newPin);
+    toast('\✅ PIN reset successfully');
+    var unlockEl = document.getElementById('ftUnlock');
+    if (unlockEl) unlockEl.remove();
+    ftIsUnlocked = true;
+    loadTXN();
+    initApp();
+    var appEl = document.getElementById('app');
+    if (appEl) appEl.style.display = '';
+  } else {
+    var err = document.getElementById('ftRecoveryErr');
     if (err) err.style.display = 'block';
     if (input) { input.value = ''; input.focus(); }
   }
@@ -281,6 +326,8 @@ function initApp() {
   fetchExchangeRates();
   // Update notification badge
   updateNotifBadge();
+  // v15.5: Check budget alerts on app load
+  if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then(function(reg) {
