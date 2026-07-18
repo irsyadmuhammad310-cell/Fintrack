@@ -1,12 +1,36 @@
-// === SETTINGS (v15.5) ===
+// === SETTINGS (v15.6) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'v15.5';
+const FINTRACK_VERSION = 'v15.6';
 
 function renderSettings(c) {
+  if (window.innerWidth <= 768) { renderMobileSettings(c); return; }
   c.innerHTML = `<div class="stitle">${t('set_title')}</div><div class="ssub">${t('set_sub')}</div><div class="setg"><div class="setn"><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>${t('set_general')}</div><div class="sni" onclick="setTab(this,'appearance')"><i data-lucide="palette" width="14" height="14"></i>Appearance</div><div class="sni" onclick="setTab(this,'currency')"><i data-lucide="coins" width="14" height="14"></i>${t('set_currency')}</div><div class="sni" onclick="setTab(this,'language')"><i data-lucide="languages" width="14" height="14"></i>${t('set_language')}</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>${t('set_security')}</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
+}
+
+// === MOBILE SETTINGS (v15.6 \u2014 iOS-style) ===
+function renderMobileSettings(c) {
+  const name = getUserName() || 'User';
+  const initials = getUserInitials();
+  const titleStr = getUserTitle() ? getUserTitle().charAt(0).toUpperCase() + getUserTitle().slice(1) + ' ' : '';
+  c.innerHTML = `<div style="text-align:center;margin-bottom:20px"><div style="width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--accent),oklch(0.45 0.22 280));margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff">${initials}</div><div style="font-size:15px;font-weight:700">${titleStr}${name}</div><div style="font-size:11px;color:var(--text-tertiary)">FinTrack ${FINTRACK_VERSION}</div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px"><div class="mob-set-item" onclick="mobSetOpen('profile')"><span class="mob-set-icon">\ud83d\udc64</span><span class="mob-set-label">Profile</span><span class="mob-set-val">\u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('appearance')"><span class="mob-set-icon">\ud83c\udfa8</span><span class="mob-set-label">Appearance</span><span class="mob-set-val">${document.documentElement.dataset.theme === 'dark' ? 'Dark' : 'Light'} \u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('general')"><span class="mob-set-icon">\ud83d\udd14</span><span class="mob-set-label">Notifications</span><span class="mob-set-val">\u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('currency')"><span class="mob-set-icon">\ud83d\udcb0</span><span class="mob-set-label">Currency</span><span class="mob-set-val">${displayCurrency} \u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('language')"><span class="mob-set-icon">\ud83c\udf10</span><span class="mob-set-label">Language</span><span class="mob-set-val">${currentLang.toUpperCase()} \u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('cataccounts')"><span class="mob-set-icon">\ud83d\udcc2</span><span class="mob-set-label">Categories & Accounts</span><span class="mob-set-val">\u203a</span></div><div class="mob-set-item" onclick="mobSetOpen('security')"><span class="mob-set-icon">\ud83d\udd10</span><span class="mob-set-label">Security</span><span class="mob-set-val">${FT_APP_LOCK ? 'On' : 'Off'} \u203a</span></div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px"><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">\ud83d\udd04</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">\u203a</span></div></div>`;
+}
+
+function mobSetOpen(tab) {
+  const c = document.getElementById('cnt');
+  const titles = { profile: 'Profile', general: 'Notifications', appearance: 'Appearance', currency: 'Currency', language: 'Language', cataccounts: 'Categories & Accounts', security: 'Security' };
+  c.innerHTML = `<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><button class="btn bs" style="padding:6px 10px;font-size:11px" onclick="renderSettings(document.getElementById('cnt'))"><i data-lucide="arrow-left" width="12" height="12"></i> Back</button><span style="font-size:14px;font-weight:700">${titles[tab] || tab}</span></div><div id="setc"></div>`;
+  lucide.createIcons();
+  const setc = document.getElementById('setc');
+  if (tab === 'profile') { renderProfileTab(setc); }
+  else if (tab === 'general') { renderGeneralTab(setc); }
+  else if (tab === 'appearance') { renderAppearanceTab(setc); }
+  else if (tab === 'currency') { renderCurrencyTab(setc); }
+  else if (tab === 'language') { renderLanguageTab(setc); }
+  else if (tab === 'cataccounts') { renderCatAccountsTab(setc); }
+  else if (tab === 'security') { renderSecurityTab(setc); }
 }
 
 function setTab(el, tab) {
@@ -21,7 +45,7 @@ function setTab(el, tab) {
   else if (tab === 'security') { renderSecurityTab(c); }
 }
 
-// === PROFILE TAB (v15.5) ===
+// === PROFILE TAB (v15.6) ===
 function renderProfileTab(c) {
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your name and greeting preference</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveProfileSettings()">Save</button></div><div style="font-size:10px;color:var(--text-tertiary)">Preview: "${getGreeting()}"</div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;justify-content:space-between"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="info" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">FinTrack ${FINTRACK_VERSION}</div><div style="font-size:10px;color:var(--text-tertiary)">Personal Finance Tracker \u00b7 Premium Edition</div></div></div><button class="btn bs" style="font-size:10px;padding:5px 10px" onclick="checkForUpdates()"><i data-lucide="refresh-cw" width="10" height="10"></i> Update</button></div></div>`;
   lucide.createIcons();
@@ -37,7 +61,7 @@ function saveProfileSettings() {
   renderProfileTab(document.getElementById('setc'));
 }
 
-// === CHECK FOR UPDATES (clears cache only, keeps data) ===
+// === CHECK FOR UPDATES ===
 async function checkForUpdates() {
   toast('Checking for updates...');
   try {
@@ -55,12 +79,10 @@ async function checkForUpdates() {
   }
 }
 
-// === GENERAL TAB (v15.5) ===
+// === GENERAL TAB ===
 function renderGeneralTab(c) {
   let html = '';
-  // AI Assistant section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="sparkles" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">AI Assistant (Gemini)</div><div style="font-size:10px;color:var(--text-tertiary)">Connect to Google Gemini for intelligent AI responses</div></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">API Key</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_gemini_key" value="${getAIKey()}" placeholder="Paste your Gemini API key" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGeminiKey()">Save</button></div></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6">Get a free key: <b>aistudio.google.com</b> \u2192 Get API Key \u2192 Create API Key. Free tier: 1,500 requests/day, no credit card needed, never expires.</div><div id="geminiKeyStatus" style="margin-top:8px"></div></div>`;
-  // Notifications section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_notifications')}</div><div style="font-size:10px;color:var(--text-tertiary)">Alerts, milestones, and reminders</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_budget_alerts')}</div><div class="tde">Get notified when spending exceeds budget</div></div><div class="tsw ${localStorage.getItem('ft_budget_alerts') !== 'off' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_budget_alerts',this.classList.contains('on')?'on':'off')"></div></div><div class="trow"><div class="tinf"><div class="tna">Milestone alerts</div><div class="tde">Notify when a savings goal reaches 100%</div></div><div class="tsw ${localStorage.getItem('ft_milestone_alerts') !== 'off' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_milestone_alerts',this.classList.contains('on')?'on':'off')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;margin-bottom:8px"><div style="font-size:11px;font-weight:600">Reminders</div><button class="btn bp" style="font-size:10px;padding:4px 10px" onclick="openReminderModal()"><i data-lucide="plus" width="10" height="10"></i> Add</button></div>`;
 
   if (typeof REMINDERS !== 'undefined' && REMINDERS.length) {
@@ -77,7 +99,6 @@ function renderGeneralTab(c) {
     html += `<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px;border:1px dashed var(--border);border-radius:8px">No reminders yet. Add recurring payments (rent, insurance, subscriptions) to get notified.</div>`;
   }
   html += `</div>`;
-  // Years section
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="calendar" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Global Year Management</div><div style="font-size:10px;color:var(--text-tertiary)">Manage available years across all modules. Changes sync instantly.</div></div></div>`;
   html += `<div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()"><i data-lucide="plus" width="11" height="11"></i> Add Year</button></div>`;
   html += `<div style="display:flex;flex-wrap:wrap;gap:6px">`;
@@ -91,13 +112,13 @@ function renderGeneralTab(c) {
   lucide.createIcons();
 }
 
-// === APPEARANCE TAB (v15.5) ===
+// === APPEARANCE TAB ===
 function renderAppearanceTab(c) {
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display preferences</div></div></div><div class="trow"><div class="tinf"><div class="tna">${t('set_dark_mode')}</div><div class="tde">${t('set_theme')}</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;localStorage.setItem('theme',th)"></div></div><div class="trow"><div class="tinf"><div class="tna">Accent Color</div><div class="tde">Primary brand color used across the app</div></div><div style="display:flex;gap:6px;align-items:center"><div style="width:24px;height:24px;border-radius:6px;background:var(--accent);border:2px solid var(--border)"></div><span style="font-size:11px;color:var(--text-tertiary)">Indigo</span></div></div></div>`;
   lucide.createIcons();
 }
 
-// === CURRENCY TAB (v15.5) ===
+// === CURRENCY TAB ===
 function renderCurrencyTab(c) {
   const currencyOptions = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol}) - ${cfg.name}</option>`).join('');
   const rateInfo = ratesLastUpdated ? `${t('set_rate_info')}: ${new Date(ratesLastUpdated).toLocaleString()}` : '';
@@ -105,14 +126,14 @@ function renderCurrencyTab(c) {
   lucide.createIcons();
 }
 
-// === LANGUAGE TAB (v15.5) ===
+// === LANGUAGE TAB ===
 function renderLanguageTab(c) {
   const langOptions = [['en','English'],['zh','\u7b80\u4f53\u4e2d\u6587'],['ja','\u65e5\u672c\u8a9e']].map(([code, name]) => `<option value="${code}"${code === currentLang ? ' selected' : ''}>${name}</option>`).join('');
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="languages" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_language')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_language_desc')}</div></div></div><select class="fi" style="max-width:320px" id="set_lang" onchange="setLang(this.value)">${langOptions}</select></div>`;
   lucide.createIcons();
 }
 
-// === CATEGORIES & ACCOUNTS TAB (v15.5) ===
+// === CATEGORIES & ACCOUNTS TAB ===
 function renderCatAccountsTab(c) {
   let html = '<div style="margin-bottom:24px">';
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
@@ -313,7 +334,7 @@ function adjustAccountBalance(id) {
   renderCatAccountsTab(document.getElementById('setc'));
 }
 
-// === SECURITY TAB (v15.5) ===
+// === SECURITY TAB ===
 function renderSecurityTab(c) {
   var lockStatus = FT_APP_LOCK ? 'Enabled' : 'Disabled';
   var lockColor = FT_APP_LOCK ? 'var(--emerald)' : 'var(--text-tertiary)';
@@ -439,7 +460,13 @@ function importExcel(input) {
     const script = document.createElement('script');
     script.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
     script.onload = callback;
-    script.onerror = () => { const s2 = document.createElement('script'); s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s2.onload = callback; s2.onerror = () => { toast('\u274c Failed to load Excel parser.'); input.value = ''; }; document.head.appendChild(s2); };
+    script.onerror = () => {
+      const s2 = document.createElement('script');
+      s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s2.onload = callback;
+      s2.onerror = () => { toast('\u274c Failed to load Excel parser.'); input.value = ''; };
+      document.head.appendChild(s2);
+    };
     document.head.appendChild(script);
   }
   loadSheetJS(() => {
@@ -454,28 +481,62 @@ function importExcel(input) {
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
         if (rows.length < 2) { toast('\u274c Empty file'); input.value = ''; return; }
         let headerIdx = 0;
-        for (let i = 0; i < Math.min(rows.length, 5); i++) { const rowLower = (rows[i] || []).map(c => String(c || '').toLowerCase()).join(' '); if (rowLower.includes('date') && (rowLower.includes('type') || rowLower.includes('category') || rowLower.includes('amount'))) { headerIdx = i; break; } }
+        for (let i = 0; i < Math.min(rows.length, 5); i++) {
+          const rowLower = (rows[i] || []).map(c => String(c || '').toLowerCase()).join(' ');
+          if (rowLower.includes('date') && (rowLower.includes('type') || rowLower.includes('category') || rowLower.includes('amount'))) { headerIdx = i; break; }
+        }
         const headers = (rows[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
         const dataRows = rows.slice(headerIdx + 1).filter(r => r && r.some(c => c !== null && c !== undefined && String(c).trim()));
         if (!dataRows.length) { toast('\u274c No data rows'); input.value = ''; return; }
         const findCol = (...keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
         const colMap = {};
-        colMap.date = findCol('date', 'tarikh', 'dt'); colMap.type = findCol('type', 'jenis', 'category type'); colMap.category = findCol('category', 'kategori', 'cat'); colMap.subcategory = findCol('subcategory', 'sub', 'subcat', 'sub category'); colMap.amount = findCol('amount', 'jumlah', 'amt', 'value', 'total'); colMap.description = findCol('description', 'desc', 'details', 'note', 'keterangan', 'remark'); colMap.account = findCol('account', 'akaun', 'acc', 'bank');
-        if (colMap.date < 0 && colMap.amount < 0) { if (headers.length >= 5) { colMap.date = 0; colMap.type = 1; colMap.category = 2; colMap.subcategory = 3; colMap.amount = 4; colMap.description = 5; colMap.account = 6; } else { toast('\u274c Cannot detect columns'); input.value = ''; return; } }
+        colMap.date = findCol('date', 'tarikh', 'dt');
+        colMap.type = findCol('type', 'jenis', 'category type');
+        colMap.category = findCol('category', 'kategori', 'cat');
+        colMap.subcategory = findCol('subcategory', 'sub', 'subcat', 'sub category');
+        colMap.amount = findCol('amount', 'jumlah', 'amt', 'value', 'total');
+        colMap.description = findCol('description', 'desc', 'details', 'note', 'keterangan', 'remark');
+        colMap.account = findCol('account', 'akaun', 'acc', 'bank');
+        if (colMap.date < 0 && colMap.amount < 0) {
+          if (headers.length >= 5) { colMap.date = 0; colMap.type = 1; colMap.category = 2; colMap.subcategory = 3; colMap.amount = 4; colMap.description = 5; colMap.account = 6; }
+          else { toast('\u274c Cannot detect columns'); input.value = ''; return; }
+        }
         const detected = Object.entries(colMap).filter(([k,v]) => v >= 0).map(([k,v]) => k + '="' + (headers[v] || 'col' + v) + '"').join(', ');
         if (!confirm(`Found ${dataRows.length} rows in sheet "${sheetName}".\nColumns: ${detected}\n\nThis will ADD new transactions. Continue?`)) { input.value = ''; return; }
         let added = 0, skipped = 0;
         dataRows.forEach(row => {
           const getVal = (col) => col >= 0 && col < row.length ? String(row[col] || '').trim() : '';
-          let d = getVal(colMap.date); const tp = getVal(colMap.type) || 'Expense'; const cat = getVal(colMap.category); const sub = getVal(colMap.subcategory); let amtStr = getVal(colMap.amount); const desc = getVal(colMap.description); const accName = getVal(colMap.account);
-          amtStr = amtStr.replace(/[^\d.\-\(\)]/g, ''); if (amtStr.includes('(') && amtStr.includes(')')) amtStr = '-' + amtStr.replace(/[\(\)]/g, ''); const parsedAmt = parseFloat(amtStr); if (!parsedAmt || parsedAmt === 0) { skipped++; return; }
-          if (d) { if (/^\d{4}-\d{2}-\d{2}/.test(d)) { d = d.substring(0, 10); } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{5}$/.test(d)) { const excelEpoch = new Date(1899, 11, 30); const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000); d = parsed.toISOString().split('T')[0]; } else { const parsed = new Date(d); if (!isNaN(parsed.getTime())) d = parsed.toISOString().split('T')[0]; else { skipped++; return; } } } else { skipped++; return; }
+          let d = getVal(colMap.date);
+          const tp = getVal(colMap.type) || 'Expense';
+          const cat = getVal(colMap.category);
+          const sub = getVal(colMap.subcategory);
+          let amtStr = getVal(colMap.amount);
+          const desc = getVal(colMap.description);
+          const accName = getVal(colMap.account);
+          amtStr = amtStr.replace(/[^\d.\-\(\)]/g, '');
+          if (amtStr.includes('(') && amtStr.includes(')')) amtStr = '-' + amtStr.replace(/[\(\)]/g, '');
+          const parsedAmt = parseFloat(amtStr);
+          if (!parsedAmt || parsedAmt === 0) { skipped++; return; }
+          if (d) {
+            if (/^\d{4}-\d{2}-\d{2}/.test(d)) { d = d.substring(0, 10); }
+            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; }
+            else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; }
+            else if (/^\d{5}$/.test(d)) { const excelEpoch = new Date(1899, 11, 30); const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000); d = parsed.toISOString().split('T')[0]; }
+            else { const parsed = new Date(d); if (!isNaN(parsed.getTime())) d = parsed.toISOString().split('T')[0]; else { skipped++; return; } }
+          } else { skipped++; return; }
           if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { skipped++; return; }
-          let normalizedType = tp; const tpLower = tp.toLowerCase(); if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income'; else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung')) normalizedType = 'Savings'; else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense'; else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
+          let normalizedType = tp;
+          const tpLower = tp.toLowerCase();
+          if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income';
+          else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung')) normalizedType = 'Savings';
+          else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense';
+          else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
           const accMatch = accName ? ACCOUNTS.find(a => a.name.toLowerCase() === accName.toLowerCase()) : null;
-          TXN.push({ id: nxId++, d, t: normalizedType, c: cat || 'Uncategorized', s: sub, a: Math.abs(parsedAmt), dt: desc, acc: accMatch ? accMatch.id : undefined }); added++;
+          TXN.push({ id: nxId++, d, t: normalizedType, c: cat || 'Uncategorized', s: sub, a: Math.abs(parsedAmt), dt: desc, acc: accMatch ? accMatch.id : undefined });
+          added++;
         });
-        saveTXN(); toast(`\u2705 Imported ${added} transactions${skipped ? ' (' + skipped + ' skipped)' : ''}`);
+        saveTXN();
+        toast(`\u2705 Imported ${added} transactions${skipped ? ' (' + skipped + ' skipped)' : ''}`);
       } catch (err) { toast('\u274c Error: ' + (err.message || 'Unknown')); console.error('Excel import error:', err); }
       input.value = '';
     };
@@ -489,17 +550,31 @@ function importJSON(input) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.transactions || !Array.isArray(data.transactions)) { toast('\u274c Invalid file: no transactions found'); return; }
-      if (!data.version || !data.version.startsWith('fintrack')) { toast('\u274c Invalid file: not a FinTrack export'); return; }
+      if (!data.transactions || !Array.isArray(data.transactions)) { toast('\u274c Invalid file'); return; }
+      if (!data.version || !data.version.startsWith('fintrack')) { toast('\u274c Not a FinTrack export'); return; }
       const count = data.transactions.length;
       if (!confirm(`Import ${count} transactions${data.accounts ? ', ' + data.accounts.length + ' accounts' : ''}? This will MERGE with existing data (duplicates by ID are skipped).`)) return;
       const existingIds = new Set(TXN.map(tx => tx.id));
       let added = 0;
       data.transactions.forEach(tx => { if (!existingIds.has(tx.id)) { TXN.push(tx); added++; } });
-      if (data.accounts && Array.isArray(data.accounts)) { const existingAccIds = new Set(ACCOUNTS.map(a => a.id)); data.accounts.forEach(acc => { if (!existingAccIds.has(acc.id)) ACCOUNTS.push(acc); }); saveACCOUNTS(); }
-      if (data.schema) { Object.entries(data.schema).forEach(([type, cats]) => { if (!SCHEMA[type]) SCHEMA[type] = {}; Object.entries(cats).forEach(([cat, subs]) => { if (!SCHEMA[type][cat]) SCHEMA[type][cat] = []; subs.forEach(sub => { if (!SCHEMA[type][cat].includes(sub)) SCHEMA[type][cat].push(sub); }); }); }); saveSCHEMA(); }
+      if (data.accounts && Array.isArray(data.accounts)) {
+        const existingAccIds = new Set(ACCOUNTS.map(a => a.id));
+        data.accounts.forEach(acc => { if (!existingAccIds.has(acc.id)) ACCOUNTS.push(acc); });
+        saveACCOUNTS();
+      }
+      if (data.schema) {
+        Object.entries(data.schema).forEach(([type, cats]) => {
+          if (!SCHEMA[type]) SCHEMA[type] = {};
+          Object.entries(cats).forEach(([cat, subs]) => {
+            if (!SCHEMA[type][cat]) SCHEMA[type][cat] = [];
+            subs.forEach(sub => { if (!SCHEMA[type][cat].includes(sub)) SCHEMA[type][cat].push(sub); });
+          });
+        });
+        saveSCHEMA();
+      }
       nxId = Math.max(nxId, ...TXN.map(tx => tx.id)) + 1;
-      saveTXN(); toast(`\u2705 Imported ${added} new transactions`);
+      saveTXN();
+      toast(`\u2705 Imported ${added} new transactions`);
     } catch (err) { toast('\u274c Error: invalid or corrupted file'); console.error('Import error:', err); }
     input.value = '';
   };
@@ -526,7 +601,8 @@ function importCSV(input) {
         TXN.push({ id: nxId++, d, t: tp, c: cat || '', s: sub || '', a: parseFloat(amt) || 0, dt: desc || '', acc: accMatch ? accMatch.id : undefined });
         added++;
       }
-      saveTXN(); toast(`\u2705 Imported ${added} transactions from CSV`);
+      saveTXN();
+      toast(`\u2705 Imported ${added} transactions from CSV`);
     } catch (err) { toast('\u274c Error reading CSV file'); console.error('CSV import error:', err); }
     input.value = '';
   };
@@ -554,9 +630,24 @@ function chgPK() {
 // === NOTIFICATION MANAGER ===
 function renderNotificationsTab(c) {
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="bell" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Notification Manager</div><div style="font-size:10px;color:var(--text-tertiary)">Manage reminders and alerts</div></div></div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openReminderModal()"><i data-lucide="plus" width="11" height="11"></i> New Reminder</button></div>`;
-  if (!REMINDERS.length) { html += `<div style="padding:40px;text-align:center;border:1px solid var(--border);border-radius:12px"><div style="font-size:28px;margin-bottom:8px">\ud83d\udd14</div><div style="font-size:12px;color:var(--text-tertiary)">No reminders yet. Create one above.</div></div>`; }
-  else { html += `<div style="display:flex;flex-direction:column;gap:8px">`; REMINDERS.forEach(r => { const rDate = new Date(r.date); const today = new Date(); today.setHours(0,0,0,0); rDate.setHours(0,0,0,0); const diff = Math.ceil((rDate - today) / (1000*60*60*24)); const statusIcon = r.completed ? '\u2705' : diff < 0 ? '\ud83d\udd34' : diff <= 3 ? '\ud83d\udfe1' : '\ud83d\udfe2'; const freq = r.repeat === 'monthly' ? 'Monthly' : r.repeat === 'yearly' ? 'Yearly' : 'One-time'; const priorityColor = r.priority === 'high' ? 'var(--rose)' : r.priority === 'medium' ? 'var(--amber)' : 'var(--text-tertiary)'; const priorityLabel = r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : 'Low'; const timingStr = r.timing ? r.timing.map(t => t + 'd before').join(', ') : ''; html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;transition:all 150ms${r.completed ? ';opacity:0.5' : ''}"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:13px;font-weight:600">${statusIcon} ${r.title}</span><span style="font-size:8px;font-weight:600;color:${priorityColor};padding:1px 5px;border-radius:3px;border:1px solid ${priorityColor};text-transform:uppercase">${priorityLabel}</span></div><div style="font-size:10px;color:var(--text-tertiary);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px"><span>\ud83d\udcc5 ${r.date}${r.time ? ' \u00b7 \ud83d\udd50 ' + r.time : ''}</span><span>\ud83d\udd01 ${freq}</span>${timingStr ? `<span>\u23f0 ${timingStr}</span>` : ''}</div>${r.description ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:3px">${r.description}</div>` : ''}</div><div style="display:flex;align-items:center;gap:8px;flex-shrink:0"><span style="font-size:10px;font-weight:600;color:${diff < 0 ? 'var(--rose)' : diff <= 3 ? 'var(--amber)' : 'var(--text-tertiary)'}">${r.completed ? 'Done' : diff < 0 ? Math.abs(diff) + 'd overdue' : diff === 0 ? 'Today' : diff + 'd left'}</span><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="editReminder(${r.id})">\u270f\ufe0f</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteReminder(${r.id})">\ud83d\uddd1</button></div></div>`; }); html += `</div>`; }
-  c.innerHTML = html; lucide.createIcons();
+  if (!REMINDERS.length) {
+    html += `<div style="padding:40px;text-align:center;border:1px solid var(--border);border-radius:12px"><div style="font-size:28px;margin-bottom:8px">\ud83d\udd14</div><div style="font-size:12px;color:var(--text-tertiary)">No reminders yet. Create one above.</div></div>`;
+  } else {
+    html += `<div style="display:flex;flex-direction:column;gap:8px">`;
+    REMINDERS.forEach(r => {
+      const rDate = new Date(r.date);
+      const today = new Date(); today.setHours(0,0,0,0); rDate.setHours(0,0,0,0);
+      const diff = Math.ceil((rDate - today) / (1000*60*60*24));
+      const statusIcon = r.completed ? '\u2705' : diff < 0 ? '\ud83d\udd34' : diff <= 3 ? '\ud83d\udfe1' : '\ud83d\udfe2';
+      const freq = r.repeat === 'monthly' ? 'Monthly' : r.repeat === 'yearly' ? 'Yearly' : 'One-time';
+      const priorityColor = r.priority === 'high' ? 'var(--rose)' : r.priority === 'medium' ? 'var(--amber)' : 'var(--text-tertiary)';
+      const priorityLabel = r.priority ? r.priority.charAt(0).toUpperCase() + r.priority.slice(1) : 'Low';
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center${r.completed ? ';opacity:0.5' : ''}"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><span style="font-size:13px;font-weight:600">${statusIcon} ${r.title}</span><span style="font-size:8px;font-weight:600;color:${priorityColor};padding:1px 5px;border-radius:3px;border:1px solid ${priorityColor};text-transform:uppercase">${priorityLabel}</span></div><div style="font-size:10px;color:var(--text-tertiary)">${r.date} \u00b7 ${freq}</div></div><div style="display:flex;gap:6px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="editReminder(${r.id})">\u270f\ufe0f</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteReminder(${r.id})">\ud83d\uddd1</button></div></div>`;
+    });
+    html += `</div>`;
+  }
+  c.innerHTML = html;
+  lucide.createIcons();
 }
 
 function editOpeningBalance() {
@@ -585,8 +676,15 @@ function saveReminder(e, editId) {
   if (document.getElementById('rem_t1').checked) timing.push(1);
   if (!timing.length) { toast('\u274c Select at least one timing'); return; }
   const data = { title: document.getElementById('rem_title').value.trim(), description: document.getElementById('rem_desc').value.trim(), date: document.getElementById('rem_date').value, time: document.getElementById('rem_time').value || '', repeat: document.getElementById('rem_repeat').value, priority: document.getElementById('rem_priority').value, timing, completed: false, dismissed: false };
-  if (editId) { const idx = REMINDERS.findIndex(r => r.id === editId); if (idx >= 0) REMINDERS[idx] = { ...REMINDERS[idx], ...data }; toast('\u2705 Reminder updated'); }
-  else { data.id = reminderNxId++; REMINDERS.push(data); toast('\u2705 Reminder created'); }
+  if (editId) {
+    const idx = REMINDERS.findIndex(r => r.id === editId);
+    if (idx >= 0) REMINDERS[idx] = { ...REMINDERS[idx], ...data };
+    toast('\u2705 Reminder updated');
+  } else {
+    data.id = reminderNxId++;
+    REMINDERS.push(data);
+    toast('\u2705 Reminder created');
+  }
   saveREMINDERS();
   document.getElementById('mremind').remove(); document.body.style.overflow = '';
   setSubTab = 'notifications'; renderGeneralTab(document.getElementById('setc'));
