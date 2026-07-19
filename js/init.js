@@ -522,6 +522,15 @@ const rdy = setInterval(() => {
   if (typeof lucide !== 'undefined' && typeof Chart !== 'undefined') {
     clearInterval(rdy);
     init();
+    // Dismiss splash screen
+    setTimeout(function() {
+      var splash = document.getElementById('ftSplash');
+      if (splash) {
+        splash.style.opacity = '0';
+        splash.style.visibility = 'hidden';
+        setTimeout(function() { splash.remove(); }, 400);
+      }
+    }, 1200);
   }
 }, 50);
 
