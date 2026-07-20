@@ -150,9 +150,8 @@ function renderGoals(c) {
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700">Budget Planner</div><select class="fsel" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById('cnt'))">${YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('')}</select></div>`;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary)">Month</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--emerald)">Income</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--rose)">Expense</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--blue)">Savings</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--text-secondary)">Net</th><th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:600;color:var(--text-tertiary)">Plan</th></tr></thead><tbody>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary)">Month</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--emerald)">Income</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--rose)">Expense</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--blue)">Savings</th><th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:600;color:var(--text-tertiary)"></th></tr></thead><tbody>`;
   MD.forEach((m, idx) => {
-    const net = m.i - m.e - m.s;
     const hasData = m.i > 0 || m.e > 0;
     const plan = yearPlan[idx] || null;
     const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
@@ -162,10 +161,9 @@ function renderGoals(c) {
     const dispI = showPlan ? planInc : m.i;
     const dispE = showPlan ? planExp : m.e;
     const dispS = showPlan ? planSav : m.s;
-    const dispNet = dispI - dispE - dispS;
     const hasAny = hasData || showPlan;
     const isPlan = showPlan && !hasData;
-    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''}${isPlan ? ';font-style:italic' : ''}"><td style="padding:7px 12px;font-weight:500">${MONTH_NAMES[idx]}${isPlan ? ' <span style="font-size:8px;color:var(--accent);font-style:normal;font-weight:600">PLAN</span>' : ''}</td><td style="padding:7px 12px;text-align:right;color:var(--emerald);font-feature-settings:'tnum'">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:7px 12px;text-align:right;color:var(--rose);font-feature-settings:'tnum'">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:7px 12px;text-align:right;color:var(--blue);font-feature-settings:'tnum'">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:7px 12px;text-align:right;font-weight:600;color:${dispNet >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${hasAny ? fmt(dispNet) : '-'}</td><td style="padding:7px 12px;text-align:center"><button style="border:none;background:none;color:var(--accent);cursor:pointer;font-size:10px;font-weight:500;font-family:var(--font)" onclick="editBudgetMonth(${year},${idx})">✏️</button></td></tr>`;
+    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''}${isPlan ? ';font-style:italic' : ''};cursor:pointer" onclick="editBudgetMonth(${year},${idx})"><td style="padding:10px 12px;font-weight:500">${MONTH_NAMES[idx]}${isPlan ? ' <span style="font-size:8px;color:var(--accent);font-style:normal;font-weight:600">PLAN</span>' : ''}</td><td style="padding:10px 12px;text-align:right;color:var(--emerald);font-feature-settings:'tnum'">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--rose);font-feature-settings:'tnum'">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--blue);font-feature-settings:'tnum'">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 12px;text-align:center"><span style="color:var(--accent);font-size:10px;font-weight:600">Edit</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
 
@@ -308,7 +306,9 @@ function saveBudgetMonth(e, year, monthIdx) {
   document.getElementById('mbudget').remove();
   document.body.style.overflow = '';
   toast('✅ Budget saved for ' + MONTH_NAMES[monthIdx] + ' ' + year);
-  renderGoals(document.getElementById('cnt'));
+  // Re-render current page to sync budget data across all modules
+  if (typeof render === 'function') render();
+  else renderGoals(document.getElementById('cnt'));
 }
 
 function clearBudgetMonth(year, monthIdx) {
@@ -321,7 +321,8 @@ function clearBudgetMonth(year, monthIdx) {
   document.getElementById('mbudget').remove();
   document.body.style.overflow = '';
   toast('🗑 Budget cleared');
-  renderGoals(document.getElementById('cnt'));
+  if (typeof render === 'function') render();
+  else renderGoals(document.getElementById('cnt'));
 }
 
 // === GOAL-SAVINGS AUTO SYNC ===
