@@ -1,7 +1,7 @@
 // === SETTINGS (v15.7) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'v15.7';
+const FINTRACK_VERSION = 'v15.7.1';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768) { renderMobileSettings(c); return; }
