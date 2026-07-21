@@ -1,4 +1,4 @@
-// === GOALS & BUDGET (v11.7.2 — Interactive Redesign) ===
+// === GOALS & BUDGET (v11.5 — Interactive Redesign) ===
 let expandedGoal = null;
 let expandedCat = null;
 let goalBudgetYear = null;
@@ -149,11 +149,12 @@ function renderGoals(c) {
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700">Budget Planner</div><div style="display:flex;gap:8px;align-items:center"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="openCopyBudgetModal()"><i data-lucide="copy" width="11" height="11"></i> Copy</button><select class="fsel" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById('cnt'))">${YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('')}</select></div></div>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700">Budget Planner</div><select class="fsel" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById('cnt'))">${YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('')}</select></div>`;
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:600;color:var(--text-secondary)">Month</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--emerald)">Income</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--rose)">Expense</th><th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:600;color:var(--blue)">Savings</th><th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:600;color:var(--text-tertiary)"></th></tr></thead><tbody>`;
   MD.forEach((m, idx) => {
     const hasData = m.i > 0 || m.e > 0;
     const plan = yearPlan[idx] || null;
+    const hasPlan = !!plan;
     const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
     const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
     const planSav = plan ? (plan.s || 0) : 0;
@@ -163,7 +164,7 @@ function renderGoals(c) {
     const dispS = showPlan ? planSav : m.s;
     const hasAny = hasData || showPlan;
     const isPlan = showPlan && !hasData;
-    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''}${isPlan ? ';font-style:italic' : ''};cursor:pointer" onclick="editBudgetMonth(${year},${idx})"><td style="padding:10px 12px;font-weight:500">${MONTH_NAMES[idx]}${isPlan ? ' <span style="font-size:8px;color:var(--accent);font-style:normal;font-weight:600">PLAN</span>' : ''}</td><td style="padding:10px 12px;text-align:right;color:var(--emerald);font-feature-settings:'tnum'">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--rose);font-feature-settings:'tnum'">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--blue);font-feature-settings:'tnum'">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 12px;text-align:center"><span style="color:var(--accent);font-size:10px;font-weight:600">Edit</span></td></tr>`;
+    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''}${isPlan ? ';font-style:italic' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px 12px;font-weight:500">${MONTH_NAMES[idx]}${isPlan ? ' <span style="font-size:8px;color:var(--accent);font-style:normal;font-weight:600">PLAN</span>' : ''}</td><td style="padding:10px 12px;text-align:right;color:var(--emerald);font-feature-settings:'tnum'">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--rose);font-feature-settings:'tnum'">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 12px;text-align:right;color:var(--blue);font-feature-settings:'tnum'">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 12px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
 
@@ -366,193 +367,100 @@ function checkGoalMilestones(goal, oldAmount, newAmount) {
   });
 }
 
-// === BUDGET COPY (v15.7.2) ===
-function openCopyBudgetModal() {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  var currentYear = goalBudgetYear || getSelectedYear();
+// === BUDGET COPY (v15.7.2 — Contextual Row Menu) ===
+function showBudgetRowMenu(event, year, monthIdx, hasPlan) {
+  event.stopPropagation();
+  // Remove any existing menu
+  var existing = document.getElementById('budgetRowMenu');
+  if (existing) existing.remove();
 
-  // Find months that have budget data to use as source options
-  var sourceOptions = '';
-  YEARS.forEach(function(y) {
-    var yp = plans[String(y)] || {};
-    for (var m = 0; m < 12; m++) {
-      if (yp[m]) {
-        sourceOptions += '<option value="' + y + '-' + m + '"' + (y === currentYear ? '' : '') + '>' + MONTH_NAMES[m] + ' ' + y + '</option>';
-      }
-    }
-  });
+  var monthName = MONTH_NAMES[monthIdx];
+  var isMobile = window.innerWidth <= 768;
 
-  if (!sourceOptions) {
-    toast('❌ No budget data to copy. Create a budget first.');
-    return;
-  }
-
-  // Destination options (all months in all years)
-  var destOptions = '';
-  YEARS.forEach(function(y) {
-    for (var m = 0; m < 12; m++) {
-      destOptions += '<option value="' + y + '-' + m + '">' + MONTH_NAMES[m] + ' ' + y + '</option>';
-    }
-  });
-
-  var h = '<div class="mo show" id="mcopybudget" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}">';
-  h += '<div class="ml" style="max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()">';
-  h += '<div class="mh"><div><div class="mti">Copy Budget</div><div class="mds">Replicate a budget to another period</div></div><button class="mx" onclick="document.getElementById(\'mcopybudget\').remove();document.body.style.overflow=\'\'">✕</button></div>';
-
-  // Source
-  h += '<div class="fg"><label class="fl">Copy From</label><select class="fi" id="cb_source" onchange="updateCopyCategoryList()">' + sourceOptions + '</select></div>';
-
-  // Destination
-  h += '<div class="fg"><label class="fl">Copy To</label><select class="fi" id="cb_dest">' + destOptions + '</select></div>';
-
-  // Copy mode
-  h += '<div class="fg"><label class="fl">What to copy</label><div style="display:flex;gap:8px;margin-top:4px"><label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cb_mode" value="all" checked onchange="toggleCopyCats()"> All categories</label><label style="font-size:12px;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cb_mode" value="select" onchange="toggleCopyCats()"> Select categories</label></div></div>';
-
-  // Category selection (hidden by default)
-  h += '<div id="cb_cats_wrap" style="display:none;margin-bottom:12px"><div style="padding:10px 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);max-height:180px;overflow-y:auto" id="cb_cats_list"></div></div>';
-
-  h += '<div class="ma"><button type="button" class="btn bs" onclick="document.getElementById(\'mcopybudget\').remove();document.body.style.overflow=\'\'">Cancel</button><button type="button" class="btn bp" onclick="executeCopyBudget()">Copy Budget</button></div>';
-  h += '</div></div>';
-
-  document.body.insertAdjacentHTML('beforeend', h);
-  document.body.style.overflow = 'hidden';
-  updateCopyCategoryList();
-}
-
-function updateCopyCategoryList() {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  var sourceVal = document.getElementById('cb_source').value;
-  var parts = sourceVal.split('-');
-  var srcYear = parts[0], srcMonth = parseInt(parts[1]);
-  var plan = (plans[srcYear] && plans[srcYear][srcMonth]) || {};
-  var incCats = plan.incCats || {};
-  var expCats = plan.expCats || {};
-  var html = '';
-
-  if (Object.keys(incCats).length) {
-    html += '<div style="font-size:9px;font-weight:700;color:var(--emerald);text-transform:uppercase;margin-bottom:4px">Income</div>';
-    Object.keys(incCats).forEach(function(cat) {
-      html += '<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;cursor:pointer"><input type="checkbox" class="cb_cat_chk" value="inc:' + cat + '" checked> ' + cat + ' (' + fmt(incCats[cat]) + ')</label>';
-    });
-  }
-
-  if (Object.keys(expCats).length) {
-    html += '<div style="font-size:9px;font-weight:700;color:var(--rose);text-transform:uppercase;margin:8px 0 4px">Expense</div>';
-    Object.keys(expCats).forEach(function(cat) {
-      html += '<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;cursor:pointer"><input type="checkbox" class="cb_cat_chk" value="exp:' + cat + '" checked> ' + cat + ' (' + fmt(expCats[cat]) + ')</label>';
-    });
-  }
-
-  if (plan.s) {
-    html += '<div style="font-size:9px;font-weight:700;color:var(--blue);text-transform:uppercase;margin:8px 0 4px">Savings</div>';
-    html += '<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;cursor:pointer"><input type="checkbox" class="cb_cat_chk" value="sav" checked> Savings Target (' + fmt(plan.s) + ')</label>';
-  }
-
-  var el = document.getElementById('cb_cats_list');
-  if (el) el.innerHTML = html || '<div style="font-size:11px;color:var(--text-tertiary)">No categories in source budget.</div>';
-}
-
-function toggleCopyCats() {
-  var mode = document.querySelector('input[name="cb_mode"]:checked').value;
-  document.getElementById('cb_cats_wrap').style.display = mode === 'select' ? 'block' : 'none';
-}
-
-function executeCopyBudget() {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  var sourceVal = document.getElementById('cb_source').value;
-  var destVal = document.getElementById('cb_dest').value;
-
-  if (sourceVal === destVal) { toast('❌ Source and destination are the same'); return; }
-
-  var srcParts = sourceVal.split('-');
-  var dstParts = destVal.split('-');
-  var srcYear = srcParts[0], srcMonth = parseInt(srcParts[1]);
-  var dstYear = dstParts[0], dstMonth = parseInt(dstParts[1]);
-
-  var srcPlan = (plans[srcYear] && plans[srcYear][srcMonth]) || {};
-  if (!srcPlan.incCats && !srcPlan.expCats && !srcPlan.s) { toast('❌ Source budget is empty'); return; }
-
-  // Determine what to copy
-  var mode = document.querySelector('input[name="cb_mode"]:checked').value;
-  var newIncCats = {};
-  var newExpCats = {};
-  var newSav = 0;
-
-  if (mode === 'all') {
-    newIncCats = Object.assign({}, srcPlan.incCats || {});
-    newExpCats = Object.assign({}, srcPlan.expCats || {});
-    newSav = srcPlan.s || 0;
+  var menuHtml = '';
+  if (isMobile) {
+    // Bottom sheet style for mobile
+    menuHtml = '<div id="budgetRowMenu" style="position:fixed;inset:0;z-index:9000;background:oklch(0 0 0/0.4);display:flex;align-items:flex-end;justify-content:center" onclick="if(event.target===this)this.remove()">';
+    menuHtml += '<div style="width:100%;max-width:420px;background:var(--bg-card);border-radius:16px 16px 0 0;padding:20px;animation:slideUp 200ms ease-out" onclick="event.stopPropagation()">';
+    menuHtml += '<div style="width:36px;height:4px;border-radius:2px;background:var(--border);margin:0 auto 14px"></div>';
+    menuHtml += '<div style="font-size:14px;font-weight:700;margin-bottom:4px">' + monthName + ' ' + year + '</div>';
+    menuHtml += '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:16px">' + (hasPlan ? 'Has budget data' : 'No budget set') + '</div>';
   } else {
-    var checked = document.querySelectorAll('.cb_cat_chk:checked');
-    checked.forEach(function(el) {
-      var val = el.value;
-      if (val === 'sav') { newSav = srcPlan.s || 0; }
-      else if (val.startsWith('inc:')) { var cat = val.substring(4); newIncCats[cat] = (srcPlan.incCats || {})[cat] || 0; }
-      else if (val.startsWith('exp:')) { var cat = val.substring(4); newExpCats[cat] = (srcPlan.expCats || {})[cat] || 0; }
-    });
+    // Dropdown near the row for desktop
+    menuHtml = '<div id="budgetRowMenu" style="position:fixed;inset:0;z-index:9000" onclick="this.remove()">';
+    menuHtml += '<div style="position:absolute;top:' + event.clientY + 'px;left:' + Math.min(event.clientX, window.innerWidth - 220) + 'px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:8px;box-shadow:0 8px 24px oklch(0 0 0/0.3);min-width:180px;animation:fi 150ms ease-out" onclick="event.stopPropagation()">';
+    menuHtml += '<div style="font-size:11px;font-weight:700;color:var(--text-tertiary);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em">' + monthName + ' ' + year + '</div>';
   }
 
-  // Check if destination has existing data
-  var existingPlan = (plans[dstYear] && plans[dstYear][dstMonth]) || null;
-  var hasExisting = existingPlan && (existingPlan.incCats && Object.keys(existingPlan.incCats).length || existingPlan.expCats && Object.keys(existingPlan.expCats).length || existingPlan.s);
+  // Menu items
+  menuHtml += '<div style="display:flex;flex-direction:column;gap:2px">';
+  menuHtml += '<button style="display:flex;align-items:center;gap:10px;width:100%;padding:' + (isMobile ? '14px 12px' : '9px 10px') + ';border:none;background:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:' + (isMobile ? '14px' : '12px') + ';color:var(--text);text-align:left;font-weight:500" onclick="document.getElementById(\'budgetRowMenu\').remove();editBudgetMonth(' + year + ',' + monthIdx + ')" onmouseover="this.style.background=\'var(--bg-primary)\'" onmouseout="this.style.background=\'none\'"><span style="font-size:' + (isMobile ? '18px' : '14px') + '">✏️</span> Edit Budget</button>';
 
-  if (hasExisting) {
-    showCopyConflictModal(plans, dstYear, dstMonth, newIncCats, newExpCats, newSav, existingPlan);
-  } else {
-    applyBudgetCopy(plans, dstYear, dstMonth, newIncCats, newExpCats, newSav, 'replace');
-  }
-}
-
-function showCopyConflictModal(plans, dstYear, dstMonth, newIncCats, newExpCats, newSav, existingPlan) {
-  // Close the copy modal
-  var copyModal = document.getElementById('mcopybudget');
-  if (copyModal) { copyModal.remove(); document.body.style.overflow = ''; }
-
-  var h = '<div class="mo show" id="mcopyconflict" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}">';
-  h += '<div class="ml" onclick="event.stopPropagation()">';
-  h += '<div class="mh"><div><div class="mti">⚠️ Existing Budget Found</div><div class="mds">' + MONTH_NAMES[dstMonth] + ' ' + dstYear + ' already has budget data.</div></div><button class="mx" onclick="document.getElementById(\'mcopyconflict\').remove();document.body.style.overflow=\'\'">✕</button></div>';
-  h += '<div style="padding:12px;background:var(--bg-primary);border-radius:8px;font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5">What would you like to do with the existing budget?</div>';
-  h += '<div style="display:flex;flex-direction:column;gap:10px">';
-  h += '<button class="btn bp" style="width:100%;justify-content:center;padding:12px" onclick="applyBudgetCopyFromConflict(\'replace\')"><b>Replace</b> — Overwrite existing budget entirely</button>';
-  h += '<button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="applyBudgetCopyFromConflict(\'merge\')"><b>Merge</b> — Add copied categories, keep existing ones</button>';
-  h += '<button class="btn bs" style="width:100%;justify-content:center;padding:12px;color:var(--text-tertiary)" onclick="document.getElementById(\'mcopyconflict\').remove();document.body.style.overflow=\'\'">Cancel</button>';
-  h += '</div></div></div>';
-
-  // Store pending copy data
-  window._pendingCopy = { plans: plans, dstYear: dstYear, dstMonth: dstMonth, newIncCats: newIncCats, newExpCats: newExpCats, newSav: newSav, existingPlan: existingPlan };
-
-  document.body.insertAdjacentHTML('beforeend', h);
-  document.body.style.overflow = 'hidden';
-}
-
-function applyBudgetCopyFromConflict(action) {
-  var d = window._pendingCopy;
-  if (!d) return;
-  document.getElementById('mcopyconflict').remove();
-  document.body.style.overflow = '';
-  applyBudgetCopy(d.plans, d.dstYear, d.dstMonth, d.newIncCats, d.newExpCats, d.newSav, action);
-  delete window._pendingCopy;
-}
-
-function applyBudgetCopy(plans, dstYear, dstMonth, newIncCats, newExpCats, newSav, action) {
-  if (!plans[dstYear]) plans[dstYear] = {};
-
-  if (action === 'replace') {
-    var totalInc = Object.values(newIncCats).reduce(function(s, v) { return s + v; }, 0);
-    var totalExp = Object.values(newExpCats).reduce(function(s, v) { return s + v; }, 0);
-    plans[dstYear][dstMonth] = { incCats: newIncCats, expCats: newExpCats, s: newSav, i: totalInc, e: totalExp };
-  } else if (action === 'merge') {
-    var existing = plans[dstYear][dstMonth] || { incCats: {}, expCats: {}, s: 0, i: 0, e: 0 };
-    var mergedInc = Object.assign({}, existing.incCats || {}, newIncCats);
-    var mergedExp = Object.assign({}, existing.expCats || {}, newExpCats);
-    var mergedSav = newSav || existing.s || 0;
-    var totalInc = Object.values(mergedInc).reduce(function(s, v) { return s + v; }, 0);
-    var totalExp = Object.values(mergedExp).reduce(function(s, v) { return s + v; }, 0);
-    plans[dstYear][dstMonth] = { incCats: mergedInc, expCats: mergedExp, s: mergedSav, i: totalInc, e: totalExp };
+  if (hasPlan) {
+    menuHtml += '<button style="display:flex;align-items:center;gap:10px;width:100%;padding:' + (isMobile ? '14px 12px' : '9px 10px') + ';border:none;background:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:' + (isMobile ? '14px' : '12px') + ';color:var(--text);text-align:left;font-weight:500" onclick="document.getElementById(\'budgetRowMenu\').remove();copyBudgetToNext(' + year + ',' + monthIdx + ')" onmouseover="this.style.background=\'var(--bg-primary)\'" onmouseout="this.style.background=\'none\'"><span style="font-size:' + (isMobile ? '18px' : '14px') + '">📋</span> Copy to Next Month</button>';
+    menuHtml += '<button style="display:flex;align-items:center;gap:10px;width:100%;padding:' + (isMobile ? '14px 12px' : '9px 10px') + ';border:none;background:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:' + (isMobile ? '14px' : '12px') + ';color:var(--text);text-align:left;font-weight:500" onclick="document.getElementById(\'budgetRowMenu\').remove();copyBudgetToAll(' + year + ',' + monthIdx + ')" onmouseover="this.style.background=\'var(--bg-primary)\'" onmouseout="this.style.background=\'none\'"><span style="font-size:' + (isMobile ? '18px' : '14px') + '">📑</span> Apply to All Months</button>';
+    menuHtml += '<div style="height:1px;background:var(--border);margin:4px 0"></div>';
+    menuHtml += '<button style="display:flex;align-items:center;gap:10px;width:100%;padding:' + (isMobile ? '14px 12px' : '9px 10px') + ';border:none;background:none;border-radius:8px;cursor:pointer;font-family:var(--font);font-size:' + (isMobile ? '14px' : '12px') + ';color:var(--rose);text-align:left;font-weight:500" onclick="document.getElementById(\'budgetRowMenu\').remove();clearBudgetMonth(' + year + ',' + monthIdx + ')" onmouseover="this.style.background=\'var(--bg-primary)\'" onmouseout="this.style.background=\'none\'"><span style="font-size:' + (isMobile ? '18px' : '14px') + '">🗑</span> Clear Budget</button>';
   }
 
+  menuHtml += '</div>';
+  menuHtml += '</div></div>';
+
+  document.body.insertAdjacentHTML('beforeend', menuHtml);
+}
+
+function copyBudgetToNext(year, monthIdx) {
+  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var yearKey = String(year);
+  var srcPlan = (plans[yearKey] && plans[yearKey][monthIdx]) || null;
+  if (!srcPlan) { toast('❌ No budget to copy'); return; }
+
+  // Next month (handles year rollover)
+  var nextMonth = monthIdx + 1;
+  var nextYear = year;
+  if (nextMonth > 11) { nextMonth = 0; nextYear = year + 1; }
+  var nextYearKey = String(nextYear);
+
+  // Check if destination has data
+  var destPlan = (plans[nextYearKey] && plans[nextYearKey][nextMonth]) || null;
+  var destHasData = destPlan && (Object.keys(destPlan.incCats || {}).length || Object.keys(destPlan.expCats || {}).length || destPlan.s);
+
+  if (destHasData) {
+    if (!confirm(MONTH_NAMES[nextMonth] + ' ' + nextYear + ' already has budget data. Replace it?')) return;
+  }
+
+  if (!plans[nextYearKey]) plans[nextYearKey] = {};
+  plans[nextYearKey][nextMonth] = JSON.parse(JSON.stringify(srcPlan));
   localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
-  toast('✅ Budget copied to ' + MONTH_NAMES[dstMonth] + ' ' + dstYear);
+  toast('✅ Copied to ' + MONTH_NAMES[nextMonth] + ' ' + nextYear);
+  if (typeof render === 'function') render();
+  else renderGoals(document.getElementById('cnt'));
+}
+
+function copyBudgetToAll(year, monthIdx) {
+  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var yearKey = String(year);
+  var srcPlan = (plans[yearKey] && plans[yearKey][monthIdx]) || null;
+  if (!srcPlan) { toast('❌ No budget to copy'); return; }
+
+  // Count how many months already have data (excluding source)
+  var existingCount = 0;
+  for (var m = 0; m < 12; m++) {
+    if (m === monthIdx) continue;
+    var p = plans[yearKey] && plans[yearKey][m];
+    if (p && (Object.keys(p.incCats || {}).length || Object.keys(p.expCats || {}).length || p.s)) existingCount++;
+  }
+
+  var msg = 'Apply ' + MONTH_NAMES[monthIdx] + ' budget to all 12 months of ' + year + '?';
+  if (existingCount > 0) msg += '\n\n' + existingCount + ' month(s) already have data and will be replaced.';
+  if (!confirm(msg)) return;
+
+  if (!plans[yearKey]) plans[yearKey] = {};
+  for (var m = 0; m < 12; m++) {
+    plans[yearKey][m] = JSON.parse(JSON.stringify(srcPlan));
+  }
+  localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  toast('✅ Budget applied to all months of ' + year);
   if (typeof render === 'function') render();
   else renderGoals(document.getElementById('cnt'));
 }
