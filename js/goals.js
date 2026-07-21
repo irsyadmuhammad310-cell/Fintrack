@@ -1,4 +1,4 @@
-// === GOALS & BUDGET (v11.5 — Interactive Redesign) ===
+// === GOALS & BUDGET (v11.7.2 — Interactive Redesign) ===
 let expandedGoal = null;
 let expandedCat = null;
 let goalBudgetYear = null;
