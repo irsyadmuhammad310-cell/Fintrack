@@ -65,8 +65,21 @@ function cascType() {
   // Show/hide account rows based on type
   const accRow = document.getElementById('accRow');
   const liabRow = document.getElementById('liabRow');
-  if (accRow) accRow.style.display = (tp === 'Income' || tp === 'Expense' || tp === 'Savings') ? 'block' : 'none';
-  if (liabRow) liabRow.style.display = tp === 'Expense' ? 'block' : 'none';
+  if (accRow) {
+    accRow.style.display = (tp === 'Income' || tp === 'Expense' || tp === 'Savings') ? 'block' : 'none';
+    // Rebuild account options from current ACCOUNTS
+    const accSel = document.getElementById('f_acc');
+    if (accSel) {
+      accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+    }
+  }
+  if (liabRow) {
+    liabRow.style.display = tp === 'Expense' ? 'block' : 'none';
+    const liabSel = document.getElementById('f_liab');
+    if (liabSel) {
+      liabSel.innerHTML = '<option value="">None (regular expense)</option>' + ACCOUNTS.filter(a => a.type === 'liability').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+    }
+  }
 }
 
 function cascCat() {
@@ -98,6 +111,8 @@ function saveTxn(e) {
     if (liabAcc) { liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - data.a); saveACCOUNTS(); }
   }
   saveTXN(); tryClose(); renderTxnTable();
+  // v15.5: Check budget alerts after saving transaction
+  if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
 }
 
 document.addEventListener('keydown', e => {
@@ -117,8 +132,10 @@ function doAuth(action, id) {
 function verifyPK() {
   if (Date.now() < lockUntil) return;
   const v = document.getElementById('f_pk').value;
-  if (v === getPK()) { authAtt = 0; document.getElementById('mauth').remove(); document.body.style.overflow = ''; if (pendAct.action === 'edit') doEdit(pendAct.id); else doDelConfirm(pendAct.id); }
-  else { authAtt++; if (authAtt >= 3) { lockUntil = Date.now() + 30000; document.getElementById('pklck').innerHTML = `<div style="color:var(--rose);font-size:12px;padding:8px;background:var(--rose-light);border-radius:6px;margin-top:8px;text-align:center">${t('auth_locked_30')}</div>`; setTimeout(() => { authAtt = 0; }, 30000); } else { const e = document.getElementById('pkerr'); e.textContent = t('auth_incorrect') + ' ' + (3 - authAtt) + ' ' + t('auth_left'); e.classList.add('show'); } }
+  verifyPIN(v).then(function(valid) {
+    if (valid) { authAtt = 0; document.getElementById('mauth').remove(); document.body.style.overflow = ''; if (pendAct.action === 'edit') doEdit(pendAct.id); else doDelConfirm(pendAct.id); }
+    else { authAtt++; if (authAtt >= 3) { lockUntil = Date.now() + 30000; document.getElementById('pklck').innerHTML = `<div style="color:var(--rose);font-size:12px;padding:8px;background:var(--rose-light);border-radius:6px;margin-top:8px;text-align:center">${t('auth_locked_30')}</div>`; setTimeout(() => { authAtt = 0; }, 30000); } else { const e = document.getElementById('pkerr'); e.textContent = t('auth_incorrect') + ' ' + (3 - authAtt) + ' ' + t('auth_left'); e.classList.add('show'); } }
+  });
 }
 
 function doEdit(id) {
