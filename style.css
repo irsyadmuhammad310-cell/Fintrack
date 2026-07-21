@@ -686,6 +686,8 @@ tr:hover td { background: var(--bg-primary); }
   .ma .btn { width: 100%; justify-content: center; }
   .toast { bottom: 16px; right: 12px; left: 12px; text-align: center; font-size: 12px; padding: 12px 16px; }
   table { font-size: 11px; min-width: 440px; }
+  .bp-table { min-width: 0 !important; table-layout: fixed; }
+  .bp-table th, .bp-table td { padding: 8px 4px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   th, td { padding: 7px 8px; }
   .tw { overflow: hidden; border-radius: 10px; }
   .tw > div, .tw { overflow-x: auto; -webkit-overflow-scrolling: touch; }
