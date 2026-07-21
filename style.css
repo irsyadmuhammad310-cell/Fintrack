@@ -123,6 +123,7 @@ body {
 .pg { display: none; animation: fi 300ms var(--ease-out); }
 .pg.active { display: block; }
 @keyframes fi { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 
 /* KPI Cards - v11.6.2 compact with sparkline background */
 .kg { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; margin-bottom: 16px; }
