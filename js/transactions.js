@@ -61,13 +61,14 @@ function cascType() {
   const s = document.getElementById('f_s');
   c.innerHTML = `<option value="">${t('txn_select')}</option>`;
   s.innerHTML = '<option value="">-</option>';
-  if (tp && SCHEMA[tp]) Object.keys(SCHEMA[tp]).forEach(k => c.innerHTML += `<option>${k}</option>`);
+  if (tp && SCHEMA[tp]) {
+    Object.keys(SCHEMA[tp]).forEach(k => { c.innerHTML += '<option value="' + k + '">' + k + '</option>'; });
+  }
   // Show/hide account rows based on type
   const accRow = document.getElementById('accRow');
   const liabRow = document.getElementById('liabRow');
   if (accRow) {
     accRow.style.display = (tp === 'Income' || tp === 'Expense' || tp === 'Savings') ? 'block' : 'none';
-    // Rebuild account options from current ACCOUNTS
     const accSel = document.getElementById('f_acc');
     if (accSel) {
       accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
@@ -87,7 +88,9 @@ function cascCat() {
   const cat = document.getElementById('f_c').value;
   const s = document.getElementById('f_s');
   s.innerHTML = '<option value="">-</option>';
-  if (tp && cat && SCHEMA[tp] && SCHEMA[tp][cat]) SCHEMA[tp][cat].forEach(v => s.innerHTML += `<option>${v}</option>`);
+  if (tp && cat && SCHEMA[tp] && SCHEMA[tp][cat] && SCHEMA[tp][cat].length) {
+    SCHEMA[tp][cat].forEach(v => { s.innerHTML += '<option value="' + v + '">' + v + '</option>'; });
+  }
 }
 
 function tryClose() {
