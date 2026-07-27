@@ -89,14 +89,14 @@ function renderMobileTransactions(c) {
   }
 
   c.innerHTML = `
-    <div class="mob-txn-add-bar"><button class="mob-txn-add-btn" onclick="editId=null;openAdd()"><i data-lucide="plus" width="16" height="16"></i> Add Transaction</button></div>
     <div class="mob-txn-summary">
       <div class="mob-txn-pill"><div class="mob-txn-pill-label">In</div><div class="mob-txn-pill-val income">${fmtD(inc)}</div></div>
       <div class="mob-txn-pill"><div class="mob-txn-pill-label">Out</div><div class="mob-txn-pill-val expense">${fmtD(exp)}</div></div>
       <div class="mob-txn-pill"><div class="mob-txn-pill-label">Net</div><div class="mob-txn-pill-val balance">${bal >= 0 ? '+' : ''}${fmtD(bal)}</div></div>
     </div>
     ${filterHtml}
-    <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
+    <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>
+    <button class="txn-fab" onclick="editId=null;openAdd()" aria-label="Add Transaction"><i data-lucide="plus" width="22" height="22"></i></button>`;
   lucide.createIcons();
 }
 
