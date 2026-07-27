@@ -1,14 +1,123 @@
-// === TRANSACTIONS (v15.3) ===
+// === TRANSACTIONS (v15.8.1) ===
 function renderTransactions(c) {
-  // v15.3: Sync with Global Period Selector (removed local month/year toggle + Export button)
   const selYear = getSelectedYear();
   const selMonth = document.getElementById('mf').value;
   txnYearSel = selYear;
   txnMonthSel = selMonth;
 
+  // v15.8.1: Mobile gets simplified card-free list
+  if (window.innerWidth <= 900) {
+    renderMobileTransactions(c);
+    return;
+  }
+
   c.innerHTML = `<div class="tt"><div class="tf"><div class="sb2"><i data-lucide="search" width="14" height="14"></i><input placeholder="${t('txn_search')}" id="txs" oninput="renderTxnTable()"></div></div></div><div class="tsg" id="txsm"></div><div class="tw"><div style="overflow-x:auto"><table><thead><tr><th>${t('txn_date')}</th><th>${t('txn_type')}</th><th>${t('txn_category')}</th><th>${t('txn_sub')}</th><th>${t('txn_details')}</th><th style="text-align:right">${t('txn_amount')}</th><th style="text-align:center;width:80px">${t('txn_actions')}</th></tr></thead><tbody id="txbody"></tbody></table></div><div class="tp"><span id="txinfo"></span><div class="pb" id="txpg"></div></div></div><button class="txn-fab" id="txnFab" onclick="editId=null;openAdd()" aria-label="Add Transaction"><i data-lucide="plus" width="22" height="22"></i></button>`;
   lucide.createIcons();
   renderTxnTable();
+}
+
+// === MOBILE TRANSACTIONS (v15.8.1 — Card-free interactive list) ===
+function renderMobileTransactions(c) {
+  const year = getSelectedYear();
+  const m = document.getElementById('mf').value;
+  const allTxn = TXN.filter(tx => {
+    const dt = new Date(tx.d);
+    if (dt.getFullYear() !== year) return false;
+    if (m !== 'total' && dt.getMonth() !== +m) return false;
+    return true;
+  }).sort((a, b) => new Date(b.d) - new Date(a.d));
+
+  const inc = allTxn.filter(tx => tx.t === 'Income').reduce((s, tx) => s + tx.a, 0);
+  const exp = allTxn.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
+  const bal = inc - exp;
+
+  // Category emoji map
+  const catEmoji = (cat) => {
+    const map = { 'Food': '🍜', 'Transport': '🚗', 'Shopping': '🛍', 'Bills': '📄', 'Health': '💊', 'Entertainment': '🎬', 'Education': '📚', 'Salary': '💰', 'Freelance': '💻', 'Investment': '📈', 'Savings': '🏦', 'Rent': '🏠', 'Utilities': '⚡', 'Insurance': '🛡', 'Groceries': '🛒', 'Travel': '✈️' };
+    for (const [key, emoji] of Object.entries(map)) { if (cat.toLowerCase().includes(key.toLowerCase())) return emoji; }
+    return tx => tx.t === 'Income' ? '💰' : tx.t === 'Savings' ? '🏦' : '💸';
+  };
+
+  // Group by date
+  const grouped = {};
+  allTxn.forEach(tx => {
+    const dateKey = tx.d;
+    if (!grouped[dateKey]) grouped[dateKey] = [];
+    grouped[dateKey].push(tx);
+  });
+
+  // Build mobile filter chips
+  let filterHtml = `<div class="mob-filter-chips" id="mobTxnFilters">
+    <div class="mob-chip active" onclick="mobTxnFilter('all',this)">All</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Income',this)">Income</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Expense',this)">Expense</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Savings',this)">Savings</div>
+  </div>`;
+
+  // Build transaction rows
+  let listHtml = '';
+  Object.entries(grouped).forEach(([date, txns]) => {
+    const d = new Date(date);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    let dateLabel;
+    if (d.toDateString() === today.toDateString()) dateLabel = 'Today';
+    else if (d.toDateString() === yesterday.toDateString()) dateLabel = 'Yesterday';
+    else dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() !== year ? 'numeric' : undefined });
+
+    listHtml += `<div class="mob-txn-date-header">${dateLabel}</div>`;
+    txns.forEach(tx => {
+      const emoji = typeof catEmoji(tx.c) === 'function' ? catEmoji(tx.c)(tx) : catEmoji(tx.c);
+      const amtColor = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
+      const sign = tx.t === 'Income' ? '+' : '-';
+      const bgColor = tx.t === 'Income' ? 'var(--emerald-light)' : tx.t === 'Savings' ? 'var(--blue-light)' : 'var(--rose-light)';
+      const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
+      const meta = [tx.c, tx.s, accName].filter(Boolean).join(' · ');
+      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit',${tx.id})">
+        <div class="mob-txn-cat-dot" style="background:${bgColor}">${emoji}</div>
+        <div class="mob-txn-info">
+          <div class="mob-txn-name">${tx.dt || tx.c}</div>
+          <div class="mob-txn-meta">${meta}</div>
+        </div>
+        <div class="mob-txn-amount" style="color:${amtColor}">${sign}${fmtD(tx.a)}</div>
+      </div>`;
+    });
+  });
+
+  if (!allTxn.length) {
+    listHtml = `<div class="es" style="padding:60px 20px"><div style="font-size:32px;margin-bottom:8px">📭</div><p style="font-size:13px">No transactions for this period.<br>Tap below to add one.</p></div>`;
+  }
+
+  c.innerHTML = `
+    <div class="mob-txn-add-bar"><button class="mob-txn-add-btn" onclick="editId=null;openAdd()"><i data-lucide="plus" width="16" height="16"></i> Add Transaction</button></div>
+    <div class="mob-txn-summary">
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">In</div><div class="mob-txn-pill-val income">${fmtD(inc)}</div></div>
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">Out</div><div class="mob-txn-pill-val expense">${fmtD(exp)}</div></div>
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">Net</div><div class="mob-txn-pill-val balance">${bal >= 0 ? '+' : ''}${fmtD(bal)}</div></div>
+    </div>
+    ${filterHtml}
+    <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
+  lucide.createIcons();
+}
+
+// v15.8.1: Mobile filter handler
+function mobTxnFilter(type, el) {
+  document.querySelectorAll('#mobTxnFilters .mob-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('#mobTxnList .mob-txn-row').forEach(row => {
+    if (type === 'all') row.style.display = '';
+    else row.style.display = row.dataset.type === type ? '' : 'none';
+  });
+  // Show/hide date headers with no visible rows
+  document.querySelectorAll('#mobTxnList .mob-txn-date-header').forEach(hdr => {
+    let next = hdr.nextElementSibling;
+    let hasVisible = false;
+    while (next && !next.classList.contains('mob-txn-date-header')) {
+      if (next.style.display !== 'none') hasVisible = true;
+      next = next.nextElementSibling;
+    }
+    hdr.style.display = hasVisible ? '' : 'none';
+  });
 }
 
 function renderTxnTable() {
