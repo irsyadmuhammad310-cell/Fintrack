@@ -386,15 +386,11 @@ function initApp() {
   // Set user name in sidebar
   updateUserDisplay();
   lucide.createIcons();
-  // v15.8.1: Mobile opens to Transactions, Desktop opens to Dashboard
-  if (window.innerWidth <= 900) {
-    curPage = 'transactions';
-    document.getElementById('pt').textContent = t('nav_transactions') || 'Transactions';
-    document.getElementById('ps').textContent = '';
-  }
+  // v15.8.2: Always open to Dashboard/Home first. Stay on current tab after navigation.
+  curPage = 'dashboard';
   render();
   // Sync bottom nav active state on init
-  syncBottomNav(curPage || 'dashboard');
+  syncBottomNav(curPage);
   // Fetch fresh rates in background
   fetchExchangeRates();
   // Update notification badge
