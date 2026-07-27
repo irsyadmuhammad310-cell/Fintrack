@@ -25,6 +25,12 @@ function navigate(page) {
   // Sync bottom nav (mobile)
   syncBottomNav(page);
 
+  // v15.8.2: Toggle mobile FABs based on current page
+  const addFab = document.getElementById('mobGlobalFab');
+  const aiFab = document.getElementById('aiFab');
+  if (addFab) addFab.style.display = (page === 'dashboard' || page === 'transactions') && window.innerWidth <= 900 ? 'flex' : 'none';
+  if (aiFab && window.innerWidth <= 900) aiFab.style.display = (page !== 'dashboard' && page !== 'transactions') ? '' : 'none';
+
   render();
 }
 
