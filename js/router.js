@@ -28,8 +28,15 @@ function navigate(page) {
   // v15.8.2: Toggle mobile FABs based on current page
   const addFab = document.getElementById('mobGlobalFab');
   const aiFab = document.getElementById('aiFab');
-  if (addFab) addFab.style.display = (page === 'dashboard' || page === 'transactions') && window.innerWidth <= 900 ? 'flex' : 'none';
-  if (aiFab && window.innerWidth <= 900) aiFab.style.display = (page !== 'dashboard' && page !== 'transactions') ? '' : 'none';
+  if (window.innerWidth <= 900) {
+    if (page === 'dashboard' || page === 'transactions') {
+      if (addFab) { addFab.style.display = 'flex'; addFab.style.visibility = 'visible'; }
+      if (aiFab) { aiFab.style.display = 'none'; aiFab.style.visibility = 'hidden'; }
+    } else {
+      if (addFab) { addFab.style.display = 'none'; addFab.style.visibility = 'hidden'; }
+      if (aiFab) { aiFab.style.display = 'block'; aiFab.style.visibility = 'visible'; }
+    }
+  }
 
   render();
 }
