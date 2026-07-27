@@ -16,7 +16,24 @@ function navigate(page) {
   const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
   document.getElementById('pt').textContent = t(titleKeys[page]) || page;
   document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
+
+  // Sync sidebar nav
+  document.querySelectorAll('.ni').forEach(i => i.classList.remove('active'));
+  const sidebarItem = document.querySelector(`.ni[data-page="${page}"]`);
+  if (sidebarItem) sidebarItem.classList.add('active');
+
+  // Sync bottom nav (mobile)
+  syncBottomNav(page);
+
   render();
+}
+
+function syncBottomNav(page) {
+  document.querySelectorAll('.bnav-item').forEach(i => i.classList.remove('active'));
+  // Map pages to bottom nav (investments, reports fall under "More"/settings)
+  const bnItem = document.querySelector(`.bnav-item[data-page="${page}"]`) ||
+                 document.querySelector('.bnav-item[data-page="settings"]');
+  if (bnItem) bnItem.classList.add('active');
 }
 
 function render() {
