@@ -1,7 +1,7 @@
-// === SETTINGS (v15.7.2) ===
+// === SETTINGS (v15.7) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'v15.7.2';
+const FINTRACK_VERSION = 'v15.8.0';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768) { renderMobileSettings(c); return; }
@@ -699,3 +699,4 @@ function deleteReminder(id) {
 
 // === NOTIFICATION BELL — functions in helpers.js ===
 // updateNotifBadge, toggleNotifPanel, completeReminder, dismissReminder
+// are all defined in helpers.js (loaded before settings.js)
