@@ -1,18 +1,68 @@
-// === CURRENCY SYSTEM (v10.0) ===
+// === CURRENCY SYSTEM (v15.8.2) ===
 const CURRENCY_CONFIG = {
+  // Southeast Asia
   MYR: { symbol: 'RM', locale: 'en-MY', name: 'Malaysian Ringgit' },
   SGD: { symbol: 'S$', locale: 'en-SG', name: 'Singapore Dollar' },
-  USD: { symbol: '$', locale: 'en-US', name: 'US Dollar' },
-  EUR: { symbol: '€', locale: 'de-DE', name: 'Euro' },
-  GBP: { symbol: '£', locale: 'en-GB', name: 'British Pound' },
+  IDR: { symbol: 'Rp', locale: 'id-ID', name: 'Indonesian Rupiah' },
+  THB: { symbol: '฿', locale: 'th-TH', name: 'Thai Baht' },
+  PHP: { symbol: '₱', locale: 'en-PH', name: 'Philippine Peso' },
+  VND: { symbol: '₫', locale: 'vi-VN', name: 'Vietnamese Dong' },
+  BND: { symbol: 'B$', locale: 'ms-BN', name: 'Brunei Dollar' },
+  MMK: { symbol: 'K', locale: 'my-MM', name: 'Myanmar Kyat' },
+  KHR: { symbol: '៛', locale: 'km-KH', name: 'Cambodian Riel' },
+  // East Asia
   JPY: { symbol: '¥', locale: 'ja-JP', name: 'Japanese Yen' },
   CNY: { symbol: '¥', locale: 'zh-CN', name: 'Chinese Yuan' },
+  KRW: { symbol: '₩', locale: 'ko-KR', name: 'South Korean Won' },
+  TWD: { symbol: 'NT$', locale: 'zh-TW', name: 'Taiwan Dollar' },
+  HKD: { symbol: 'HK$', locale: 'zh-HK', name: 'Hong Kong Dollar' },
+  // South Asia
+  INR: { symbol: '₹', locale: 'en-IN', name: 'Indian Rupee' },
+  PKR: { symbol: '₨', locale: 'en-PK', name: 'Pakistani Rupee' },
+  BDT: { symbol: '৳', locale: 'bn-BD', name: 'Bangladeshi Taka' },
+  LKR: { symbol: 'Rs', locale: 'si-LK', name: 'Sri Lankan Rupee' },
+  NPR: { symbol: 'Rs', locale: 'ne-NP', name: 'Nepalese Rupee' },
+  // West Asia / Middle East
+  SAR: { symbol: '﷼', locale: 'ar-SA', name: 'Saudi Riyal' },
+  AED: { symbol: 'د.إ', locale: 'ar-AE', name: 'UAE Dirham' },
+  QAR: { symbol: '﷼', locale: 'ar-QA', name: 'Qatari Riyal' },
+  OMR: { symbol: '﷼', locale: 'ar-OM', name: 'Omani Rial' },
+  BHD: { symbol: '.د.ب', locale: 'ar-BH', name: 'Bahraini Dinar' },
+  KWD: { symbol: 'د.ك', locale: 'ar-KW', name: 'Kuwaiti Dinar' },
+  TRY: { symbol: '₺', locale: 'tr-TR', name: 'Turkish Lira' },
+  ILS: { symbol: '₪', locale: 'he-IL', name: 'Israeli Shekel' },
+  // Europe
+  EUR: { symbol: '€', locale: 'de-DE', name: 'Euro' },
+  GBP: { symbol: '£', locale: 'en-GB', name: 'British Pound' },
+  CHF: { symbol: 'CHF', locale: 'de-CH', name: 'Swiss Franc' },
+  SEK: { symbol: 'kr', locale: 'sv-SE', name: 'Swedish Krona' },
+  NOK: { symbol: 'kr', locale: 'nb-NO', name: 'Norwegian Krone' },
+  DKK: { symbol: 'kr', locale: 'da-DK', name: 'Danish Krone' },
+  PLN: { symbol: 'zł', locale: 'pl-PL', name: 'Polish Zloty' },
+  CZK: { symbol: 'Kč', locale: 'cs-CZ', name: 'Czech Koruna' },
+  HUF: { symbol: 'Ft', locale: 'hu-HU', name: 'Hungarian Forint' },
+  RUB: { symbol: '₽', locale: 'ru-RU', name: 'Russian Ruble' },
+  UAH: { symbol: '₴', locale: 'uk-UA', name: 'Ukrainian Hryvnia' },
+  // North America
+  USD: { symbol: '$', locale: 'en-US', name: 'US Dollar' },
+  CAD: { symbol: 'C$', locale: 'en-CA', name: 'Canadian Dollar' },
+  MXN: { symbol: 'MX$', locale: 'es-MX', name: 'Mexican Peso' },
+  // South America
+  BRL: { symbol: 'R$', locale: 'pt-BR', name: 'Brazilian Real' },
+  ARS: { symbol: 'AR$', locale: 'es-AR', name: 'Argentine Peso' },
+  CLP: { symbol: 'CL$', locale: 'es-CL', name: 'Chilean Peso' },
+  COP: { symbol: 'CO$', locale: 'es-CO', name: 'Colombian Peso' },
+  // Africa
+  ZAR: { symbol: 'R', locale: 'en-ZA', name: 'South African Rand' },
+  NGN: { symbol: '₦', locale: 'en-NG', name: 'Nigerian Naira' },
+  EGP: { symbol: 'E£', locale: 'ar-EG', name: 'Egyptian Pound' },
+  KES: { symbol: 'KSh', locale: 'en-KE', name: 'Kenyan Shilling' },
+  // Oceania
   AUD: { symbol: 'A$', locale: 'en-AU', name: 'Australian Dollar' },
-  THB: { symbol: '฿', locale: 'th-TH', name: 'Thai Baht' },
-  IDR: { symbol: 'Rp', locale: 'id-ID', name: 'Indonesian Rupiah' }
+  NZD: { symbol: 'NZ$', locale: 'en-NZ', name: 'New Zealand Dollar' }
 };
 
-const FALLBACK_RATES = { MYR: 1, SGD: 0.2857, USD: 0.2128, EUR: 0.1961, GBP: 0.1695, JPY: 31.25, CNY: 1.538, AUD: 0.3289, THB: 7.353, IDR: 3401 };
+const FALLBACK_RATES = { MYR: 1, SGD: 0.286, USD: 0.213, EUR: 0.196, GBP: 0.170, JPY: 31.25, CNY: 1.54, AUD: 0.329, THB: 7.35, IDR: 3401, PHP: 12.1, VND: 5300, BND: 0.286, MMK: 447, KHR: 870, KRW: 280, TWD: 6.8, HKD: 1.66, INR: 17.8, PKR: 59, BDT: 25, LKR: 64, NPR: 28.4, SAR: 0.80, AED: 0.78, QAR: 0.78, OMR: 0.082, BHD: 0.080, KWD: 0.065, TRY: 6.9, ILS: 0.78, CHF: 0.188, SEK: 2.24, NOK: 2.27, DKK: 1.46, PLN: 0.85, CZK: 4.93, HUF: 78, RUB: 19.5, UAH: 8.8, CAD: 0.29, MXN: 3.7, BRL: 1.16, ARS: 195, CLP: 200, COP: 880, ZAR: 3.85, NGN: 340, EGP: 10.4, KES: 27.5, NZD: 0.355 };
 
 let displayCurrency = localStorage.getItem('ft_currency') || 'MYR';
 let exchangeRates = JSON.parse(localStorage.getItem('ft_rates') || 'null') || FALLBACK_RATES;
