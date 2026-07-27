@@ -832,6 +832,56 @@ tr:hover td { background: var(--bg-primary); }
   .toast { bottom: 80px; }
 }
 
+/* Global Mobile FAB (v15.8.2) */
+.mob-global-fab {
+  display: none;
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, oklch(0.55 0.2 260), oklch(0.45 0.22 280));
+  color: #fff;
+  border: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px oklch(0.5 0.2 260/0.35);
+  transition: all 200ms var(--ease-out);
+  z-index: 8400;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-global-fab:active { transform: scale(0.92); }
+@media (max-width: 900px) {
+  .mob-global-fab { display: flex; }
+}
+
+/* Global Mobile FAB (v15.8.2) */
+.mob-global-fab {
+  display: none;
+  position: fixed;
+  bottom: 80px;
+  right: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, oklch(0.55 0.2 260), oklch(0.45 0.22 280));
+  color: #fff;
+  border: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px oklch(0.5 0.2 260/0.35);
+  transition: all 200ms var(--ease-out);
+  z-index: 8400;
+  -webkit-tap-highlight-color: transparent;
+}
+.mob-global-fab:active { transform: scale(0.92); }
+@media (max-width: 900px) {
+  .mob-global-fab { display: flex; }
+}
+
 /* Hero Balance Card (mobile dashboard) */
 .hero-balance {
   display: none;
