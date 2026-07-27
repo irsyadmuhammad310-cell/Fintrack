@@ -1,6 +1,13 @@
-// === DASHBOARD (v10.9.1 — Settings & Dashboard Enhancement) ===
+// === DASHBOARD (v15.8.1 — Mobile-First Simplified) ===
 function renderDashboard(c) {
   const year = getSelectedYear();
+
+  // v15.8.1: Mobile gets stripped-down dashboard
+  if (window.innerWidth <= 900) {
+    renderMobileDashboard(c, year);
+    return;
+  }
+
   if (!yearHasData(year)) {
     c.innerHTML = `<div class="es" style="padding:100px 20px"><div style="font-size:40px;margin-bottom:16px">📊</div><div style="font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:8px">${t('dash_no_data')} ${year}.</div><p>${t('dash_select_year')} ${year}.</p></div>`;
     return;
@@ -209,3 +216,116 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
 }
 
 // === (v10.9.1) ===
+
+// === MOBILE DASHBOARD (v15.8.1 — Essential info only) ===
+function renderMobileDashboard(c, year) {
+  if (!yearHasData(year)) {
+    c.innerHTML = `<div class="es" style="padding:80px 20px"><div style="font-size:40px;margin-bottom:12px">📊</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">No data for ${year}</div><p style="font-size:12px">Add transactions to see your dashboard.</p></div>`;
+    return;
+  }
+
+  const yearData = computeMonthlyData(year);
+  const mf = document.getElementById('mf').value;
+  let ti, te, ts;
+  if (mf === 'total') {
+    ti = yearData.reduce((s, m) => s + m.i, 0);
+    te = yearData.reduce((s, m) => s + m.e, 0);
+    ts = yearData.reduce((s, m) => s + m.s, 0);
+  } else {
+    ti = yearData[+mf].i;
+    te = yearData[+mf].e;
+    ts = yearData[+mf].s;
+  }
+
+  const nw = getNetWorthByPeriod(year, mf);
+  const cf = ti - ts - te;
+  const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
+  const budgetTotal = getYearlyBudgetTotal(year);
+  const budgetUsed = budgetTotal > 0 ? Math.min(100, (te / budgetTotal * 100).toFixed(0)) : 0;
+
+  // Trend
+  const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
+  let trendLabel = '';
+  let trendClass = 'pos';
+  if (prevMonth && prevMonth.e > 0) {
+    const pct = ((te - prevMonth.e) / prevMonth.e * 100).toFixed(0);
+    if (te > prevMonth.e) { trendLabel = `▲ ${pct}% vs last month`; trendClass = 'neg'; }
+    else { trendLabel = `▼ ${Math.abs(pct)}% vs last month`; trendClass = 'pos'; }
+  }
+
+  // Recent transactions (last 5)
+  const recent = TXN.filter(tx => {
+    const d = new Date(tx.d);
+    if (d.getFullYear() !== year) return false;
+    if (mf !== 'total' && d.getMonth() !== +mf) return false;
+    return true;
+  }).sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 5);
+
+  const recentHtml = recent.map(tx => {
+    const color = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
+    const sign = tx.t === 'Income' ? '+' : '-';
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tx.dt || tx.c}</div><div style="font-size:10px;color:var(--text-tertiary)">${tx.c}${tx.s ? ' · ' + tx.s : ''}</div></div><div style="font-size:13px;font-weight:700;color:${color};font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div></div>`;
+  }).join('');
+
+  // Budget categories progress (top 4)
+  const expCats = computeExpenseCategoriesByPeriod(year, mf);
+  const topCats = expCats.slice(0, 4);
+  const budgetBarsHtml = topCats.map(cat => {
+    const monthlyBudget = budgetTotal / 12 / (Object.keys(SCHEMA.Expense || {}).length || 1);
+    const pct = monthlyBudget > 0 ? Math.min(100, (cat.a / monthlyBudget * 100)) : 50;
+    const fillClass = pct > 90 ? 'over' : pct > 70 ? 'warn' : 'safe';
+    return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${cat.n}</span><span class="budget-prog-amt">${fmtD(cat.a)}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
+  }).join('');
+
+  c.innerHTML = `<div class="mob-dash">
+    <div class="mob-dash-balance">
+      <div class="mob-dash-greeting">${getGreeting()}</div>
+      <div class="mob-dash-amount">${fmt(nw)}</div>
+      ${trendLabel ? `<div class="mob-dash-change ${trendClass}">${trendLabel}</div>` : ''}
+    </div>
+    <div class="mob-dash-stats">
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Income</div><div class="mob-dash-stat-val" style="color:var(--emerald)">${fmtD(ti)}</div></div>
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Expense</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Savings</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
+    </div>
+    <div class="mob-dash-chart">
+      <div class="mob-dash-chart-title">Spending Trend</div>
+      <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
+    </div>
+    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>Top Spending</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% of budget</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
+    <div class="mob-dash-recent">
+      <div class="mob-dash-recent-title"><span>Recent</span><a onclick="navigate('transactions')">See all →</a></div>
+      ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">No transactions yet</div>'}
+    </div>
+  </div>`;
+
+  // Render mini chart
+  setTimeout(() => {
+    const ctx = document.getElementById('mobDashChart')?.getContext('2d');
+    if (!ctx) return;
+    const dk = document.documentElement.dataset.theme === 'dark';
+    const labels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const expData = yearData.map(m => m.e);
+    const incData = yearData.map(m => m.i);
+    const grad = ctx.createLinearGradient(0, 0, 0, 140);
+    grad.addColorStop(0, 'rgba(244,63,94,0.15)');
+    grad.addColorStop(1, 'rgba(244,63,94,0)');
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Expense', data: expData, borderColor: '#f43f5e', borderWidth: 2, tension: 0.4, pointRadius: 0, pointHoverRadius: 5, fill: true, backgroundColor: grad },
+          { label: 'Income', data: incData, borderColor: '#10b981', borderWidth: 2, tension: 0.4, pointRadius: 0, pointHoverRadius: 5, fill: false }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: true, position: 'bottom', labels: { color: dk ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)', usePointStyle: true, font: { size: 10 }, padding: 12 } }, tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } },
+        scales: { x: { display: true, grid: { display: false }, ticks: { color: dk ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)', font: { size: 9 }, maxRotation: 0 } }, y: { display: false } },
+        interaction: { intersect: false, mode: 'index' },
+        animation: { duration: 400, easing: 'easeOutQuart' }
+      }
+    });
+  }, 50);
+}
