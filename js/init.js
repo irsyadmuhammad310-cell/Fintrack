@@ -387,6 +387,8 @@ function initApp() {
   updateUserDisplay();
   lucide.createIcons();
   render();
+  // Sync bottom nav active state on init
+  syncBottomNav(curPage || 'dashboard');
   // Fetch fresh rates in background
   fetchExchangeRates();
   // Update notification badge
