@@ -386,6 +386,12 @@ function initApp() {
   // Set user name in sidebar
   updateUserDisplay();
   lucide.createIcons();
+  // v15.8.1: Mobile opens to Transactions, Desktop opens to Dashboard
+  if (window.innerWidth <= 900) {
+    curPage = 'transactions';
+    document.getElementById('pt').textContent = t('nav_transactions') || 'Transactions';
+    document.getElementById('ps').textContent = '';
+  }
   render();
   // Sync bottom nav active state on init
   syncBottomNav(curPage || 'dashboard');
