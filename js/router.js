@@ -25,25 +25,28 @@ function navigate(page) {
   // Sync bottom nav (mobile)
   syncBottomNav(page);
 
-  // v15.8.2: Toggle mobile FABs based on current page
-  const addFab = document.getElementById('mobGlobalFab');
-  const aiFab = document.getElementById('aiFab');
-  if (window.innerWidth <= 900) {
-    if (page === 'dashboard' || page === 'transactions') {
-      if (addFab) { addFab.style.display = 'flex'; addFab.style.visibility = 'visible'; }
-      if (aiFab) { aiFab.style.display = 'none'; aiFab.style.visibility = 'hidden'; }
-    } else {
-      if (addFab) { addFab.style.display = 'none'; addFab.style.visibility = 'hidden'; }
-      if (aiFab) { aiFab.style.display = 'block'; aiFab.style.visibility = 'visible'; }
-    }
-  }
+  // v15.3.1: Toggle FABs based on active tab (mobile only)
+  updateMobileFAB(page);
 
   render();
 }
 
+// v15.3.1: FAB logic — Add FAB on Home/Transactions, AI FAB on all others
+function updateMobileFAB(page) {
+  if (window.innerWidth > 900) return; // Desktop: do nothing
+  const addFab = document.getElementById('mobGlobalFab');
+  const aiFab = document.getElementById('aiFab');
+  if (page === 'dashboard' || page === 'transactions') {
+    if (addFab) { addFab.style.display = 'flex'; addFab.style.visibility = 'visible'; }
+    if (aiFab) { aiFab.style.display = 'none'; aiFab.style.visibility = 'hidden'; }
+  } else {
+    if (addFab) { addFab.style.display = 'none'; addFab.style.visibility = 'hidden'; }
+    if (aiFab) { aiFab.style.display = 'block'; aiFab.style.visibility = 'visible'; }
+  }
+}
+
 function syncBottomNav(page) {
   document.querySelectorAll('.bnav-item').forEach(i => i.classList.remove('active'));
-  // Map pages to bottom nav (investments, reports fall under "More"/settings)
   const bnItem = document.querySelector(`.bnav-item[data-page="${page}"]`) ||
                  document.querySelector('.bnav-item[data-page="settings"]');
   if (bnItem) bnItem.classList.add('active');
