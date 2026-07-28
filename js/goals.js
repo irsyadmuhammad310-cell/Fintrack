@@ -158,13 +158,12 @@ function renderGoals(c) {
     const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
     const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
     const planSav = plan ? (plan.s || 0) : 0;
-    const showPlan = plan && !hasData;
-    const dispI = showPlan ? planInc : m.i;
-    const dispE = showPlan ? planExp : m.e;
-    const dispS = showPlan ? planSav : m.s;
-    const hasAny = hasData || showPlan;
-    const isPlan = showPlan && !hasData;
-    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''}${isPlan ? ';font-style:italic' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px;font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis">${MONTH_NAMES[idx]}${isPlan ? ' <span style="font-size:7px;color:var(--accent);font-style:normal;font-weight:600">PLAN</span>' : ''}</td><td style="padding:10px 6px;text-align:right;color:var(--emerald);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--rose);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--blue);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 4px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
+    // v15.3.0: Always show PLANNED budget values in the planner (not actual spending)
+    const dispI = hasPlan ? planInc : 0;
+    const dispE = hasPlan ? planExp : 0;
+    const dispS = hasPlan ? planSav : 0;
+    const hasAny = hasPlan;
+    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px;font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis">${MONTH_NAMES[idx]}${hasPlan ? ' <span style="font-size:7px;color:var(--accent);font-weight:600">PLAN</span>' : ''}</td><td style="padding:10px 6px;text-align:right;color:var(--emerald);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--rose);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--blue);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 4px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
 
