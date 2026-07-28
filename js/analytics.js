@@ -27,23 +27,23 @@ function renderAnalytics(c) {
   var html = '<div class="an-page">';
 
   // 1. Financial Overview KPIs
-  html += '<div class="an-section"><div class="an-sec-title">Financial Overview</div><div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' +
-    '<div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-up" width="13" height="13"></i></div><div class="kl">Income</div></div><div class="kv">' + fmt(ti) + '</div></div></div>' +
-    '<div class="kc rs"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-down" width="13" height="13"></i></div><div class="kl">Expenses</div></div><div class="kv">' + fmt(te) + '</div></div></div>' +
-    '<div class="kc bl"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="piggy-bank" width="13" height="13"></i></div><div class="kl">Savings</div></div><div class="kv">' + fmt(ts) + '</div></div></div>' +
-    '<div class="kc ' + (net>=0?'gn':'rs') + '"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="activity" width="13" height="13"></i></div><div class="kl">Cash Flow</div></div><div class="kv">' + fmt(net) + '</div></div></div>' +
-    '<div class="kc gd"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">Net Worth</div></div><div class="kv">' + fmt(nw) + '</div></div></div>' +
-    '<div class="kc pk"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="percent" width="13" height="13"></i></div><div class="kl">Savings Rate</div></div><div class="kv">' + savRate + '%</div></div></div>' +
+  html += '<div class="an-section"><div class="an-sec-title">' + t('nav_overview') + '</div><div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' +
+    '<div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-up" width="13" height="13"></i></div><div class="kl">' + t('dash_income') + '</div></div><div class="kv">' + fmt(ti) + '</div></div></div>' +
+    '<div class="kc rs"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-down" width="13" height="13"></i></div><div class="kl">' + t('dash_expense') + '</div></div><div class="kv">' + fmt(te) + '</div></div></div>' +
+    '<div class="kc bl"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="piggy-bank" width="13" height="13"></i></div><div class="kl">' + t('dash_savings') + '</div></div><div class="kv">' + fmt(ts) + '</div></div></div>' +
+    '<div class="kc ' + (net>=0?'gn':'rs') + '"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="activity" width="13" height="13"></i></div><div class="kl">' + t('an_cash_flow') + '</div></div><div class="kv">' + fmt(net) + '</div></div></div>' +
+    '<div class="kc gd"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">' + t('an_net_worth') + '</div></div><div class="kv">' + fmt(nw) + '</div></div></div>' +
+    '<div class="kc pk"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="percent" width="13" height="13"></i></div><div class="kl">' + t('an_savings_rate') + '</div></div><div class="kv">' + savRate + '%</div></div></div>' +
   '</div></div>';
 
   // 2. Income & Expense Analysis (side by side)
-  html += '<div class="an-section"><div class="an-grid-2"><div class="cc"><div class="ct">Income vs Expense Trend</div><div class="cs">Monthly comparison for ' + year + '</div><div style="height:200px"><canvas id="anIncExp"></canvas></div></div><div class="cc"><div class="ct">Expense by Category</div><div class="cs">Where your money goes</div><div style="height:200px"><canvas id="anExpCat"></canvas></div></div></div></div>';
+  html += '<div class="an-section"><div class="an-grid-2"><div class="cc"><div class="ct">' + t('dash_income') + ' vs ' + t('dash_expense') + '</div><div class="cs">' + t('dash_monthly_trend') + ' ' + year + '</div><div style="height:200px"><canvas id="anIncExp"></canvas></div></div><div class="cc"><div class="ct">' + t('dash_expense_breakdown') + '</div><div class="cs">' + t('dash_by_category') + '</div><div style="height:200px"><canvas id="anExpCat"></canvas></div></div></div></div>';
 
   // 3. Savings & Cash Flow
-  html += '<div class="an-section"><div class="an-grid-2"><div class="cc"><div class="ct">Savings Rate Trend</div><div class="cs">Monthly savings as % of income</div><div style="height:200px"><canvas id="anSavRate"></canvas></div></div><div class="cc"><div class="ct">Cash Flow Analysis</div><div class="cs">Net monthly surplus/deficit</div><div style="height:200px"><canvas id="anCashFlow"></canvas></div></div></div></div>';
+  html += '<div class="an-section"><div class="an-grid-2"><div class="cc"><div class="ct">' + t('an_savings_rate') + '</div><div class="cs">' + t('dash_monthly_trend') + '</div><div style="height:200px"><canvas id="anSavRate"></canvas></div></div><div class="cc"><div class="ct">' + t('an_cash_flow') + '</div><div class="cs">' + t('dash_monthly_trend') + '</div><div style="height:200px"><canvas id="anCashFlow"></canvas></div></div></div></div>';
 
   // 4. Budget Analysis
-  html += '<div class="an-section"><div class="cc"><div class="ct">Budget vs Actual</div><div class="cs">Category spending performance</div><div style="height:220px"><canvas id="anBudget"></canvas></div></div></div>';
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_budget_used') + '</div><div class="cs">' + t('dash_by_category') + '</div><div style="height:220px"><canvas id="anBudget"></canvas></div></div></div>';
 
   // 5. Goal & Investment Analysis
   html += '<div class="an-section"><div class="an-grid-2">';
@@ -52,9 +52,9 @@ function renderAnalytics(c) {
     var totalGoalSaved = GOALS.reduce(function(s,g){return s+g.c;},0);
     var totalGoalTarget = GOALS.reduce(function(s,g){return s+g.t;},0);
     var goalPct = totalGoalTarget > 0 ? (totalGoalSaved/totalGoalTarget*100).toFixed(0) : 0;
-    html += '<div class="cc"><div class="ct">Goal Progress</div><div class="cs">' + GOALS.length + ' goals tracked</div><div class="an-goal-stats"><div class="an-goal-big">' + goalPct + '%</div><div class="an-goal-bar"><div class="an-goal-fill" style="width:' + goalPct + '%;background:var(--accent)"></div></div><div class="an-goal-meta"><span>Saved: ' + fmt(totalGoalSaved) + '</span><span>Target: ' + fmt(totalGoalTarget) + '</span></div></div></div>';
+    html += '<div class="cc"><div class="ct">' + t('goal_progress') + '</div><div class="cs">' + GOALS.length + ' ' + t('goal_title').toLowerCase() + '</div><div class="an-goal-stats"><div class="an-goal-big">' + goalPct + '%</div><div class="an-goal-bar"><div class="an-goal-fill" style="width:' + goalPct + '%;background:var(--accent)"></div></div><div class="an-goal-meta"><span>' + t('goal_saved') + ': ' + fmt(totalGoalSaved) + '</span><span>' + t('goal_target') + ': ' + fmt(totalGoalTarget) + '</span></div></div></div>';
   } else {
-    html += '<div class="cc"><div class="ct">Goal Progress</div><div class="cs">No goals set</div><div class="es" style="padding:30px"><p>Create goals in the Goals tab</p></div></div>';
+    html += '<div class="cc"><div class="ct">' + t('goal_progress') + '</div><div class="cs">' + t('misc_no_data') + '</div><div class="es" style="padding:30px"><p>' + t('goal_title') + '</p></div></div>';
   }
   // Investment
   if (typeof INVESTMENTS !== 'undefined' && INVESTMENTS.length) {
@@ -62,23 +62,23 @@ function renderAnalytics(c) {
     var invTi = getTotalInvested();
     var pnl = pv - invTi;
     var ret = invTi > 0 ? (pnl/invTi*100).toFixed(1) : '0';
-    html += '<div class="cc"><div class="ct">Investment Performance</div><div class="cs">Portfolio returns</div><div class="an-inv-stats"><div class="an-inv-row"><span>Portfolio Value</span><span style="font-weight:700">' + fmt(pv) + '</span></div><div class="an-inv-row"><span>Total Deposit</span><span>' + fmt(invTi) + '</span></div><div class="an-inv-row"><span>Profit / Loss</span><span style="color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + ';font-weight:700">' + (pnl>=0?'+':'') + fmt(pnl) + '</span></div><div class="an-inv-row"><span>Return</span><span style="color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + ';font-weight:700">' + (pnl>=0?'+':'') + ret + '%</span></div></div></div>';
+    html += '<div class="cc"><div class="ct">' + t('inv_title') + '</div><div class="cs">' + t('inv_portfolio') + '</div><div class="an-inv-stats"><div class="an-inv-row"><span>' + t('inv_portfolio') + '</span><span style="font-weight:700">' + fmt(pv) + '</span></div><div class="an-inv-row"><span>Total</span><span>' + fmt(invTi) + '</span></div><div class="an-inv-row"><span>P&L</span><span style="color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + ';font-weight:700">' + (pnl>=0?'+':'') + fmt(pnl) + '</span></div><div class="an-inv-row"><span>Return</span><span style="color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + ';font-weight:700">' + (pnl>=0?'+':'') + ret + '%</span></div></div></div>';
   } else {
-    html += '<div class="cc"><div class="ct">Investment Performance</div><div class="cs">No investments</div><div class="es" style="padding:30px"><p>Add investments in the Investment tab</p></div></div>';
+    html += '<div class="cc"><div class="ct">' + t('inv_title') + '</div><div class="cs">' + t('misc_no_data') + '</div><div class="es" style="padding:30px"><p>' + t('inv_title') + '</p></div></div>';
   }
   html += '</div></div>';
 
   // 6. Net Worth Trend
-  html += '<div class="an-section"><div class="cc"><div class="ct">Net Worth Trend</div><div class="cs">Monthly financial position for ' + year + '</div><div style="height:180px"><canvas id="anNetWorth"></canvas></div></div></div>';
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_net_worth') + '</div><div class="cs">' + t('dash_monthly_trend') + ' ' + year + '</div><div style="height:180px"><canvas id="anNetWorth"></canvas></div></div></div>';
 
   // 7. Financial Health Score
   var healthScore = anCalcHealthScore(ti, te, ts, net, year);
   var healthColor = healthScore >= 80 ? 'var(--emerald)' : healthScore >= 65 ? 'var(--gold)' : healthScore >= 50 ? 'var(--amber)' : 'var(--rose)';
-  var healthLabel = healthScore >= 95 ? 'Excellent' : healthScore >= 80 ? 'Very Good' : healthScore >= 65 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Needs Improvement';
-  html += '<div class="an-section"><div class="cc"><div class="ct">Financial Health Score</div><div class="cs">Based on savings, budget discipline, cash flow, goals & investments</div><div class="an-health"><div class="an-health-score" style="color:' + healthColor + '">' + healthScore + '</div><div class="an-health-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="an-health-bar"><div class="an-health-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div>' + anHealthBreakdown(ti, te, ts, net, year) + '</div></div></div>';
+  var healthLabel = healthScore >= 95 ? t('an_excellent') : healthScore >= 80 ? t('an_very_good') : healthScore >= 65 ? t('an_good') : healthScore >= 50 ? t('an_fair') : t('an_needs_work');
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_health_score') + '</div><div class="cs">' + t('an_sub') + '</div><div class="an-health"><div class="an-health-score" style="color:' + healthColor + '">' + healthScore + '</div><div class="an-health-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="an-health-bar"><div class="an-health-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div>' + anHealthBreakdown(ti, te, ts, net, year) + '</div></div></div>';
 
-  // 8. AI Insights (Top 5)
-  html += '<div class="an-section"><div class="cc"><div class="ct">AI Financial Insights</div><div class="cs">Top actionable observations</div><div class="an-insights">' + anGetInsights(ti, te, ts, net, year, MD) + '</div></div></div>';
+  // 8. AI Insights
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_insights') + '</div><div class="cs"></div><div class="an-insights">' + anGetInsights(ti, te, ts, net, year, MD) + '</div></div></div>';
 
   html += '</div>';
   c.innerHTML = html;
@@ -157,17 +157,17 @@ function anHealthBreakdown(inc, exp, sav, net, year) {
   var budget = getYearlyBudgetTotal(year);
   var budgetUsage = budget > 0 ? (exp / budget * 100).toFixed(0) : 0;
   var items = [
-    { label:'Savings Rate', value:savRate.toFixed(1)+'%', good:savRate>=10 },
-    { label:'Budget Usage', value:budgetUsage+'%', good:parseFloat(budgetUsage)<=100 },
-    { label:'Cash Flow', value:net>=0?'Positive':'Negative', good:net>=0 }
+    { label: t('an_savings_rate'), value:savRate.toFixed(1)+'%', good:savRate>=10 },
+    { label: t('an_budget_used'), value:budgetUsage+'%', good:parseFloat(budgetUsage)<=100 },
+    { label: t('an_cash_flow'), value:net>=0?'Positive':'Negative', good:net>=0 }
   ];
   if (typeof GOALS !== 'undefined' && GOALS.length) {
     var gp = (GOALS.reduce(function(s,g){return s+g.c;},0) / Math.max(1,GOALS.reduce(function(s,g){return s+g.t;},0)) * 100).toFixed(0);
-    items.push({ label:'Goal Progress', value:gp+'%', good:parseFloat(gp)>=40 });
+    items.push({ label: t('goal_progress'), value:gp+'%', good:parseFloat(gp)>=40 });
   }
   if (typeof INVESTMENTS !== 'undefined' && INVESTMENTS.length) {
     var pnl = getPortfolioValue() - getTotalInvested();
-    items.push({ label:'Investment', value:pnl>=0?'Profit':'Loss', good:pnl>=0 });
+    items.push({ label: t('inv_title'), value:pnl>=0?'+':'−', good:pnl>=0 });
   }
   return '<div class="an-health-breakdown">' + items.map(function(it) {
     return '<div class="an-hb-item"><span class="an-hb-icon">' + (it.good?'✓':'⚠') + '</span><span class="an-hb-label">' + it.label + '</span><span class="an-hb-val ' + (it.good?'good':'warn') + '">' + it.value + '</span></div>';
@@ -220,7 +220,7 @@ function renderMobileInsights(c, year, month) {
   // Health Score
   var healthScore = anCalcHealthScore(ti, te, ts, net, year);
   var healthColor = healthScore >= 80 ? 'var(--emerald)' : healthScore >= 65 ? 'var(--gold)' : healthScore >= 50 ? 'var(--amber)' : 'var(--rose)';
-  var healthLabel = healthScore >= 95 ? 'Excellent' : healthScore >= 80 ? 'Very Good' : healthScore >= 65 ? 'Good' : healthScore >= 50 ? 'Fair' : 'Needs Work';
+  var healthLabel = healthScore >= 95 ? t('an_excellent') : healthScore >= 80 ? t('an_very_good') : healthScore >= 65 ? t('an_good') : healthScore >= 50 ? t('an_fair') : t('an_needs_work');
 
   // AI Insights
   var insights = anGetInsights(ti, te, ts, net, year, MD);
@@ -230,15 +230,15 @@ function renderMobileInsights(c, year, month) {
     '<div class="mob-ins-score"><div class="mob-ins-score-num" style="color:' + healthColor + '">' + healthScore + '</div><div class="mob-ins-score-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="mob-ins-score-bar"><div class="mob-ins-score-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div></div>' +
     // Metrics
     '<div class="mob-ins-metrics">' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">Savings Rate</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(savRate) >= 10 ? 'var(--emerald)' : 'var(--rose)') + '">' + savRate + '%</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">Budget Used</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(budgetUsage) <= 100 ? 'var(--emerald)' : 'var(--rose)') + '">' + budgetUsage + '%</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">Cash Flow</div><div class="mob-ins-metric-val" style="color:' + (net >= 0 ? 'var(--emerald)' : 'var(--rose)') + '">' + (net >= 0 ? '+' : '') + fmtD(net) + '</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">Net Worth</div><div class="mob-ins-metric-val">' + fmt(typeof getNetWorth === 'function' ? getNetWorth() : 0) + '</div></div>' +
+      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_savings_rate') + '</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(savRate) >= 10 ? 'var(--emerald)' : 'var(--rose)') + '">' + savRate + '%</div></div>' +
+      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_budget_used') + '</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(budgetUsage) <= 100 ? 'var(--emerald)' : 'var(--rose)') + '">' + budgetUsage + '%</div></div>' +
+      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_cash_flow') + '</div><div class="mob-ins-metric-val" style="color:' + (net >= 0 ? 'var(--emerald)' : 'var(--rose)') + '">' + (net >= 0 ? '+' : '') + fmtD(net) + '</div></div>' +
+      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_net_worth') + '</div><div class="mob-ins-metric-val">' + fmt(typeof getNetWorth === 'function' ? getNetWorth() : 0) + '</div></div>' +
     '</div>' +
     // Chart
-    '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">Monthly Flow</div><div style="height:150px"><canvas id="mobInsChart"></canvas></div></div>' +
+    '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">' + t('an_monthly_flow') + '</div><div style="height:150px"><canvas id="mobInsChart"></canvas></div></div>' +
     // Tips
-    '<div class="mob-ins-tips"><div class="mob-ins-tips-title">💡 Insights</div>' + insights.replace(/an-insight/g, 'mob-ins-tip').replace(/an-ins-icon/g, 'mob-ins-tip-icon').replace(/an-ins-good|an-ins-warn|an-ins-info/g, '') + '</div>' +
+    '<div class="mob-ins-tips"><div class="mob-ins-tips-title">💡 ' + t('an_insights') + '</div>' + insights.replace(/an-insight/g, 'mob-ins-tip').replace(/an-ins-icon/g, 'mob-ins-tip-icon').replace(/an-ins-good|an-ins-warn|an-ins-info/g, '') + '</div>' +
   '</div>';
 
   // Render chart
