@@ -95,8 +95,7 @@ function renderMobileTransactions(c) {
       <div class="mob-txn-pill"><div class="mob-txn-pill-label">Net</div><div class="mob-txn-pill-val balance">${bal >= 0 ? '+' : ''}${fmtD(bal)}</div></div>
     </div>
     ${filterHtml}
-    <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>
-    <button class="txn-fab" onclick="editId=null;openAdd()" aria-label="Add Transaction"><i data-lucide="plus" width="22" height="22"></i></button>`;
+    <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
   lucide.createIcons();
 }
 
@@ -222,7 +221,9 @@ function saveTxn(e) {
     const liabAcc = ACCOUNTS.find(a => a.id === data.liab);
     if (liabAcc) { liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - data.a); saveACCOUNTS(); }
   }
-  saveTXN(); tryClose(); renderTxnTable();
+  saveTXN(); tryClose();
+  // v15.3.0: Refresh current view (stays on current tab)
+  render();
   // v15.5: Check budget alerts after saving transaction
   if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
 }
@@ -267,5 +268,7 @@ function doDelConfirm(id) {
 function execDel() {
   TXN = TXN.filter(tx => tx.id !== pendAct.id); saveTXN();
   document.getElementById('mdel').remove(); document.body.style.overflow = '';
-  toast(t('txn_deleted')); renderTxnTable();
+  toast(t('txn_deleted'));
+  // v15.3.0: Refresh current view (stays on current tab)
+  render();
 }
