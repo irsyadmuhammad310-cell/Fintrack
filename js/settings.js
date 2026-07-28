@@ -182,18 +182,18 @@ function switchLang(lang) {
   toast('✅ ' + lang.toUpperCase());
 }
 
-// === CATEGORIES & ACCOUNTS TAB (v15.5) ===
+// === CATEGORIES & ACCOUNTS TAB ===
 function renderCatAccountsTab(c) {
   let html = '<div style="margin-bottom:24px">';
-  html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
+  html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> ${t('cat_title')}</div>`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="display:flex;gap:4px">`;
   ['Income','Expense','Savings'].forEach(tp => {
-    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderCatAccountsTab(document.getElementById('setc'))">${tp}</button>`;
+    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderCatAccountsTab(document.getElementById('setc'))">${t('misc_' + tp.toLowerCase())}</button>`;
   });
-  html += `</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="promptAddCategory()"><i data-lucide="plus" width="11" height="11"></i> Category</button></div>`;
+  html += `</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="promptAddCategory()"><i data-lucide="plus" width="11" height="11"></i> ${t('cat_add')}</button></div>`;
   const cats = SCHEMA[catTypeFilter] || {};
   if (!Object.keys(cats).length) {
-    html += `<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px solid var(--border);border-radius:10px">No categories yet. Add one above.</div>`;
+    html += `<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px solid var(--border);border-radius:10px">${t('cat_no_cats')}</div>`;
   } else {
     Object.entries(cats).forEach(([cat, subs]) => {
       html += `<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">`;
@@ -205,7 +205,7 @@ function renderCatAccountsTab(c) {
         });
         html += `</div>`;
       }
-      html += `<div style="padding:6px 14px 10px;border-top:1px solid var(--border-light)"><button style="border:none;background:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font);font-weight:500" onclick="promptAddSub('${catTypeFilter}','${cat}')">+ Add subcategory</button></div></div>`;
+      html += `<div style="padding:6px 14px 10px;border-top:1px solid var(--border-light)"><button style="border:none;background:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font);font-weight:500" onclick="promptAddSub('${catTypeFilter}','${cat}')">+ ${t('cat_add_sub')}</button></div></div>`;
     });
   }
   html += '</div>';
@@ -225,9 +225,9 @@ function renderAccountsSection() {
     const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
     html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');renderCatAccountsTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
   }
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> ${t('acc_title')}</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> ${t('acc_add')}</button></div>`;
   if (assets.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assets</div>`;
+    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${t('acc_assets')}</div>`;
     assets.forEach(a => {
       const bal = getAccountBalance(a.id);
       const cur = a.currency || 'MYR';
@@ -239,7 +239,7 @@ function renderAccountsSection() {
     });
   }
   if (liabilities.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Liabilities</div>`;
+    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">${t('acc_liabilities')}</div>`;
     liabilities.forEach(a => {
       const cur = a.currency || 'MYR';
       const showDual = cur !== displayCurrency;
@@ -248,7 +248,7 @@ function renderAccountsSection() {
       html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
     });
   }
-  html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">Net Worth</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
+  html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">${t('acc_net_worth')}</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
   return html;
 }
 
