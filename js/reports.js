@@ -7,16 +7,34 @@ var rptAccount = 'all';
 var rptCategory = 'all';
 
 const RPT_TYPES = [
-  { id:'financial', label:'Financial Summary', icon:'file-text' },
-  { id:'income', label:'Income Report', icon:'trending-up' },
-  { id:'expense', label:'Expense Report', icon:'trending-down' },
-  { id:'savings', label:'Savings Report', icon:'piggy-bank' },
-  { id:'budget', label:'Budget Report', icon:'calculator' },
-  { id:'goal', label:'Goal Report', icon:'target' },
-  { id:'investment', label:'Investment Report', icon:'briefcase' },
-  { id:'networth', label:'Net Worth Report', icon:'landmark' },
-  { id:'cashflow', label:'Cash Flow Report', icon:'activity' }
+  { id:'financial', label:'financial_summary', icon:'file-text' },
+  { id:'income', label:'income_report', icon:'trending-up' },
+  { id:'expense', label:'expense_report', icon:'trending-down' },
+  { id:'savings', label:'savings_report', icon:'piggy-bank' },
+  { id:'budget', label:'budget_report', icon:'calculator' },
+  { id:'goal', label:'goal_report', icon:'target' },
+  { id:'investment', label:'investment_report', icon:'briefcase' },
+  { id:'networth', label:'networth_report', icon:'landmark' },
+  { id:'cashflow', label:'cashflow_report', icon:'activity' }
 ];
+
+// Report type label lookup (with fallback English)
+function rptLabel(key) {
+  const labels = {
+    financial_summary: { en:'Financial Summary', ms:'Ringkasan Kewangan', zh:'财务摘要', ja:'財務サマリー', id:'Ringkasan Keuangan', ko:'재정 요약', ru:'Финансовый отчёт' },
+    income_report: { en:'Income Report', ms:'Laporan Pendapatan', zh:'收入报告', ja:'収入レポート', id:'Laporan Pendapatan', ko:'수입 보고서', ru:'Отчёт о доходах' },
+    expense_report: { en:'Expense Report', ms:'Laporan Perbelanjaan', zh:'支出报告', ja:'支出レポート', id:'Laporan Pengeluaran', ko:'지출 보고서', ru:'Отчёт о расходах' },
+    savings_report: { en:'Savings Report', ms:'Laporan Simpanan', zh:'储蓄报告', ja:'貯蓄レポート', id:'Laporan Tabungan', ko:'저축 보고서', ru:'Отчёт о сбережениях' },
+    budget_report: { en:'Budget Report', ms:'Laporan Bajet', zh:'预算报告', ja:'予算レポート', id:'Laporan Anggaran', ko:'예산 보고서', ru:'Отчёт о бюджете' },
+    goal_report: { en:'Goal Report', ms:'Laporan Matlamat', zh:'目标报告', ja:'目標レポート', id:'Laporan Tujuan', ko:'목표 보고서', ru:'Отчёт о целях' },
+    investment_report: { en:'Investment Report', ms:'Laporan Pelaburan', zh:'投资报告', ja:'投資レポート', id:'Laporan Investasi', ko:'투자 보고서', ru:'Инвестиционный отчёт' },
+    networth_report: { en:'Net Worth Report', ms:'Laporan Nilai Bersih', zh:'净资产报告', ja:'純資産レポート', id:'Laporan Kekayaan Bersih', ko:'순자산 보고서', ru:'Отчёт о капитале' },
+    cashflow_report: { en:'Cash Flow Report', ms:'Laporan Aliran Tunai', zh:'现金流报告', ja:'キャッシュフローレポート', id:'Laporan Arus Kas', ko:'현금흐름 보고서', ru:'Отчёт о денежном потоке' }
+  };
+  const l = labels[key];
+  if (!l) return key;
+  return l[currentLang] || l.en;
+}
 
 function renderReports(c) {
   var year = getSelectedYear();
@@ -25,7 +43,7 @@ function renderReports(c) {
   c.innerHTML = '<div class="rpt-page">' +
     '<div class="rpt-filters">' +
       '<div class="rpt-filter-row">' +
-        '<div class="fg" style="flex:1.5;min-width:160px"><label class="fl">Report Type</label><select class="fi" id="rptType" onchange="rptType=this.value;rptRefresh()">' + RPT_TYPES.map(function(r) { return '<option value="' + r.id + '"' + (rptType === r.id ? ' selected' : '') + '>' + r.label + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fg" style="flex:1.5;min-width:160px"><label class="fl">' + t('rpt_title') + '</label><select class="fi" id="rptType" onchange="rptType=this.value;rptRefresh()">' + RPT_TYPES.map(function(r) { return '<option value="' + r.id + '"' + (rptType === r.id ? ' selected' : '') + '>' + rptLabel(r.label) + '</option>'; }).join('') + '</select></div>' +
         '<div class="fg" style="flex:1;min-width:140px"><label class="fl">Period</label><select class="fi" id="rptPeriod" onchange="rptPeriod=this.value;rptRefresh()">' +
           '<option value="month"' + (rptPeriod==='month'?' selected':'') + '>Current Month</option>' +
           '<option value="lastmonth"' + (rptPeriod==='lastmonth'?' selected':'') + '>Last Month</option>' +
@@ -87,7 +105,7 @@ function rptGeneratePreview() {
   var genDate = now.toLocaleDateString('en-MY', { day:'numeric', month:'long', year:'numeric' });
   var genTime = now.toLocaleTimeString('en-MY', { hour:'2-digit', minute:'2-digit' });
   var typeLabel = RPT_TYPES.find(function(r) { return r.id === rptType; });
-  var title = typeLabel ? typeLabel.label : 'Report';
+  var title = typeLabel ? rptLabel(typeLabel.label) : t('rpt_title');
   var userName = typeof getUserName === 'function' ? getUserName() : 'User';
 
   var html = '<div class="rpt-doc" id="rptDoc">';
