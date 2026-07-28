@@ -133,7 +133,7 @@ function renderCurrencyTab(c) {
   c.innerHTML = html;
 }
 
-// === LANGUAGE TAB (v15.8.2 — Direct click selection) ===
+// === LANGUAGE TAB (v15.3.1 — Direct click selection) ===
 function renderLanguageTab(c) {
   const languages = [
     { code: 'en', name: 'English', native: 'English', flag: '🇬🇧' },
@@ -147,10 +147,39 @@ function renderLanguageTab(c) {
   let html = '<div style="display:flex;flex-direction:column;gap:2px">';
   languages.forEach(lang => {
     const isActive = lang.code === currentLang;
-    html += `<div onclick="setLang('${lang.code}');renderLanguageTab(document.getElementById('setc'))" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:8px;cursor:pointer;transition:background 150ms;border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};background:${isActive ? 'var(--accent-light)' : 'var(--bg-primary)'}" ${!isActive ? 'onmouseenter="this.style.background=\'var(--bg-card)\'" onmouseleave="this.style.background=\'var(--bg-primary)\'"' : ''}><div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">${lang.flag}</span><div><div style="font-size:12px;font-weight:${isActive ? '700' : '500'};color:${isActive ? 'var(--accent)' : 'var(--text-primary)'}">${lang.native}</div><div style="font-size:10px;color:var(--text-tertiary)">${lang.name}</div></div></div>${isActive ? '<span style="color:var(--accent);font-size:14px">✓</span>' : ''}</div>`;
+    html += `<div onclick="switchLang('${lang.code}')" style="display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:8px;cursor:pointer;transition:background 150ms;border:1px solid ${isActive ? 'var(--accent)' : 'transparent'};background:${isActive ? 'var(--accent-light)' : 'var(--bg-primary)'}" ${!isActive ? 'onmouseenter="this.style.background=\'var(--bg-card)\'" onmouseleave="this.style.background=\'var(--bg-primary)\'"' : ''}><div style="display:flex;align-items:center;gap:10px"><span style="font-size:18px">${lang.flag}</span><div><div style="font-size:12px;font-weight:${isActive ? '700' : '500'};color:${isActive ? 'var(--accent)' : 'var(--text-primary)'}">${lang.native}</div><div style="font-size:10px;color:var(--text-tertiary)">${lang.name}</div></div></div>${isActive ? '<span style="color:var(--accent);font-size:14px">✓</span>' : ''}</div>`;
   });
   html += '</div>';
   c.innerHTML = html;
+}
+
+// v15.3.1: Switch language and stay on language tab (mobile) or re-render settings (desktop)
+function switchLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('ft_lang', lang);
+  if (lang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
+  else if (lang === 'ja' || lang === 'ko') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
+  else document.body.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
+  updateNavLabels();
+  // Update bottom nav labels
+  document.querySelectorAll('.bnav-lbl').forEach(el => {
+    const key = el.dataset.key;
+    if (key) el.textContent = t(key);
+  });
+  // Update month filter
+  const mf = document.getElementById('mf');
+  if (mf) {
+    const mNames = getMonthNames();
+    mf.options[0].textContent = t('hdr_total_year');
+    for (let i = 1; i <= 12; i++) mf.options[i].textContent = mNames[i - 1];
+  }
+  // Update header title
+  const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
+  document.getElementById('pt').textContent = t(titleKeys[curPage]) || curPage;
+  // Stay on language tab (re-render just the language list)
+  const setc = document.getElementById('setc');
+  if (setc) renderLanguageTab(setc);
+  toast('✅ ' + lang.toUpperCase());
 }
 
 // === CATEGORIES & ACCOUNTS TAB (v15.5) ===
