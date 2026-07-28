@@ -44,15 +44,15 @@ function renderReports(c) {
     '<div class="rpt-filters">' +
       '<div class="rpt-filter-row">' +
         '<div class="fg" style="flex:1.5;min-width:160px"><label class="fl">' + t('rpt_title') + '</label><select class="fi" id="rptType" onchange="rptType=this.value;rptRefresh()">' + RPT_TYPES.map(function(r) { return '<option value="' + r.id + '"' + (rptType === r.id ? ' selected' : '') + '>' + rptLabel(r.label) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="fg" style="flex:1;min-width:140px"><label class="fl">Period</label><select class="fi" id="rptPeriod" onchange="rptPeriod=this.value;rptRefresh()">' +
-          '<option value="month"' + (rptPeriod==='month'?' selected':'') + '>Current Month</option>' +
-          '<option value="lastmonth"' + (rptPeriod==='lastmonth'?' selected':'') + '>Last Month</option>' +
-          '<option value="year"' + (rptPeriod==='year'?' selected':'') + '>Current Year (' + year + ')</option>' +
-          '<option value="lastyear"' + (rptPeriod==='lastyear'?' selected':'') + '>Previous Year (' + (year-1) + ')</option>' +
-          '<option value="custom"' + (rptPeriod==='custom'?' selected':'') + '>Custom Range</option>' +
+        '<div class="fg" style="flex:1;min-width:140px"><label class="fl">' + t('rpt_month') + '</label><select class="fi" id="rptPeriod" onchange="rptPeriod=this.value;rptRefresh()">' +
+          '<option value="month"' + (rptPeriod==='month'?' selected':'') + '>' + t('rpt_monthly') + '</option>' +
+          '<option value="lastmonth"' + (rptPeriod==='lastmonth'?' selected':'') + '>' + t('rpt_monthly') + ' (' + t('misc_back') + ')</option>' +
+          '<option value="year"' + (rptPeriod==='year'?' selected':'') + '>' + t('rpt_yearly') + ' (' + year + ')</option>' +
+          '<option value="lastyear"' + (rptPeriod==='lastyear'?' selected':'') + '>' + t('rpt_yearly') + ' (' + (year-1) + ')</option>' +
+          '<option value="custom"' + (rptPeriod==='custom'?' selected':'') + '>Custom</option>' +
         '</select></div>' +
-        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">Account</label><select class="fi" id="rptAccount" onchange="rptAccount=this.value;rptRefresh()"><option value="all">All Accounts</option>' + ACCOUNTS.map(function(a) { return '<option value="' + a.id + '"' + (rptAccount===a.id?' selected':'') + '>' + a.name + '</option>'; }).join('') + '</select></div>' +
-        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">Category</label><select class="fi" id="rptCategory" onchange="rptCategory=this.value;rptRefresh()"><option value="all">All Categories</option><option value="income"' + (rptCategory==='income'?' selected':'') + '>Income</option><option value="expense"' + (rptCategory==='expense'?' selected':'') + '>Expense</option><option value="savings"' + (rptCategory==='savings'?' selected':'') + '>Savings</option></select></div>' +
+        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">' + t('txn_account') + '</label><select class="fi" id="rptAccount" onchange="rptAccount=this.value;rptRefresh()"><option value="all">' + t('txn_all') + '</option>' + ACCOUNTS.map(function(a) { return '<option value="' + a.id + '"' + (rptAccount===a.id?' selected':'') + '>' + a.name + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">' + t('txn_category') + '</label><select class="fi" id="rptCategory" onchange="rptCategory=this.value;rptRefresh()"><option value="all">' + t('txn_all') + '</option><option value="income"' + (rptCategory==='income'?' selected':'') + '>' + t('dash_income') + '</option><option value="expense"' + (rptCategory==='expense'?' selected':'') + '>' + t('dash_expense') + '</option><option value="savings"' + (rptCategory==='savings'?' selected':'') + '>' + t('dash_savings') + '</option></select></div>' +
       '</div>' +
       (rptPeriod === 'custom' ? '<div class="rpt-filter-row" style="margin-top:8px"><div class="fg" style="flex:1"><label class="fl">From</label><input class="fi" type="date" id="rptFrom" value="' + (rptCustomFrom || year + '-01-01') + '" onchange="rptCustomFrom=this.value;rptRefresh()"></div><div class="fg" style="flex:1"><label class="fl">To</label><input class="fi" type="date" id="rptTo" value="' + (rptCustomTo || year + '-12-31') + '" onchange="rptCustomTo=this.value;rptRefresh()"></div></div>' : '') +
     '</div>' +
