@@ -132,7 +132,7 @@ function renderInvestments(c) {
     '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">' + t('inv_portfolio') + ' — Watchlist</div><div class="cs"></div></div><button class="btn bs" onclick="invShowWLModal()"><i data-lucide="plus" width="14" height="14"></i> ' + t('txn_add') + '</button></div><div class="inv-watchlist" id="invWatchlist">' + renderWatchlist() + '</div></div>' +
     '<div class="inv-section"><div class="cc inv-perf-card"><div class="inv-perf-hdr"><div><div class="ct">' + t('inv_portfolio') + '</div><div class="cs"></div></div><div class="inv-perf-ctrls"><div class="seg inv-metric-seg"><button class="active" onclick="invSwitchMetric(\'value\')">Value</button><button onclick="invSwitchMetric(\'pnl\')">P&L</button></div><div class="seg inv-time-seg"><button onclick="invSwitchTime(\'1m\')">1M</button><button onclick="invSwitchTime(\'3m\')">3M</button><button onclick="invSwitchTime(\'6m\')">6M</button><button class="active" onclick="invSwitchTime(\'1y\')">1Y</button><button onclick="invSwitchTime(\'all\')">All</button></div></div></div><div style="height:220px;margin-top:12px"><canvas id="invPerfChart"></canvas></div></div></div>' +
     '<div class="inv-section"><div class="inv-alloc-grid"><div class="cc"><div class="ct">' + t('inv_allocation') + '</div><div class="cs"></div><div style="height:220px;margin-top:8px"><canvas id="invAllocChart"></canvas></div></div><div class="cc"><div class="ct">' + t('inv_portfolio') + '</div><div class="cs"></div><div class="inv-alloc-list" id="invAllocList">' + renderPortfolioBreakdown() + '</div></div></div></div>' +
-    '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">Holdings</div><div class="cs">' + INVESTMENTS.length + ' ' + t('inv_assets') + '</div></div></div><div class="inv-holdings" id="invHoldings">' + renderHoldings() + '</div></div>' +
+    '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">' + t('inv_holdings') + '</div><div class="cs">' + INVESTMENTS.length + ' ' + t('inv_assets') + '</div></div></div><div class="inv-holdings" id="invHoldings">' + renderHoldings() + '</div></div>' +
     '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">Recent Activities</div><div class="cs">Latest investment transactions</div></div></div><div class="inv-activities" id="invActivities">' + renderActivities() + '</div></div>' +
   '</div>' +
   '<div class="mo" id="invModal"><div class="ml" style="max-width:520px"><div class="mh"><div><div class="mti" id="invModalTitle">Add Investment</div><div class="mds">Enter investment details</div></div><button class="mx" onclick="invCloseModal()"><i data-lucide="x" width="14" height="14"></i></button></div><form id="invForm" onsubmit="invSaveHolding(event)"><div class="fr"><div class="fg"><label class="fl">Investment Name *</label><input class="fi" id="invName" required></div><div class="fg"><label class="fl">Category *</label><select class="fi" id="invType" required>' + INV_CATEGORIES.map(function(ct){return '<option value="'+ct+'">'+ct+'</option>';}).join('') + '</select></div></div><div class="fg"><label class="fl">Link to Savings TXN</label><select class="fi" id="invTxnLink" onchange="invOnLinkChange()">' + getSavingsLinkOptions().map(function(o){return '<option value="'+o.value+'">'+o.label+'</option>';}).join('') + '</select><div style="font-size:10px;color:var(--text-tertiary);margin-top:3px">Linked = cost basis auto-synced from Savings transactions</div></div><div class="fr"><div class="fg"><label class="fl">Total Cost Basis</label><input class="fi" id="invCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Value</label><input class="fi" id="invValue" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Quantity / Units</label><input class="fi" id="invQty" type="number" step="0.0001" min="0" value="1"></div><div class="fg"><label class="fl">Purchase Date</label><input class="fi" id="invDate" type="date"></div></div><div class="fr"><div class="fg"><label class="fl">Avg Cost per Unit</label><input class="fi" id="invAvgCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Price per Unit</label><input class="fi" id="invUnitPrice" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Dividends Received</label><input class="fi" id="invDiv" type="number" step="0.01" min="0" value="0"></div><div class="fg"></div></div><div class="fg"><label class="fl">Notes</label><textarea class="fi" id="invNotes" rows="2" style="resize:vertical"></textarea></div><input type="hidden" id="invEditId"><div class="ma"><button type="button" class="btn bs" onclick="invCloseModal()">Cancel</button><button type="submit" class="btn bp" id="invSubmitBtn">Add Investment</button></div></form></div></div>' +
@@ -148,7 +148,7 @@ function getCurrencySymbol() { return (typeof CURRENCY_SYMBOL !== 'undefined') ?
 
 // === HOLDINGS RENDER ===
 function renderHoldings() {
-  if (INVESTMENTS.length === 0) return '<div class="es"><p>No investments yet. Add your first investment above.</p></div>';
+  if (INVESTMENTS.length === 0) return '<div class="es"><p>' + t('inv_no_holdings') + '</p></div>';
   var sorted = getInvestmentsByPerformance();
   return sorted.map(function(inv) {
     var isExpanded = invExpandedId === inv.id;
@@ -184,7 +184,7 @@ function renderHoldings() {
 function renderPortfolioBreakdown() {
   var alloc = getAssetAllocation();
   var colors = ['#6366f1','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#8b5cf6','#84cc16','#0ea5e9','#d946ef','#64748b'];
-  if (alloc.length === 0) return '<div class="es"><p>No allocations yet</p></div>';
+  if (alloc.length === 0) return '<div class="es"><p>' + t('misc_no_data') + '</p></div>';
   // Calculate invested per type
   var investedByType = {};
   INVESTMENTS.forEach(function(inv) { if (!investedByType[inv.type]) investedByType[inv.type] = 0; investedByType[inv.type] += inv.costBasis; });
@@ -201,7 +201,7 @@ function renderPortfolioBreakdown() {
 
 // === ACTIVITIES RENDER ===
 function renderActivities() {
-  if (INV_ACTIVITIES.length === 0) return '<div class="es"><p>No recent activities</p></div>';
+  if (INV_ACTIVITIES.length === 0) return '<div class="es"><p>' + t('inv_no_activities') + '</p></div>';
   var sorted = INV_ACTIVITIES.slice().sort(function(a, b) { return new Date(b.date) - new Date(a.date); }).slice(0, 8);
   var icons = { buy: 'arrow-down-circle', sell: 'arrow-up-circle', dividend: 'coins', add: 'plus-circle' };
   var labels = { buy: 'Bought', sell: 'Sold', dividend: 'Dividend', add: 'Added' };
@@ -213,7 +213,7 @@ function renderActivities() {
 
 // === WATCHLIST RENDER (TradingView widget + inline remove) ===
 function renderWatchlist() {
-  if (INV_WATCHLIST.length === 0) return '<div class="es"><p>No items in watchlist. Add investments to monitor.</p></div>';
+  if (INV_WATCHLIST.length === 0) return '<div class="es"><p>' + t('misc_no_data') + '</p></div>';
   return '<div class="inv-wl-wrap"><div class="inv-wl-sidebar"><div class="inv-wl-sidebar-title">Symbols</div>' +
     INV_WATCHLIST.map(function(w) {
       return '<div class="inv-wl-item"><span class="inv-wl-item-sym">' + w.symbol.split(':').pop() + '</span><button class="inv-wl-item-rm" onclick="invDeleteWL(\'' + w.id + '\')" title="Remove">×</button></div>';
@@ -303,8 +303,8 @@ function invToggleExpand(id) {
 
 // === CRUD MODALS ===
 function invShowAddModal() {
-  document.getElementById('invModalTitle').textContent = 'Add Investment';
-  document.getElementById('invSubmitBtn').textContent = 'Add Investment';
+  document.getElementById('invModalTitle').textContent = t('inv_add');
+  document.getElementById('invSubmitBtn').textContent = t('inv_add');
   document.getElementById('invForm').reset();
   document.getElementById('invEditId').value = '';
   document.getElementById('invQty').value = '1';
@@ -332,8 +332,8 @@ function invOnLinkChange() {
 function invEditHolding(id) {
   var inv = INVESTMENTS.find(function(i) { return i.id === id; });
   if (!inv) return;
-  document.getElementById('invModalTitle').textContent = 'Edit Investment';
-  document.getElementById('invSubmitBtn').textContent = 'Save Changes';
+  document.getElementById('invModalTitle').textContent = t('inv_edit');
+  document.getElementById('invSubmitBtn').textContent = t('inv_save');
   document.getElementById('invEditId').value = id;
   document.getElementById('invName').value = inv.name;
   document.getElementById('invType').value = inv.type;
