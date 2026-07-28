@@ -220,7 +220,7 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
 // === MOBILE DASHBOARD (v15.8.1 — Essential info only) ===
 function renderMobileDashboard(c, year) {
   if (!yearHasData(year)) {
-    c.innerHTML = `<div class="es" style="padding:80px 20px"><div style="font-size:40px;margin-bottom:12px">📊</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">No data for ${year}</div><p style="font-size:12px">Add transactions to see your dashboard.</p></div>`;
+    c.innerHTML = `<div class="es" style="padding:80px 20px"><div style="font-size:40px;margin-bottom:12px">📊</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">${t('dash_no_data')} ${year}</div><p style="font-size:12px">${t('dash_select_year')}</p></div>`;
     return;
   }
 
@@ -284,18 +284,18 @@ function renderMobileDashboard(c, year) {
       ${trendLabel ? `<div class="mob-dash-change ${trendClass}">${trendLabel}</div>` : ''}
     </div>
     <div class="mob-dash-stats">
-      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Income</div><div class="mob-dash-stat-val" style="color:var(--emerald)">${fmtD(ti)}</div></div>
-      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Expense</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
-      <div class="mob-dash-stat"><div class="mob-dash-stat-label">Savings</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_income')}</div><div class="mob-dash-stat-val" style="color:var(--emerald)">${fmtD(ti)}</div></div>
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_expense')}</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
+      <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
     <div class="mob-dash-chart">
-      <div class="mob-dash-chart-title">Spending Trend</div>
+      <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
       <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
     </div>
-    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>Top Spending</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% of budget</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
+    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
     <div class="mob-dash-recent">
-      <div class="mob-dash-recent-title"><span>Recent</span><a onclick="navigate('transactions')">See all →</a></div>
-      ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">No transactions yet</div>'}
+      <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
+      ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
     </div>
   </div>`;
 
