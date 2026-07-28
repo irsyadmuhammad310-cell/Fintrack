@@ -72,7 +72,8 @@ const I18N = {
     goal_priority: 'Goal Priority', goal_sync: 'Synchronization', goal_synced: 'Synced',
     goal_manual: 'Manual', goal_no_notes: 'No notes yet.', goal_edit: 'Edit Goal', goal_delete: 'Delete Goal',
     goal_budget_progress: 'Budget Progress', goal_budget_planner: 'Budget Planner',
-    goal_overdue: 'Overdue',
+    goal_overdue: 'Overdue', goal_budget_copy_next: 'Copy to Next Month',
+    goal_budget_apply_all: 'Apply to All Months', goal_budget_clear: 'Clear Budget',
     // Analytics
     an_title: 'Analytics', an_sub: 'Cash flow, savings, budget utilization, and forecast',
     an_mcf: 'Monthly Cash Flow', an_sr: 'Savings Rate', an_bu: 'Budget Utilization', an_fc: 'Forecast',
@@ -188,6 +189,7 @@ const I18N = {
     goal_annual_budget: 'Bajet Tahunan', goal_actual_spent: 'Perbelanjaan Sebenar', goal_budget_left: 'Baki Bajet',
     goal_add: 'Tambah matlamat', goal_active: 'Aktif', goal_completed: 'Selesai', goal_paused: 'Dijeda',
     goal_search: 'Cari matlamat', goal_budget_progress: 'Kemajuan Bajet', goal_budget_planner: 'Perancang Bajet',
+    goal_budget_copy_next: 'Salin ke Bulan Seterusnya', goal_budget_apply_all: 'Gunakan untuk Semua Bulan', goal_budget_clear: 'Padam Bajet',
     an_title: 'Wawasan', an_sub: 'Aliran tunai, simpanan, bajet',
     an_health_score: 'Skor Kesihatan Kewangan', an_monthly_flow: 'Aliran Bulanan',
     an_savings_rate: 'Kadar Simpanan', an_budget_used: 'Bajet Digunakan',
