@@ -48,10 +48,10 @@ function renderMobileTransactions(c) {
 
   // Build mobile filter chips
   let filterHtml = `<div class="mob-filter-chips" id="mobTxnFilters">
-    <div class="mob-chip active" onclick="mobTxnFilter('all',this)">All</div>
-    <div class="mob-chip" onclick="mobTxnFilter('Income',this)">Income</div>
-    <div class="mob-chip" onclick="mobTxnFilter('Expense',this)">Expense</div>
-    <div class="mob-chip" onclick="mobTxnFilter('Savings',this)">Savings</div>
+    <div class="mob-chip active" onclick="mobTxnFilter('all',this)">${t('txn_all')}</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Income',this)">${t('dash_income')}</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Expense',this)">${t('dash_expense')}</div>
+    <div class="mob-chip" onclick="mobTxnFilter('Savings',this)">${t('dash_savings')}</div>
   </div>`;
 
   // Build transaction rows
@@ -61,8 +61,8 @@ function renderMobileTransactions(c) {
     const today = new Date(); today.setHours(0,0,0,0);
     const yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
     let dateLabel;
-    if (d.toDateString() === today.toDateString()) dateLabel = 'Today';
-    else if (d.toDateString() === yesterday.toDateString()) dateLabel = 'Yesterday';
+    if (d.toDateString() === today.toDateString()) dateLabel = t('txn_today');
+    else if (d.toDateString() === yesterday.toDateString()) dateLabel = t('txn_yesterday');
     else dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() !== year ? 'numeric' : undefined });
 
     listHtml += `<div class="mob-txn-date-header">${dateLabel}</div>`;
@@ -85,14 +85,14 @@ function renderMobileTransactions(c) {
   });
 
   if (!allTxn.length) {
-    listHtml = `<div class="es" style="padding:60px 20px"><div style="font-size:32px;margin-bottom:8px">📭</div><p style="font-size:13px">No transactions for this period.<br>Tap below to add one.</p></div>`;
+    listHtml = `<div class="es" style="padding:60px 20px"><div style="font-size:32px;margin-bottom:8px">📭</div><p style="font-size:13px">${t('txn_no_transactions')}<br>${t('txn_tap_to_add')}</p></div>`;
   }
 
   c.innerHTML = `
     <div class="mob-txn-summary">
-      <div class="mob-txn-pill"><div class="mob-txn-pill-label">In</div><div class="mob-txn-pill-val income">${fmtD(inc)}</div></div>
-      <div class="mob-txn-pill"><div class="mob-txn-pill-label">Out</div><div class="mob-txn-pill-val expense">${fmtD(exp)}</div></div>
-      <div class="mob-txn-pill"><div class="mob-txn-pill-label">Net</div><div class="mob-txn-pill-val balance">${bal >= 0 ? '+' : ''}${fmtD(bal)}</div></div>
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">${t('txn_in')}</div><div class="mob-txn-pill-val income">${fmtD(inc)}</div></div>
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">${t('txn_out')}</div><div class="mob-txn-pill-val expense">${fmtD(exp)}</div></div>
+      <div class="mob-txn-pill"><div class="mob-txn-pill-label">${t('txn_net')}</div><div class="mob-txn-pill-val balance">${bal >= 0 ? '+' : ''}${fmtD(bal)}</div></div>
     </div>
     ${filterHtml}
     <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
