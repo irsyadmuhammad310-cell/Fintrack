@@ -178,27 +178,118 @@ function anHealthBreakdown(inc, exp, sav, net, year) {
 function anGetInsights(inc, exp, sav, net, year, MD) {
   var insights = [];
   var savRate = inc > 0 ? (sav / inc * 100) : 0;
+
+  // Insight templates per language
+  var lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
+  var tpl = {
+    en: {
+      sav_good: 'Savings rate is {rate}% — above recommended 10% target.',
+      sav_bad: 'Savings rate is only {rate}%. Aim for at least 10%.',
+      budget_over: 'Total expenses exceeded annual budget by {amount}.',
+      budget_good: 'Spending is well under budget — only {pct}% used.',
+      cf_pos: 'Positive cash flow of {amount} this period.',
+      cf_neg: 'Negative cash flow of {amount}. Spending exceeds income.',
+      top_cat: 'Largest expense category: {cat} at {amount}.',
+      inv_up: 'Investment portfolio is up {amount} overall.',
+      inv_down: 'Investment portfolio is down {amount}.',
+      nw: 'Current net worth: {amount}.'
+    },
+    ms: {
+      sav_good: 'Kadar simpanan {rate}% — melebihi sasaran 10%.',
+      sav_bad: 'Kadar simpanan hanya {rate}%. Sasarkan sekurang-kurangnya 10%.',
+      budget_over: 'Jumlah perbelanjaan melebihi bajet tahunan sebanyak {amount}.',
+      budget_good: 'Perbelanjaan di bawah bajet — hanya {pct}% digunakan.',
+      cf_pos: 'Aliran tunai positif sebanyak {amount} tempoh ini.',
+      cf_neg: 'Aliran tunai negatif sebanyak {amount}. Perbelanjaan melebihi pendapatan.',
+      top_cat: 'Kategori perbelanjaan terbesar: {cat} sebanyak {amount}.',
+      inv_up: 'Portfolio pelaburan naik {amount} keseluruhan.',
+      inv_down: 'Portfolio pelaburan turun {amount}.',
+      nw: 'Nilai bersih semasa: {amount}.'
+    },
+    zh: {
+      sav_good: '储蓄率为{rate}%，超过10%的推荐目标。',
+      sav_bad: '储蓄率仅为{rate}%。建议至少达到10%。',
+      budget_over: '总支出超出年度预算{amount}。',
+      budget_good: '支出远低于预算，仅使用{pct}%。',
+      cf_pos: '本期正现金流{amount}。',
+      cf_neg: '负现金流{amount}。支出超过收入。',
+      top_cat: '最大支出类别：{cat}，金额{amount}。',
+      inv_up: '投资组合整体上涨{amount}。',
+      inv_down: '投资组合下跌{amount}。',
+      nw: '当前净资产：{amount}。'
+    },
+    ja: {
+      sav_good: '貯蓄率は{rate}%で、推奨の10%を上回っています。',
+      sav_bad: '貯蓄率はわずか{rate}%です。最低10%を目指しましょう。',
+      budget_over: '総支出が年間予算を{amount}超過しました。',
+      budget_good: '支出は予算内で、{pct}%のみ使用。',
+      cf_pos: '今期のキャッシュフローは+{amount}です。',
+      cf_neg: 'キャッシュフローは-{amount}。支出が収入を超過。',
+      top_cat: '最大支出カテゴリ：{cat}（{amount}）。',
+      inv_up: '投資ポートフォリオは+{amount}。',
+      inv_down: '投資ポートフォリオは-{amount}。',
+      nw: '現在の純資産：{amount}。'
+    },
+    id: {
+      sav_good: 'Tingkat tabungan {rate}% — di atas target 10%.',
+      sav_bad: 'Tingkat tabungan hanya {rate}%. Targetkan minimal 10%.',
+      budget_over: 'Total pengeluaran melebihi anggaran tahunan sebesar {amount}.',
+      budget_good: 'Pengeluaran di bawah anggaran — hanya {pct}% digunakan.',
+      cf_pos: 'Arus kas positif sebesar {amount} periode ini.',
+      cf_neg: 'Arus kas negatif sebesar {amount}. Pengeluaran melebihi pendapatan.',
+      top_cat: 'Kategori pengeluaran terbesar: {cat} sebesar {amount}.',
+      inv_up: 'Portfolio investasi naik {amount}.',
+      inv_down: 'Portfolio investasi turun {amount}.',
+      nw: 'Kekayaan bersih saat ini: {amount}.'
+    },
+    ko: {
+      sav_good: '저축률 {rate}% — 권장 10% 목표 초과.',
+      sav_bad: '저축률이 {rate}%에 불과합니다. 최소 10%를 목표로 하세요.',
+      budget_over: '총 지출이 연간 예산을 {amount} 초과했습니다.',
+      budget_good: '지출이 예산 이내 — {pct}%만 사용.',
+      cf_pos: '이 기간 현금흐름 +{amount}.',
+      cf_neg: '현금흐름 -{amount}. 지출이 수입 초과.',
+      top_cat: '최대 지출 카테고리: {cat} ({amount}).',
+      inv_up: '투자 포트폴리오 +{amount}.',
+      inv_down: '투자 포트폴리오 -{amount}.',
+      nw: '현재 순자산: {amount}.'
+    },
+    ru: {
+      sav_good: 'Уровень сбережений {rate}% — выше рекомендуемых 10%.',
+      sav_bad: 'Уровень сбережений всего {rate}%. Стремитесь к 10%.',
+      budget_over: 'Расходы превысили годовой бюджет на {amount}.',
+      budget_good: 'Расходы ниже бюджета — использовано только {pct}%.',
+      cf_pos: 'Положительный денежный поток {amount} за период.',
+      cf_neg: 'Отрицательный денежный поток {amount}. Расходы превышают доходы.',
+      top_cat: 'Крупнейшая категория расходов: {cat} ({amount}).',
+      inv_up: 'Инвестиционный портфель вырос на {amount}.',
+      inv_down: 'Инвестиционный портфель упал на {amount}.',
+      nw: 'Текущий чистый капитал: {amount}.'
+    }
+  };
+  var T = tpl[lang] || tpl.en;
+
   // Savings insight
-  if (savRate >= 15) insights.push({ icon:'✓', text:'Savings rate is ' + savRate.toFixed(1) + '% — above recommended 10% target.', type:'good' });
-  else if (savRate < 5 && inc > 0) insights.push({ icon:'⚠', text:'Savings rate is only ' + savRate.toFixed(1) + '%. Aim for at least 10%.', type:'warn' });
+  if (savRate >= 15) insights.push({ icon:'✓', text: T.sav_good.replace('{rate}', savRate.toFixed(1)), type:'good' });
+  else if (savRate < 5 && inc > 0) insights.push({ icon:'⚠', text: T.sav_bad.replace('{rate}', savRate.toFixed(1)), type:'warn' });
   // Budget insight
   var budget = getYearlyBudgetTotal(year);
-  if (budget > 0 && exp > budget) insights.push({ icon:'⚠', text:'Total expenses exceeded annual budget by ' + fmt(exp - budget) + '.', type:'warn' });
-  else if (budget > 0 && exp <= budget * 0.8) insights.push({ icon:'✓', text:'Spending is well under budget — only ' + (exp/budget*100).toFixed(0) + '% used.', type:'good' });
+  if (budget > 0 && exp > budget) insights.push({ icon:'⚠', text: T.budget_over.replace('{amount}', fmt(exp - budget)), type:'warn' });
+  else if (budget > 0 && exp <= budget * 0.8) insights.push({ icon:'✓', text: T.budget_good.replace('{pct}', (exp/budget*100).toFixed(0)), type:'good' });
   // Cash flow
-  if (net > 0) insights.push({ icon:'✓', text:'Positive cash flow of ' + fmt(net) + ' this period.', type:'good' });
-  else if (net < 0) insights.push({ icon:'⚠', text:'Negative cash flow of ' + fmt(Math.abs(net)) + '. Spending exceeds income + savings.', type:'warn' });
+  if (net > 0) insights.push({ icon:'✓', text: T.cf_pos.replace('{amount}', fmt(net)), type:'good' });
+  else if (net < 0) insights.push({ icon:'⚠', text: T.cf_neg.replace('{amount}', fmt(Math.abs(net))), type:'warn' });
   // Top expense
   var EC = computeExpenseCategories(year);
-  if (EC.length) insights.push({ icon:'ℹ', text:'Largest expense category: ' + EC[0].n + ' at ' + fmt(EC[0].a) + '.', type:'info' });
+  if (EC.length) insights.push({ icon:'ℹ', text: T.top_cat.replace('{cat}', EC[0].n).replace('{amount}', fmt(EC[0].a)), type:'info' });
   // Investment
   if (typeof INVESTMENTS !== 'undefined' && INVESTMENTS.length) {
     var pnl = getPortfolioValue() - getTotalInvested();
-    if (pnl > 0) insights.push({ icon:'✓', text:'Investment portfolio is up ' + fmt(pnl) + ' overall.', type:'good' });
-    else if (pnl < 0) insights.push({ icon:'⚠', text:'Investment portfolio is down ' + fmt(Math.abs(pnl)) + '.', type:'warn' });
+    if (pnl > 0) insights.push({ icon:'✓', text: T.inv_up.replace('{amount}', fmt(pnl)), type:'good' });
+    else if (pnl < 0) insights.push({ icon:'⚠', text: T.inv_down.replace('{amount}', fmt(Math.abs(pnl))), type:'warn' });
   }
   // Net worth
-  insights.push({ icon:'ℹ', text:'Current net worth: ' + fmt(typeof getNetWorth === 'function' ? getNetWorth() : 0) + '.', type:'info' });
+  insights.push({ icon:'ℹ', text: T.nw.replace('{amount}', fmt(typeof getNetWorth === 'function' ? getNetWorth() : 0)), type:'info' });
 
   return insights.slice(0, 5).map(function(ins) {
     var cls = ins.type === 'good' ? 'an-ins-good' : ins.type === 'warn' ? 'an-ins-warn' : 'an-ins-info';
