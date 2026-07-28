@@ -385,6 +385,19 @@ function setLang(lang) {
   else if (lang === 'ja' || lang === 'ko') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
   else document.body.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
   updateNavLabels();
+  // v15.3.1: Update bottom nav labels
+  document.querySelectorAll('.bnav-lbl').forEach(el => {
+    const key = el.dataset.key;
+    if (key) el.textContent = t(key);
+  });
+  // v15.3.1: Update month filter with translated names
+  const mf = document.getElementById('mf');
+  if (mf) {
+    const mNames = getMonthNames();
+    mf.options[0].textContent = t('hdr_total_year');
+    for (let i = 1; i <= 12; i++) mf.options[i].textContent = mNames[i - 1];
+  }
+  // Re-render current page with new language
   navigate(curPage);
 }
 function updateNavLabels() {
