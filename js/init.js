@@ -386,11 +386,8 @@ function initApp() {
   // Set user name in sidebar
   updateUserDisplay();
   lucide.createIcons();
-  // v15.8.2: Always open to Dashboard/Home first. Stay on current tab after navigation.
-  curPage = 'dashboard';
-  render();
-  // Sync bottom nav active state on init
-  syncBottomNav(curPage);
+  // v15.3.1: Always open to Dashboard. Use navigate() so FABs are set correctly.
+  navigate('dashboard');
   // Fetch fresh rates in background
   fetchExchangeRates();
   // Update notification badge
@@ -579,57 +576,18 @@ function showRecoveryReminder() {
 // === UPDATE BANNER (v15.1 — PWA User-Controlled Update) ===
 // Changelog: shown to user before they decide to update
 const FINTRACK_CHANGELOG = {
-  'fintrack-v15.1': {
-    version: 'v15.1',
-    date: '16 Jul 2026',
+  'fintrack-v15.3.1': {
+    version: 'v15.3.1',
+    date: '28 Jul 2026',
     changes: [
-      'Multi-currency accounts (native currency per account)',
-      'Dual-display: native + converted balance',
-      'Fixed double-counting bug on account creation',
-      'Renamed Initial Balance → Starting Account Balance',
-      'Exchange rate refresh banner',
-      'Smart app update system'
-    ]
-  },
-  'fintrack-v15.2': {
-    version: 'v15.2',
-    date: '16 Jul 2026',
-    changes: [
-      'Biometric auth now fully functional (fingerprint/face)',
-      'WebAuthn integration for mobile PWA',
-      'Biometric register/remove in Settings → Security',
-      'Stale-while-revalidate caching for faster updates'
-    ]
-  },
-  'fintrack-v15.3': {
-    version: 'v15.3',
-    date: '17 Jul 2026',
-    changes: [
-      'Transaction FAB replaces old Add button',
-      'Removed duplicate Export from Transactions (use Reports)',
-      'Transaction page syncs with Global Period Selector',
-      'Mobile KPI cards simplified (Income/Expense/Savings only)',
-      'Compact mobile transaction table',
-      'Settings reorganized: Profile, General, Appearance, Currency, Language, Categories & Accounts, Security',
-      'Categories & Accounts merged into one page',
-      'Appearance is now a standalone settings page',
-      'Import/Export removed from Settings (use Reports)',
-      'Secure Reset requires PIN or biometric verification',
-      'Single-source version management (FINTRACK_VERSION constant)'
-    ]
-  },
-  'fintrack-v15.7': {
-    version: 'v15.7',
-    date: '18 Jul 2026',
-    changes: [
-      'PIN stored as SHA-256 hash (never plain text)',
-      'First-time security setup: PIN + recovery code + security questions',
-      'Forgot PIN recovery via recovery code OR security questions',
-      'Proper new-PIN creation UI after successful recovery',
-      'Security questions as backup recovery method (8 questions, hashed answers)',
-      'Recovery reminder banner for users without recovery methods',
-      'Regenerate recovery code from Settings (requires PIN)',
-      'Security tab redesigned with card-based sections'
+      'Mobile FAB: Add Transaction on Home/Transactions only, AI Assistant on other tabs',
+      'Dashboard auto-refreshes after transaction add/edit/delete',
+      'Budget Planner shows planned values (not actual spending)',
+      'Bottom nav: Home, Transactions, Goals, Insights, Settings',
+      'Language switching updates all UI immediately',
+      'Expanded currency list (50+ currencies including Middle East)',
+      'Direct-click currency and language selection in Settings',
+      'Settings reorganized: Profile, Preferences, Financial, System'
     ]
   }
 };
