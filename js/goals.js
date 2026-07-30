@@ -549,14 +549,15 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
 
   // Amount input
   const firstMax = Math.min(availableCats[0].remaining, overAmount);
-  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${CURRENCY_SYMBOLS[localStorage.getItem('ft_currency') || 'MYR'] || 'RM'}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${Math.min(firstMax, overAmount).toFixed(2)}" max="${firstMax}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
+  const currSymbol = (CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR).symbol;
+  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${Math.min(firstMax, overAmount).toFixed(2)}" max="${firstMax}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
 
   // Transfer preview
   const firstCat = availableCats[0];
   h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${fmt(firstCat.remaining)} → ${fmt(firstCat.remaining - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt negative">-${fmt(Math.min(firstMax, overAmount))}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${fmt(overAmount)} → ${overAmount <= Math.min(firstMax, overAmount) ? fmt(0) : '-' + fmt(overAmount - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt positive">+${fmt(Math.min(firstMax, overAmount))}</div></div></div>`;
 
-  // Action buttons
-  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${fmt(Math.min(firstMax, overAmount))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
+  // Action buttons — use data attributes instead of inline onclick (safe for all category names)
+  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" data-cover-from="${firstCat.cat.replace(/"/g,'"')}" data-cover-to="${overspentCat.replace(/"/g,'"')}" data-cover-year="${year}" data-cover-month="${monthIdx}">Cover ${fmt(Math.min(firstMax, overAmount))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
 
   if (isMobile) {
     h += `</div></div>`;
@@ -592,10 +593,11 @@ function selectCoverSource(el) {
     }
   }
 
-  // Update confirm button text
-  const confirmBtn = document.querySelector('#coverSheet .bp');
+  // Update confirm button text and data-from attribute
+  const confirmBtn = document.getElementById('coverConfirmBtn');
   if (confirmBtn) {
     confirmBtn.textContent = 'Cover ' + fmt(parseFloat(amtInput.value));
+    confirmBtn.dataset.coverFrom = cat;
   }
 }
 
@@ -641,13 +643,29 @@ function closeCoverSheet() {
 
 // FIX 3: Delegated click handler for cover buttons (avoids inline onclick with unsafe strings)
 document.addEventListener('click', function(e) {
+  // Handle trigger buttons (Cover alerts on Goals tab and Dashboard)
   const btn = e.target.closest('[data-cover-cat]');
-  if (!btn) return;
-  const cat = btn.dataset.coverCat;
-  const over = parseFloat(btn.dataset.coverOver);
-  const year = parseInt(btn.dataset.coverYear);
-  const month = parseInt(btn.dataset.coverMonth);
-  if (cat && over > 0) openCoverOverspending(cat, over, year, month);
+  if (btn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const cat = btn.dataset.coverCat;
+    const over = parseFloat(btn.dataset.coverOver);
+    const year = parseInt(btn.dataset.coverYear);
+    const month = parseInt(btn.dataset.coverMonth);
+    if (cat && over > 0) openCoverOverspending(cat, over, year, month);
+    return;
+  }
+  // Handle confirm button inside the cover sheet
+  const confirmBtn = e.target.closest('#coverConfirmBtn');
+  if (confirmBtn) {
+    e.preventDefault();
+    const from = confirmBtn.dataset.coverFrom;
+    const to = confirmBtn.dataset.coverTo;
+    const year = parseInt(confirmBtn.dataset.coverYear);
+    const month = parseInt(confirmBtn.dataset.coverMonth);
+    if (from && to) executeCoverTransfer(from, to, year, month);
+    return;
+  }
 });
 
 // === BUDGET ALERTS (v15.4 — Actually functional) ===
