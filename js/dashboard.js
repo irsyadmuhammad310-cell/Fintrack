@@ -114,8 +114,16 @@ function renderDashboard(c) {
   // === Expense Categories for Doughnut ===
   const expCats = computeExpenseCategoriesByPeriod(year, mf);
 
+  // === Overspent Alert (Desktop) ===
+  const dashOverspent = getDashboardOverspentCats();
+  let overspentBannerHtml = '';
+  if (dashOverspent.length > 0) {
+    overspentBannerHtml = `<div class="dash-overspent-banner"><div class="dash-overspent-header"><div class="dash-overspent-title"><i data-lucide="alert-triangle" width="14" height="14" style="color:var(--rose)"></i> <span>${dashOverspent.length} categor${dashOverspent.length > 1 ? 'ies' : 'y'} over budget this month</span></div><span style="font-size:10px;color:var(--text-tertiary)">${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}</span></div><div class="dash-overspent-items">${dashOverspent.map(item => `<div class="dash-overspent-item"><span class="dash-overspent-emoji">${item.emoji}</span><span class="dash-overspent-cat">${item.cat}</span><span class="dash-overspent-over">-${fmt(item.over)} over</span><button class="btn bp dash-overspent-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div>`).join('')}</div></div>`;
+  }
+
   // === BUILD HTML ===
   c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
+${overspentBannerHtml}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
 <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_income_expense_savings')}</div><div class="cs">${t('dash_monthly_trend')}</div></div><div class="seg" id="dc1tog"><button class="bm active" data-ct="line">${t('misc_line')}</button><button class="bm" data-ct="bar">${t('misc_bar')}</button></div></div><div style="height:240px"><canvas id="dc1"></canvas></div></div><div class="cc"><div class="ct">${t('dash_expense_breakdown')}</div><div class="cs">${t('dash_by_category')}</div><div id="expDoughnutWrap" style="height:240px;display:flex;align-items:center;justify-content:center">${expCats.length ? '<canvas id="expDoughnut"></canvas>' : '<div style="color:var(--text-tertiary);font-size:12px">' + t('misc_no_data') + '</div>'}</div></div></div>
 <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_budget_vs_cf')}</div><div class="cs">${mf === 'total' ? t('hdr_total_year') : MONTH_NAMES[+mf] + ' ' + year}</div></div></div><div style="height:220px"><canvas id="bchart"></canvas></div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:hidden"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:13px;font-weight:700">${t('dash_bank_accounts')}</div><div style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${banks.map(b => `<div class="bank-card" style="padding:8px 10px"><div class="bank-top" style="margin-bottom:3px"><div class="bank-badge ${b.cls}" style="width:22px;height:22px;font-size:7px;border-radius:5px">${b.tag}</div><div class="bank-info"><div class="bank-name" style="font-size:10px">${b.name}</div></div></div><div class="bank-balance" style="font-size:12px">${fmt(b.balance)}</div></div>`).join('')}</div></div></div>`;
@@ -217,6 +225,39 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
 
 // === (v10.9.1) ===
 
+// === OVERSPENT HELPERS (shared between desktop & mobile dashboard) ===
+function getDashboardOverspentCats() {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const yearKey = String(currentYear);
+  const monthPlan = PLANS[yearKey] && PLANS[yearKey][currentMonth];
+  if (!monthPlan || !monthPlan.expCats) return [];
+
+  const monthTxns = TXN.filter(tx => {
+    const d = new Date(tx.d);
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense';
+  });
+
+  const overspent = [];
+  Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
+    if (budget <= 0) return;
+    const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
+    if (spent > budget) {
+      const emoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
+      overspent.push({ cat, budget, spent, over: spent - budget, emoji, year: currentYear, month: currentMonth });
+    }
+  });
+  return overspent;
+}
+
+function getMobileOverspentHtml() {
+  const items = getDashboardOverspentCats();
+  if (!items.length) return '';
+  return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${MONTH_NAMES[new Date().getMonth()]}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${item.cat}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${item.cat.replace(/"/g,'&quot;')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
+}
+
 // === MOBILE DASHBOARD (v15.8.1 — Essential info only) ===
 function renderMobileDashboard(c, year) {
   if (!yearHasData(year)) {
@@ -288,6 +329,7 @@ function renderMobileDashboard(c, year) {
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_expense')}</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
+    ${getMobileOverspentHtml()}
     <div class="mob-dash-chart">
       <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
       <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
