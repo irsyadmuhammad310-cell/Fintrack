@@ -271,3 +271,144 @@ function updateNotifBadge() {
     bdg.style.display = count > 0 ? 'flex' : 'none';
   }
 }
+
+// === AUTO-CATEGORIZATION ENGINE (v15.8) ===
+const CAT_MEMORY_KEY = 'ft_cat_memory';
+const CAT_MEMORY_MAX = 500;
+
+function getCatMemory() {
+  return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}');
+}
+
+function saveCatMemory(mem) {
+  localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(mem));
+}
+
+function normalizeMerchant(text) {
+  if (!text) return '';
+  return text.toLowerCase().replace(/[0-9#*_\-\/\\().,:;!?@&+=<>{}[\]"'`~^|$%]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function learnFromTransaction(tx) {
+  if (!tx.dt && !tx.c) return;
+  const mem = getCatMemory();
+  const keys = [];
+
+  // Learn from description (primary key)
+  if (tx.dt) {
+    const normalized = normalizeMerchant(tx.dt);
+    if (normalized.length >= 2) keys.push(normalized);
+    // Also learn individual words (3+ chars) for partial matching
+    normalized.split(' ').forEach(word => {
+      if (word.length >= 3) keys.push(word);
+    });
+  }
+
+  // Learn from category name as fallback key
+  if (tx.c) {
+    const catKey = normalizeMerchant(tx.c);
+    if (catKey.length >= 2 && !keys.includes(catKey)) keys.push(catKey);
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  keys.forEach(key => {
+    if (!mem[key]) {
+      mem[key] = { t: tx.t, c: tx.c, s: tx.s || '', count: 1, last: today };
+    } else if (mem[key].t === tx.t && mem[key].c === tx.c) {
+      // Same categorization: boost count
+      mem[key].count++;
+      mem[key].last = today;
+      if (tx.s) mem[key].s = tx.s;
+    } else {
+      // Different categorization: check if new one should override
+      mem[key].count--;
+      if (mem[key].count <= 0) {
+        // Override with new categorization
+        mem[key] = { t: tx.t, c: tx.c, s: tx.s || '', count: 1, last: today };
+      }
+    }
+  });
+
+  // Evict if over cap (remove lowest count + oldest)
+  const entries = Object.entries(mem);
+  if (entries.length > CAT_MEMORY_MAX) {
+    entries.sort((a, b) => a[1].count - b[1].count || new Date(a[1].last) - new Date(b[1].last));
+    const toRemove = entries.slice(0, entries.length - CAT_MEMORY_MAX);
+    toRemove.forEach(([key]) => delete mem[key]);
+  }
+
+  saveCatMemory(mem);
+}
+
+function suggestCategory(description) {
+  if (!description || description.trim().length < 2) return null;
+  const mem = getCatMemory();
+  const normalized = normalizeMerchant(description);
+  if (!normalized) return null;
+
+  // 1. Exact full-string match (highest priority)
+  if (mem[normalized] && mem[normalized].count >= 2) {
+    const confidence = mem[normalized].count >= 5 ? 'high' : 'medium';
+    return { t: mem[normalized].t, c: mem[normalized].c, s: mem[normalized].s, confidence, count: mem[normalized].count };
+  }
+
+  // 2. Check if any stored key is contained in the input (or vice versa)
+  let bestMatch = null;
+  let bestScore = 0;
+
+  Object.entries(mem).forEach(([key, val]) => {
+    if (key.length < 3) return;
+    let score = 0;
+
+    if (normalized.includes(key)) {
+      // Input contains a known merchant keyword
+      score = val.count * (key.length / normalized.length);
+    } else if (key.includes(normalized)) {
+      // Known key contains the input (user typing partial)
+      score = val.count * (normalized.length / key.length);
+    }
+
+    if (score > bestScore && val.count >= 2) {
+      bestScore = score;
+      bestMatch = val;
+    }
+  });
+
+  if (bestMatch) {
+    const confidence = bestMatch.count >= 5 ? 'medium' : 'low';
+    return { t: bestMatch.t, c: bestMatch.c, s: bestMatch.s, confidence, count: bestMatch.count };
+  }
+
+  // 3. Word-level matching (check individual words from input)
+  const words = normalized.split(' ').filter(w => w.length >= 3);
+  let wordMatch = null;
+  let wordBestCount = 0;
+
+  words.forEach(word => {
+    if (mem[word] && mem[word].count > wordBestCount) {
+      wordBestCount = mem[word].count;
+      wordMatch = mem[word];
+    }
+  });
+
+  if (wordMatch && wordBestCount >= 3) {
+    return { t: wordMatch.t, c: wordMatch.c, s: wordMatch.s, confidence: 'low', count: wordMatch.count };
+  }
+
+  return null;
+}
+
+// Bootstrap: learn from all existing transactions on first run
+function bootstrapCatMemory() {
+  if (localStorage.getItem('ft_cat_bootstrapped')) return;
+  TXN.forEach(tx => learnFromTransaction(tx));
+  localStorage.setItem('ft_cat_bootstrapped', '1');
+}
+
+// Clear memory (for Settings toggle)
+function clearCatMemory() {
+  localStorage.removeItem(CAT_MEMORY_KEY);
+  localStorage.removeItem('ft_cat_bootstrapped');
+  toast('🧹 Category memory cleared');
+}
