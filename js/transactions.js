@@ -158,9 +158,11 @@ function openAdd() {
   const isEdit = editId !== null;
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><button class="mx" onclick="tryClose()">✕</button></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">${t('dash_savings')}</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg"><label class="fl">${t('txn_amount_label')} *</label><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00"></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}"></div></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><button class="mx" onclick="tryClose()">✕</button></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">${t('dash_savings')}</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg"><label class="fl">${t('txn_amount_label')} *</label><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00"></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
+  // Bootstrap category memory on first modal open
+  if (typeof bootstrapCatMemory === 'function') bootstrapCatMemory();
 }
 
 function cascType() {
@@ -221,6 +223,8 @@ function saveTxn(e) {
     const liabAcc = ACCOUNTS.find(a => a.id === data.liab);
     if (liabAcc) { liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - data.a); saveACCOUNTS(); }
   }
+  // Learn from this transaction for auto-categorization
+  if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
   saveTXN(); tryClose();
   // v15.3.0: Refresh current view (stays on current tab)
   render();
@@ -231,6 +235,82 @@ function saveTxn(e) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { const m = document.getElementById('madd'); if (m) { tryClose(); return; } const a = document.getElementById('mauth'); if (a) { a.remove(); document.body.style.overflow = ''; return; } }
 });
+
+// === AUTO-CATEGORIZATION UI (v15.8) ===
+let _catSuggestTimer = null;
+let _currentSuggestion = null;
+
+function debounceCatSuggest() {
+  if (_catSuggestTimer) clearTimeout(_catSuggestTimer);
+  // Respect settings toggle
+  if (localStorage.getItem('ft_autocat_off') === 'true') return;
+  _catSuggestTimer = setTimeout(() => {
+    const desc = document.getElementById('f_dt')?.value;
+    if (!desc || desc.length < 2) { hideCatSuggestion(); return; }
+    // Don't suggest if user already picked type+category manually
+    const typeEl = document.getElementById('f_t');
+    const catEl = document.getElementById('f_c');
+    if (typeEl.value && catEl.value) { hideCatSuggestion(); return; }
+
+    const suggestion = suggestCategory(desc);
+    if (!suggestion) { hideCatSuggestion(); return; }
+
+    _currentSuggestion = suggestion;
+    const wrap = document.getElementById('catSuggestWrap');
+    const text = document.getElementById('catSuggestText');
+    if (!wrap || !text) return;
+
+    const badge = suggestion.confidence === 'high' ? '🤖 Auto' : suggestion.confidence === 'medium' ? '🤖 Suggest' : '💡 Maybe';
+    text.textContent = `${badge}: ${suggestion.t} > ${suggestion.c}${suggestion.s ? ' > ' + suggestion.s : ''} (used ${suggestion.count}x)`;
+    wrap.style.display = 'flex';
+
+    // High confidence: auto-fill silently
+    if (suggestion.confidence === 'high') {
+      applyCatSuggestion(suggestion);
+      text.textContent = `🤖 Auto-filled: ${suggestion.t} > ${suggestion.c}${suggestion.s ? ' > ' + suggestion.s : ''}`;
+    }
+  }, 300);
+}
+
+function applyCatSuggestion(suggestion) {
+  const typeEl = document.getElementById('f_t');
+  const catEl = document.getElementById('f_c');
+  const subEl = document.getElementById('f_s');
+
+  // Set type
+  typeEl.value = suggestion.t;
+  cascType();
+
+  // Set category after cascade populates options
+  setTimeout(() => {
+    catEl.value = suggestion.c;
+    cascCat();
+    // Set subcategory
+    setTimeout(() => {
+      if (suggestion.s) subEl.value = suggestion.s;
+    }, 20);
+  }, 20);
+}
+
+function acceptCatSuggestion() {
+  if (!_currentSuggestion) return;
+  applyCatSuggestion(_currentSuggestion);
+  const wrap = document.getElementById('catSuggestWrap');
+  const text = document.getElementById('catSuggestText');
+  if (text) text.textContent = '✅ Applied!';
+  setTimeout(() => { if (wrap) wrap.style.display = 'none'; }, 1000);
+}
+
+function dismissCatSuggestion() {
+  _currentSuggestion = null;
+  hideCatSuggestion();
+}
+
+function hideCatSuggestion() {
+  const wrap = document.getElementById('catSuggestWrap');
+  if (wrap) wrap.style.display = 'none';
+  _currentSuggestion = null;
+}
 
 // === AUTH + DELETE ===
 function doAuth(action, id) {
