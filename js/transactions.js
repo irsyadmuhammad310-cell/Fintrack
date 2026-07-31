@@ -5,8 +5,8 @@ function renderTransactions(c) {
   txnYearSel = selYear;
   txnMonthSel = selMonth;
 
-  // v15.8.1: Mobile gets simplified card-free list
-  if (window.innerWidth <= 900) {
+  // v15.8.1: Mobile gets simplified card-free list (unless desktop mode forced)
+  if (window.innerWidth <= 900 && localStorage.getItem('ft_desktop_mode') !== 'true') {
     renderMobileTransactions(c);
     return;
   }
@@ -247,10 +247,6 @@ function debounceCatSuggest() {
   _catSuggestTimer = setTimeout(() => {
     const desc = document.getElementById('f_dt')?.value;
     if (!desc || desc.length < 2) { hideCatSuggestion(); return; }
-    // Don't suggest if user already picked type+category manually
-    const typeEl = document.getElementById('f_t');
-    const catEl = document.getElementById('f_c');
-    if (typeEl.value && catEl.value) { hideCatSuggestion(); return; }
 
     const suggestion = suggestCategory(desc);
     if (!suggestion) { hideCatSuggestion(); return; }
@@ -260,14 +256,25 @@ function debounceCatSuggest() {
     const text = document.getElementById('catSuggestText');
     if (!wrap || !text) return;
 
-    const badge = suggestion.confidence === 'high' ? '🤖 Auto' : suggestion.confidence === 'medium' ? '🤖 Suggest' : '💡 Maybe';
-    text.textContent = `${badge}: ${suggestion.t} > ${suggestion.c}${suggestion.s ? ' > ' + suggestion.s : ''} (used ${suggestion.count}x)`;
-    wrap.style.display = 'flex';
+    const typeEl = document.getElementById('f_t');
+    const catEl = document.getElementById('f_c');
+    const alreadyFilled = typeEl.value && catEl.value;
 
-    // High confidence: auto-fill silently
-    if (suggestion.confidence === 'high') {
+    // High confidence + fields empty: auto-fill silently
+    if (suggestion.confidence === 'high' && !alreadyFilled) {
       applyCatSuggestion(suggestion);
       text.textContent = `🤖 Auto-filled: ${suggestion.t} > ${suggestion.c}${suggestion.s ? ' > ' + suggestion.s : ''}`;
+      wrap.style.display = 'flex';
+      return;
+    }
+
+    // Show suggestion chip (user can accept or dismiss)
+    if (!alreadyFilled) {
+      const badge = suggestion.confidence === 'medium' ? '🤖 Suggest' : '💡 Maybe';
+      text.textContent = `${badge}: ${suggestion.t} > ${suggestion.c}${suggestion.s ? ' > ' + suggestion.s : ''} (used ${suggestion.count}x)`;
+      wrap.style.display = 'flex';
+    } else {
+      hideCatSuggestion();
     }
   }, 300);
 }
