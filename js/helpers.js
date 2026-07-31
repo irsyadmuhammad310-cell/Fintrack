@@ -276,6 +276,71 @@ function updateNotifBadge() {
 const CAT_MEMORY_KEY = 'ft_cat_memory';
 const CAT_MEMORY_MAX = 500;
 
+// Preset rules: instant suggestions from day 1 (no learning needed)
+// Only store keywords + hints. Actual category/sub resolved from SCHEMA at runtime.
+const DEFAULT_CAT_RULES = [
+  { keywords: ['fuel', 'petrol', 'diesel', 'shell', 'petronas', 'caltex', 'bp', 'gas station'], t: 'Expense', hint: 'fuel' },
+  { keywords: ['grab', 'gojek', 'indriver', 'taxi', 'uber'], t: 'Expense', hint: 'grab' },
+  { keywords: ['parking', 'parkir'], t: 'Expense', hint: 'parking' },
+  { keywords: ['toll', 'tng', 'touch n go', 'plus highway'], t: 'Expense', hint: 'toll' },
+  { keywords: ['mrt', 'lrt', 'bus', 'rapidkl', 'ktm', 'train'], t: 'Expense', hint: 'public transport' },
+  { keywords: ['netflix', 'spotify', 'disney', 'youtube premium', 'apple music', 'hbo'], t: 'Expense', hint: 'subscription' },
+  { keywords: ['electric', 'tnb', 'tenaga', 'electricity'], t: 'Expense', hint: 'electric' },
+  { keywords: ['water', 'air selangor', 'syabas'], t: 'Expense', hint: 'water' },
+  { keywords: ['wifi', 'internet', 'unifi', 'maxis', 'celcom', 'digi', 'hotlink', 'time fibre'], t: 'Expense', hint: 'internet' },
+  { keywords: ['groceries', 'grocery', 'aeon', 'tesco', 'lotus', 'mydin', 'jaya grocer', 'village grocer', 'cold storage', 'giant'], t: 'Expense', hint: 'groceries' },
+  { keywords: ['mcdonald', 'mcd', 'kfc', 'burger king', 'subway', 'pizza hut', 'domino'], t: 'Expense', hint: 'fast food' },
+  { keywords: ['starbucks', 'coffee', 'kopi', 'zus', 'tealive'], t: 'Expense', hint: 'cafe' },
+  { keywords: ['salary', 'gaji', 'payroll', 'pay day'], t: 'Income', hint: 'salary' },
+  { keywords: ['freelance', 'side hustle', 'gig', 'upwork', 'fiverr'], t: 'Income', hint: 'freelance' },
+  { keywords: ['shopee', 'lazada', 'amazon', 'aliexpress', 'taobao'], t: 'Expense', hint: 'shopping' },
+  { keywords: ['clinic', 'hospital', 'pharmacy', 'farmasi', 'doctor', 'dental', 'dentist'], t: 'Expense', hint: 'health' },
+  { keywords: ['gym', 'fitness', 'workout'], t: 'Expense', hint: 'fitness' },
+  { keywords: ['rent', 'sewa', 'rental'], t: 'Expense', hint: 'rent' },
+  { keywords: ['insurance', 'insurans', 'takaful', 'prudential', 'aia', 'great eastern'], t: 'Expense', hint: 'insurance' },
+  { keywords: ['cinema', 'movie', 'gsc', 'tgv'], t: 'Expense', hint: 'movies' },
+  // Malay keywords
+  { keywords: ['minyak', 'isi minyak', 'pump minyak'], t: 'Expense', hint: 'fuel' },
+  { keywords: ['sewa', 'bayar sewa', 'sewa rumah', 'sewa bilik'], t: 'Expense', hint: 'rent' },
+  { keywords: ['gaji', 'gaji masuk', 'slip gaji'], t: 'Income', hint: 'salary' },
+  { keywords: ['makan', 'makan tengahari', 'makan malam', 'makan pagi', 'tapau', 'bungkus'], t: 'Expense', hint: 'food' },
+  { keywords: ['belanja', 'beli barang', 'shopping'], t: 'Expense', hint: 'shopping' },
+  { keywords: ['dobi', 'laundry', 'cuci baju'], t: 'Expense', hint: 'laundry' },
+  { keywords: ['ubat', 'klinik', 'hospital', 'farmasi'], t: 'Expense', hint: 'health' },
+  { keywords: ['potong rambut', 'gunting rambut', 'barber'], t: 'Expense', hint: 'personal' },
+  { keywords: ['tambang', 'bas', 'keretapi', 'tiket'], t: 'Expense', hint: 'public transport' },
+  { keywords: ['derma', 'sedekah', 'zakat', 'fitrah'], t: 'Expense', hint: 'donation' },
+  { keywords: ['simpan', 'tabung', 'saving'], t: 'Savings', hint: 'savings' }
+];
+
+// Resolve a hint string to actual category/subcategory from SCHEMA
+function resolveHintFromSchema(type, hint) {
+  const schema = SCHEMA[type];
+  if (!schema) return null;
+  const hintLower = hint.toLowerCase();
+
+  // 1. Check if hint matches a subcategory name
+  for (const [cat, subs] of Object.entries(schema)) {
+    if (Array.isArray(subs)) {
+      for (const sub of subs) {
+        if (sub.toLowerCase().includes(hintLower) || hintLower.includes(sub.toLowerCase())) {
+          return { c: cat, s: sub };
+        }
+      }
+    }
+  }
+
+  // 2. Check if hint matches a category name
+  for (const cat of Object.keys(schema)) {
+    if (cat.toLowerCase().includes(hintLower) || hintLower.includes(cat.toLowerCase())) {
+      return { c: cat, s: '' };
+    }
+  }
+
+  // 3. No match in current schema
+  return null;
+}
+
 function getCatMemory() {
   return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}');
 }
@@ -346,6 +411,22 @@ function suggestCategory(description) {
   const mem = getCatMemory();
   const normalized = normalizeMerchant(description);
   if (!normalized) return null;
+
+  // 0. Check preset rules FIRST (instant, no learning needed)
+  const lowerDesc = normalized;
+  for (const rule of DEFAULT_CAT_RULES) {
+    for (const keyword of rule.keywords) {
+      if (lowerDesc.includes(keyword) || keyword.includes(lowerDesc)) {
+        // Resolve hint against actual SCHEMA
+        const resolved = resolveHintFromSchema(rule.t, rule.hint);
+        if (resolved) {
+          return { t: rule.t, c: resolved.c, s: resolved.s, confidence: 'high', count: 99 };
+        }
+        // If hint doesn't match schema, skip (user may have deleted that category)
+        break;
+      }
+    }
+  }
 
   // 1. Exact full-string match (highest priority)
   if (mem[normalized] && mem[normalized].count >= 2) {
