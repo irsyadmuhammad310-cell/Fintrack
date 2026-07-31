@@ -1,4 +1,4 @@
-// === SETTINGS (v15.7) ===
+// === SETTINGS (v15.8.1) ===
 let setSubTab = 'profile';
 
 const FINTRACK_VERSION = 'v15.8.1';
