@@ -1,4 +1,4 @@
-// === ANALYTICS V14.0 - Financial Intelligence Center ===
+// === ANALYTICS (v15.8.1) ===
 var anCharts = [];
 
 function anDestroy() { anCharts.forEach(function(ch) { if (ch) ch.destroy(); }); anCharts = []; }
