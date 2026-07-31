@@ -1,4 +1,4 @@
-// === GOALS & BUDGET (v11.5 — Interactive Redesign) ===
+// === GOALS & BUDGET (v15.8.1) ===
 let expandedGoal = null;
 let expandedCat = null;
 let goalBudgetYear = null;
@@ -178,7 +178,34 @@ function renderGoals(c) {
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700">${t('goal_budget_planner')}</div><select class="fsel" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById('cnt'))">${YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('')}</select></div>`;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table class="bp-table" style="width:100%;border-collapse:collapse;font-size:11px;min-width:0;table-layout:fixed"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:var(--text-secondary);width:22%">${t('rpt_month')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--emerald);width:22%">${t('dash_income')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--rose);width:22%">${t('dash_expense')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--blue);width:22%">${t('dash_savings')}</th><th style="padding:8px 4px;text-align:center;width:12%"></th></tr></thead><tbody>`;
+
+  // Mobile: Swipeable month cards
+  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') {
+    html += `<div style="display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 0 14px;scrollbar-width:none" class="mob-budget-scroll">`;
+    MD.forEach((m, idx) => {
+      const plan = yearPlan[idx] || null;
+      const hasPlan = !!plan;
+      const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
+      const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
+      const planSav = plan ? (plan.s || 0) : 0;
+      const isCurrentMonth = idx === new Date().getMonth() && year === new Date().getFullYear();
+      html += `<div style="min-width:200px;scroll-snap-align:start;background:var(--bg-card);border:1px solid ${isCurrentMonth ? 'var(--accent)' : 'var(--border)'};border-radius:12px;padding:14px;flex-shrink:0;cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})">`;
+      html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700">${MONTH_NAMES[idx]}</span>${hasPlan ? '<span style="font-size:8px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:2px 6px;border-radius:4px">' + t('misc_planned') + '</span>' : '<span style="font-size:9px;color:var(--text-tertiary)">No plan</span>'}</div>`;
+      if (hasPlan) {
+        html += `<div style="display:flex;flex-direction:column;gap:6px">`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:'tnum'">${fmt(planInc)}</span></div>`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:'tnum'">${fmt(planExp)}</span></div>`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:'tnum'">${fmt(planSav)}</span></div>`;
+        html += `</div>`;
+      } else {
+        html += `<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text-tertiary)">Tap to set budget</div>`;
+      }
+      html += `</div>`;
+    });
+    html += `</div>`;
+  } else {
+    // Desktop: Table view
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table class="bp-table" style="width:100%;border-collapse:collapse;font-size:11px;min-width:0;table-layout:fixed"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:var(--text-secondary);width:22%">${t('rpt_month')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--emerald);width:22%">${t('dash_income')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--rose);width:22%">${t('dash_expense')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--blue);width:22%">${t('dash_savings')}</th><th style="padding:8px 4px;text-align:center;width:12%"></th></tr></thead><tbody>`;
   MD.forEach((m, idx) => {
     const hasData = m.i > 0 || m.e > 0;
     const plan = yearPlan[idx] || null;
@@ -194,6 +221,7 @@ function renderGoals(c) {
     html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px;font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis">${MONTH_NAMES[idx]}${hasPlan ? ' <span style="font-size:7px;color:var(--accent);font-weight:600">' + t('misc_planned') + '</span>' : ''}</td><td style="padding:10px 6px;text-align:right;color:var(--emerald);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--rose);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--blue);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 4px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
+  } // end desktop table
 
   c.innerHTML = html;
   lucide.createIcons();
