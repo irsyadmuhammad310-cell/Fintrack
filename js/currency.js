@@ -30,7 +30,6 @@ const CURRENCY_CONFIG = {
   BHD: { symbol: '.د.ب', locale: 'ar-BH', name: 'Bahraini Dinar' },
   KWD: { symbol: 'د.ك', locale: 'ar-KW', name: 'Kuwaiti Dinar' },
   TRY: { symbol: '₺', locale: 'tr-TR', name: 'Turkish Lira' },
-  ILS: { symbol: '₪', locale: 'he-IL', name: 'Israeli Shekel' },
   // Europe
   EUR: { symbol: '€', locale: 'de-DE', name: 'Euro' },
   GBP: { symbol: '£', locale: 'en-GB', name: 'British Pound' },
@@ -62,9 +61,9 @@ const CURRENCY_CONFIG = {
   NZD: { symbol: 'NZ$', locale: 'en-NZ', name: 'New Zealand Dollar' }
 };
 
-const FALLBACK_RATES = { MYR: 1, SGD: 0.286, USD: 0.213, EUR: 0.196, GBP: 0.170, JPY: 31.25, CNY: 1.54, AUD: 0.329, THB: 7.35, IDR: 3401, PHP: 12.1, VND: 5300, BND: 0.286, MMK: 447, KHR: 870, KRW: 280, TWD: 6.8, HKD: 1.66, INR: 17.8, PKR: 59, BDT: 25, LKR: 64, NPR: 28.4, SAR: 0.80, AED: 0.78, QAR: 0.78, OMR: 0.082, BHD: 0.080, KWD: 0.065, TRY: 6.9, ILS: 0.78, CHF: 0.188, SEK: 2.24, NOK: 2.27, DKK: 1.46, PLN: 0.85, CZK: 4.93, HUF: 78, RUB: 19.5, UAH: 8.8, CAD: 0.29, MXN: 3.7, BRL: 1.16, ARS: 195, CLP: 200, COP: 880, ZAR: 3.85, NGN: 340, EGP: 10.4, KES: 27.5, NZD: 0.355 };
+const FALLBACK_RATES = { MYR: 1, SGD: 0.286, USD: 0.213, EUR: 0.196, GBP: 0.170, JPY: 31.25, CNY: 1.54, AUD: 0.329, THB: 7.35, IDR: 3401, PHP: 12.1, VND: 5300, BND: 0.286, MMK: 447, KHR: 870, KRW: 280, TWD: 6.8, HKD: 1.66, INR: 17.8, PKR: 59, BDT: 25, LKR: 64, NPR: 28.4, SAR: 0.80, AED: 0.78, QAR: 0.78, OMR: 0.082, BHD: 0.080, KWD: 0.065, TRY: 6.9, CHF: 0.188, SEK: 2.24, NOK: 2.27, DKK: 1.46, PLN: 0.85, CZK: 4.93, HUF: 78, RUB: 19.5, UAH: 8.8, CAD: 0.29, MXN: 3.7, BRL: 1.16, ARS: 195, CLP: 200, COP: 880, ZAR: 3.85, NGN: 340, EGP: 10.4, KES: 27.5, NZD: 0.355 };
 
-let displayCurrency = localStorage.getItem('ft_currency') || 'MYR';
+let displayCurrency = localStorage.getItem('ft_currency') || 'USD';
 let exchangeRates = JSON.parse(localStorage.getItem('ft_rates') || 'null') || FALLBACK_RATES;
 let ratesLastUpdated = localStorage.getItem('ft_rates_updated') || null;
 
