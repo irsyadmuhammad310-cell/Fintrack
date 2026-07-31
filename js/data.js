@@ -1,4 +1,4 @@
-// === DATA & PERSISTENCE (Single Source of Truth) ===
+// === DATA & PERSISTENCE (v15.8.1) ===
 // === GLOBAL YEAR MANAGEMENT (v11.5) ===
 const DEFAULT_YEARS = [2024, 2025, 2026, 2027, 2028];
 let YEARS = JSON.parse(localStorage.getItem('ft_years') || 'null') || [...DEFAULT_YEARS];
