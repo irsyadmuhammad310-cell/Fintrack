@@ -359,8 +359,16 @@ let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(TXN));
-  localStorage.setItem('ft_nxId', nxId);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(TXN));
+    localStorage.setItem('ft_nxId', nxId);
+  } catch (e) {
+    if (e.name === 'QuotaExceededError' || e.code === 22) {
+      toast('🚨 Storage full! Transaction NOT saved. Export your data and clear old records.');
+    } else {
+      toast('❌ Save failed: ' + (e.message || 'Unknown error'));
+    }
+  }
 }
 function loadTXN() {
   const raw = localStorage.getItem(STORAGE_KEY);
