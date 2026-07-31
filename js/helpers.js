@@ -1,4 +1,4 @@
-// === HELPERS & UI UTILITIES ===
+// === HELPERS & UI UTILITIES (v15.8.1) ===
 
 // === PIN SECURITY (v15.7 — SHA-256 hashed) ===
 async function hashPIN(pin) {
