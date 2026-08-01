@@ -193,6 +193,10 @@ function toggleNotifPanel() {
     if (r.dismissed) continue;
     var rDate = new Date(r.date); rDate.setHours(0, 0, 0, 0);
     var diff = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
+    // Only show if within timing window or overdue
+    var timing = r.timing || [7, 3, 1];
+    var maxWindow = Math.max.apply(null, timing);
+    if (diff > maxWindow) continue; // not yet in notification window
     reminders.push({ id: r.id, title: r.title, description: r.description || '', date: r.date, time: r.time || '', repeat: r.repeat, priority: r.priority || 'low', daysRemaining: diff, overdue: diff < 0 });
   }
   reminders.sort(function(a, b) { return a.daysRemaining - b.daysRemaining; });
@@ -252,7 +256,26 @@ function completeReminder(id) {
 
 function dismissReminder(id) {
   for (var i = 0; i < REMINDERS.length; i++) {
-    if (REMINDERS[i].id === id) { REMINDERS[i].dismissed = true; break; }
+    if (REMINDERS[i].id === id) {
+      var r = REMINDERS[i];
+      if (r.repeat === 'once') {
+        // One-time: dismiss permanently
+        r.dismissed = true;
+      } else {
+        // Recurring: advance to next occurrence, reset dismissed so it shows again
+        if (r.repeat === 'monthly') {
+          var d = new Date(r.date);
+          d.setMonth(d.getMonth() + 1);
+          r.date = d.toISOString().split('T')[0];
+        } else if (r.repeat === 'yearly') {
+          var d2 = new Date(r.date);
+          d2.setFullYear(d2.getFullYear() + 1);
+          r.date = d2.toISOString().split('T')[0];
+        }
+        r.dismissed = false;
+      }
+      break;
+    }
   }
   saveREMINDERS();
   updateNotifBadge();
