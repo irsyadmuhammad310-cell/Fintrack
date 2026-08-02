@@ -236,12 +236,25 @@ function getDashboardOverspentCats() {
   const currentYear = now.getFullYear();
   const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
   const yearKey = String(currentYear);
-  const monthPlan = PLANS[yearKey] && PLANS[yearKey][currentMonth];
+
+  // Check current month first, fall back to previous month if no plan exists for current
+  let checkMonth = currentMonth;
+  let checkYear = currentYear;
+  let monthPlan = PLANS[yearKey] && PLANS[yearKey][currentMonth];
+  
+  if (!monthPlan || !monthPlan.expCats) {
+    // No plan for current month: check previous month (handles month transitions)
+    checkMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    checkYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    const prevYearKey = String(checkYear);
+    monthPlan = PLANS[prevYearKey] && PLANS[prevYearKey][checkMonth];
+  }
+
   if (!monthPlan || !monthPlan.expCats) return [];
 
   const monthTxns = TXN.filter(tx => {
     const d = new Date(tx.d);
-    return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense';
+    return d.getFullYear() === checkYear && d.getMonth() === checkMonth && tx.t === 'Expense';
   });
 
   const overspent = [];
@@ -250,7 +263,7 @@ function getDashboardOverspentCats() {
     const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
     if (spent > budget) {
       const emoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
-      overspent.push({ cat, budget, spent, over: spent - budget, emoji, year: currentYear, month: currentMonth });
+      overspent.push({ cat, budget, spent, over: spent - budget, emoji, year: checkYear, month: checkMonth });
     }
   });
   return overspent;
