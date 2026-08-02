@@ -17,6 +17,18 @@ function navigate(page) {
   document.getElementById('pt').textContent = t(titleKeys[page]) || page;
   document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
 
+  // Set default month filter per tab
+  const mf = document.getElementById('mf');
+  if (mf) {
+    if (page === 'transactions') {
+      // Transactions defaults to current month
+      mf.value = String(new Date().getMonth());
+    } else if (page === 'dashboard' || page === 'analytics') {
+      // Dashboard & Insights default to total year
+      mf.value = 'total';
+    }
+  }
+
   // Sync sidebar nav
   document.querySelectorAll('.ni').forEach(i => i.classList.remove('active'));
   const sidebarItem = document.querySelector(`.ni[data-page="${page}"]`);
