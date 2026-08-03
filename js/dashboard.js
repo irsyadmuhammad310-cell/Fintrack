@@ -121,7 +121,8 @@ function renderDashboard(c) {
   const dashOverspent = getDashboardOverspentCats();
   let overspentBannerHtml = '';
   if (dashOverspent.length > 0) {
-    overspentBannerHtml = `<div class="dash-overspent-banner"><div class="dash-overspent-header"><div class="dash-overspent-title"><i data-lucide="alert-triangle" width="14" height="14" style="color:var(--rose)"></i> <span>${dashOverspent.length} categor${dashOverspent.length > 1 ? 'ies' : 'y'} over budget this month</span></div><span style="font-size:10px;color:var(--text-tertiary)">${MONTH_NAMES[new Date().getMonth()]} ${new Date().getFullYear()}</span></div><div class="dash-overspent-items">${dashOverspent.map(item => `<div class="dash-overspent-item"><span class="dash-overspent-emoji">${item.emoji}</span><span class="dash-overspent-cat">${item.cat}</span><span class="dash-overspent-over">-${fmt(item.over)} over</span><button class="btn bp dash-overspent-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div>`).join('')}</div></div>`;
+    const overspentMonthLabel = dashOverspent[0] ? MONTH_NAMES[dashOverspent[0].month] + ' ' + dashOverspent[0].year : '';
+    overspentBannerHtml = `<div class="dash-overspent-banner"><div class="dash-overspent-header"><div class="dash-overspent-title"><i data-lucide="alert-triangle" width="14" height="14" style="color:var(--rose)"></i> <span>${dashOverspent.length} categor${dashOverspent.length > 1 ? 'ies' : 'y'} over budget</span></div><span style="font-size:10px;color:var(--text-tertiary)">${overspentMonthLabel}</span></div><div class="dash-overspent-items">${dashOverspent.map(item => `<div class="dash-overspent-item"><span class="dash-overspent-emoji">${item.emoji}</span><span class="dash-overspent-cat">${item.cat}</span><span class="dash-overspent-over">-${fmt(item.over)} over</span><button class="btn bp dash-overspent-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div>`).join('')}</div></div>`;
   }
 
   // === BUILD HTML ===
@@ -232,22 +233,36 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
 // === OVERSPENT HELPERS (shared between desktop & mobile dashboard) ===
 function getDashboardOverspentCats() {
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  const yearKey = String(currentYear);
+  const mfEl = document.getElementById('mf');
+  const mf = mfEl ? mfEl.value : 'total';
+  const year = getSelectedYear();
 
-  // Check current month first, fall back to previous month if no plan exists for current
-  let checkMonth = currentMonth;
-  let checkYear = currentYear;
-  let monthPlan = PLANS[yearKey] && PLANS[yearKey][currentMonth];
-  
-  if (!monthPlan || !monthPlan.expCats) {
-    // No plan for current month: check previous month (handles month transitions)
-    checkMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-    checkYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-    const prevYearKey = String(checkYear);
-    monthPlan = PLANS[prevYearKey] && PLANS[prevYearKey][checkMonth];
+  // Determine which month to check
+  let checkMonth, checkYear;
+  if (mf !== 'total') {
+    checkMonth = parseInt(mf);
+    checkYear = year;
+  } else {
+    checkMonth = now.getMonth();
+    checkYear = now.getFullYear();
+  }
+
+  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const yearKey = String(checkYear);
+  let monthPlan = PLANS[yearKey] ? PLANS[yearKey][checkMonth] : null;
+
+  // Fallback to previous month ONLY in total view
+  if ((!monthPlan || !monthPlan.expCats) && mf === 'total') {
+    const prevMonth = checkMonth === 0 ? 11 : checkMonth - 1;
+    const prevYear = checkMonth === 0 ? checkYear - 1 : checkYear;
+    const prevYearKey = String(prevYear);
+    monthPlan = PLANS[prevYearKey] ? PLANS[prevYearKey][prevMonth] : null;
+    if (monthPlan && monthPlan.expCats) {
+      checkMonth = prevMonth;
+      checkYear = prevYear;
+    } else {
+      return [];
+    }
   }
 
   if (!monthPlan || !monthPlan.expCats) return [];
