@@ -128,7 +128,7 @@ function renderDashboard(c) {
   // === BUILD HTML ===
   c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
 ${overspentBannerHtml}
-${buildForecastHtml('desktop')}
+${safeBuildForecastHtml('desktop')}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
 <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_income_expense_savings')}</div><div class="cs">${t('dash_monthly_trend')}</div></div><div class="seg" id="dc1tog"><button class="bm active" data-ct="line">${t('misc_line')}</button><button class="bm" data-ct="bar">${t('misc_bar')}</button></div></div><div style="height:240px"><canvas id="dc1"></canvas></div></div><div class="cc"><div class="ct">${t('dash_expense_breakdown')}</div><div class="cs">${t('dash_by_category')}</div><div id="expDoughnutWrap" style="height:240px;display:flex;align-items:center;justify-content:center">${expCats.length ? '<canvas id="expDoughnut"></canvas>' : '<div style="color:var(--text-tertiary);font-size:12px">' + t('misc_no_data') + '</div>'}</div></div></div>
 <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_budget_vs_cf')}</div><div class="cs">${mf === 'total' ? t('hdr_total_year') : MONTH_NAMES[+mf] + ' ' + year}</div></div></div><div style="height:220px"><canvas id="bchart"></canvas></div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:hidden"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:13px;font-weight:700">${t('dash_bank_accounts')}</div><div style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${banks.map(b => `<div class="bank-card" style="padding:8px 10px"><div class="bank-top" style="margin-bottom:3px"><div class="bank-badge ${b.cls}" style="width:22px;height:22px;font-size:7px;border-radius:5px">${b.tag}</div><div class="bank-info"><div class="bank-name" style="font-size:10px">${b.name}</div></div></div><div class="bank-balance" style="font-size:12px">${fmt(b.balance)}</div></div>`).join('')}</div></div></div>`;
@@ -232,65 +232,93 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
 
 // === OVERSPENT HELPERS (shared between desktop & mobile dashboard) ===
 function getDashboardOverspentCats() {
-  const now = new Date();
-  const mfEl = document.getElementById('mf');
-  const mf = mfEl ? mfEl.value : 'total';
-  const year = getSelectedYear();
+  try {
+    const now = new Date();
+    const mfEl = document.getElementById('mf');
+    const mf = mfEl ? mfEl.value : 'total';
+    const year = getSelectedYear();
 
-  // Determine which month to check
-  let checkMonth, checkYear;
-  if (mf !== 'total') {
-    checkMonth = parseInt(mf);
-    checkYear = year;
-  } else {
-    checkMonth = now.getMonth();
-    checkYear = now.getFullYear();
-  }
+    const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
 
-  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  const yearKey = String(checkYear);
-  let monthPlan = PLANS[yearKey] ? PLANS[yearKey][checkMonth] : null;
-
-  // Fallback to previous month ONLY in total view
-  if ((!monthPlan || !monthPlan.expCats) && mf === 'total') {
-    const prevMonth = checkMonth === 0 ? 11 : checkMonth - 1;
-    const prevYear = checkMonth === 0 ? checkYear - 1 : checkYear;
-    const prevYearKey = String(prevYear);
-    monthPlan = PLANS[prevYearKey] ? PLANS[prevYearKey][prevMonth] : null;
-    if (monthPlan && monthPlan.expCats) {
-      checkMonth = prevMonth;
-      checkYear = prevYear;
+    // Determine target month for transaction checking
+    let targetMonth, targetYear;
+    if (mf !== 'total') {
+      targetMonth = parseInt(mf);
+      targetYear = year;
     } else {
-      return [];
+      // In total view: use selected year + current month
+      targetMonth = now.getMonth();
+      targetYear = year;
     }
+
+    const yearKey = String(targetYear);
+    const yearPlans = PLANS[yearKey];
+    if (!yearPlans) return [];
+
+    // Find budget plan (try target month first, then fallback for limits only)
+    let monthPlan = yearPlans[targetMonth] || yearPlans[String(targetMonth)] || null;
+
+    // Fallback: use previous month's budget limits as reference
+    if (!monthPlan || !monthPlan.expCats) {
+      const prevMonth = targetMonth === 0 ? 11 : targetMonth - 1;
+      const prevYearKey = targetMonth === 0 ? String(targetYear - 1) : yearKey;
+      const prevPlans = targetMonth === 0 ? PLANS[prevYearKey] : yearPlans;
+      const prevPlan = prevPlans ? (prevPlans[prevMonth] || prevPlans[String(prevMonth)]) : null;
+      if (prevPlan && prevPlan.expCats) {
+        monthPlan = prevPlan;
+      } else {
+        // Last resort: find nearest month with expCats in the same year
+        for (let m = 11; m >= 0; m--) {
+          const p = yearPlans[m] || yearPlans[String(m)];
+          if (p && p.expCats && Object.keys(p.expCats).length > 0) {
+            monthPlan = p;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!monthPlan || !monthPlan.expCats) return [];
+
+    // Always check TARGET month's transactions against the budget limits
+    const monthTxns = TXN.filter(tx => {
+      const d = new Date(tx.d);
+      return d.getFullYear() === targetYear && d.getMonth() === targetMonth && tx.t === 'Expense';
+    });
+
+    const overspent = [];
+    Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
+      if (budget <= 0) return;
+      // Match category (exact first, then case-insensitive fallback)
+      let spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
+      if (spent === 0) {
+        const catLower = cat.toLowerCase();
+        spent = monthTxns.filter(tx => tx.c && tx.c.toLowerCase() === catLower).reduce((s, tx) => s + tx.a, 0);
+      }
+      if (spent > budget) {
+        const emoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
+        overspent.push({ cat, budget, spent, over: Math.round((spent - budget) * 100) / 100, emoji, year: targetYear, month: targetMonth });
+      }
+    });
+    return overspent;
+  } catch (e) {
+    console.warn('Overspent check error:', e);
+    return [];
   }
-
-  if (!monthPlan || !monthPlan.expCats) return [];
-
-  const monthTxns = TXN.filter(tx => {
-    const d = new Date(tx.d);
-    return d.getFullYear() === checkYear && d.getMonth() === checkMonth && tx.t === 'Expense';
-  });
-
-  const overspent = [];
-  Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
-    if (budget <= 0) return;
-    const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
-    if (spent > budget) {
-      const emoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
-      overspent.push({ cat, budget, spent, over: spent - budget, emoji, year: checkYear, month: checkMonth });
-    }
-  });
-  return overspent;
 }
 
 function getMobileOverspentHtml() {
   const items = getDashboardOverspentCats();
   if (!items.length) return '';
-  return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${MONTH_NAMES[new Date().getMonth()]}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${item.cat}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
+  const monthLabel = items[0] ? MONTH_NAMES[items[0].month] : MONTH_NAMES[new Date().getMonth()];
+  return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${monthLabel}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${item.cat}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
 }
 
 // === CASH FLOW FORECAST (v15.8.1) ===
+function safeBuildForecastHtml(mode) {
+  try { return buildForecastHtml(mode); } catch (e) { console.warn('Forecast render error:', e); return ''; }
+}
+
 function computeCashFlowForecast() {
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -499,7 +527,7 @@ function renderMobileDashboard(c, year) {
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
     ${getMobileOverspentHtml()}
-    ${buildForecastHtml('mobile')}
+    ${safeBuildForecastHtml('mobile')}
     <div class="mob-dash-chart">
       <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
       <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
