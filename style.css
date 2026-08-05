@@ -2136,3 +2136,157 @@ tr:hover td { background: var(--bg-primary); }
   .mob-overspent-name { font-size: 11px; }
   .mob-overspent-cover { padding: 6px 10px; font-size: 10px; min-height: 28px; }
 }
+
+/* =====================================================
+   v15.8.2 — Mobile Transaction Action Sheet + Day Totals + Dashboard Tabs
+   ===================================================== */
+
+/* Daily total expense beside date header */
+.mob-txn-date-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mob-txn-day-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--rose);
+  font-feature-settings: 'tnum';
+}
+
+/* Mobile Action Sheet (bottom sheet for edit/delete) */
+.mob-action-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-card);
+  border-radius: 16px 16px 0 0;
+  padding: 12px 16px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0));
+  box-shadow: 0 -8px 40px oklch(0 0 0/0.15);
+  animation: slideUp 250ms var(--ease-out);
+  z-index: 9600;
+}
+
+.mob-action-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: 0 auto 14px;
+}
+
+.mob-action-sheet-preview {
+  text-align: center;
+  padding: 14px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 14px;
+}
+
+.mob-action-sheet-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.mob-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 150ms var(--ease-out);
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mob-action-btn:active {
+  background: var(--bg-card);
+  transform: scale(0.98);
+}
+
+.mob-action-btn.mob-action-danger {
+  color: var(--rose);
+}
+
+.mob-action-btn.mob-action-danger i {
+  color: var(--rose);
+}
+
+.mob-action-cancel {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: center;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 150ms;
+}
+
+.mob-action-cancel:active {
+  background: var(--bg-card);
+}
+
+/* Mobile Dashboard Tabs (Overview / Insights) */
+.mob-dash-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mob-dash-tab {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 150ms var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  min-height: 38px;
+}
+
+.mob-dash-tab.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.mob-dash-tab:active {
+  transform: scale(0.97);
+}
+
+.mob-dash-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: fi 250ms var(--ease-out);
+}
