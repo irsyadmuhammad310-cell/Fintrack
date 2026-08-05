@@ -314,40 +314,66 @@ function getMobileOverspentHtml() {
   return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${monthLabel}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${item.cat}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
 }
 
-// === CASH FLOW FORECAST (v15.8.1) ===
+// === CASH FLOW FORECAST (v15.8.2 — Follows selected period) ===
 function safeBuildForecastHtml(mode) {
   try { return buildForecastHtml(mode); } catch (e) { console.warn('Forecast render error:', e); return ''; }
 }
 
 function computeCashFlowForecast() {
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
-  const today = now.getDate();
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const daysLeft = daysInMonth - today;
+  const mfEl = document.getElementById('mf');
+  const mf = mfEl ? mfEl.value : 'total';
+  const selectedYear = getSelectedYear();
 
+  // Determine which month to forecast
+  let targetYear, targetMonth;
+  if (mf !== 'total') {
+    targetYear = selectedYear;
+    targetMonth = parseInt(mf);
+  } else {
+    // Default to current month
+    targetYear = now.getFullYear();
+    targetMonth = now.getMonth();
+  }
+
+  const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+
+  // Determine "today" within the target month
+  let today;
+  const isCurrentMonth = (targetYear === now.getFullYear() && targetMonth === now.getMonth());
+  if (isCurrentMonth) {
+    today = now.getDate();
+  } else {
+    // For past months: full month (no forecast needed)
+    // For future months: day 0 (full month ahead)
+    const targetEnd = new Date(targetYear, targetMonth + 1, 0);
+    if (targetEnd < now) return null; // Past month, no forecast
+    today = 0; // Future month
+  }
+
+  const daysLeft = daysInMonth - today;
   if (daysLeft <= 0) return null;
 
-  // Get this month's transactions
+  // Get target month's transactions
   const monthTxns = TXN.filter(tx => {
     const d = new Date(tx.d);
-    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    return d.getFullYear() === targetYear && d.getMonth() === targetMonth;
   });
 
   const incomeThisMonth = monthTxns.filter(tx => tx.t === 'Income').reduce((s, tx) => s + tx.a, 0);
   const expenseThisMonth = monthTxns.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
   const savingsThisMonth = monthTxns.filter(tx => tx.t === 'Savings').reduce((s, tx) => s + tx.a, 0);
 
-  // Use budget plan if available, otherwise use actual income
+  // v15.8.2: Monthly income = actual income for the selected month (primary source)
+  // Fallback to budget plan income if actual is 0
   const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
-  const yearKey = String(currentYear);
-  const monthPlan = PLANS[yearKey] && PLANS[yearKey][currentMonth];
+  const yearKey = String(targetYear);
+  const monthPlan = PLANS[yearKey] && PLANS[yearKey][targetMonth];
 
   let monthlyIncome = incomeThisMonth;
-  if (monthPlan) {
+  if (monthlyIncome <= 0 && monthPlan) {
     const planInc = monthPlan.incCats ? Object.values(monthPlan.incCats).reduce((s, v) => s + v, 0) : (monthPlan.i || 0);
-    if (planInc > 0) monthlyIncome = Math.max(monthlyIncome, planInc);
+    if (planInc > 0) monthlyIncome = planInc;
   }
 
   // Available to spend = income - savings - expenses already made
@@ -371,7 +397,9 @@ function computeCashFlowForecast() {
     monthlyIncome,
     expenseThisMonth,
     savingsThisMonth,
-    onTrack: projectedEndBalance >= 0
+    onTrack: projectedEndBalance >= 0,
+    targetMonth,
+    targetYear
   };
 }
 
@@ -515,6 +543,27 @@ function renderMobileDashboard(c, year) {
     return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${cat.n}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
   }).join('');
 
+  // v15.8.2: Build Insights tab content (Cash Flow Forecast + AI Insight)
+  const insightForecast = safeBuildForecastHtml('mobile');
+  const insightAI = generateDashInsights(yearData, computeExpenseCategories(year), ti, te, ts, nw, cf, year, mf);
+  const ffmVal = getFinancialFreedomMonths(year, mf);
+  const savRateInsight = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
+  const insightsContent = `
+    ${insightForecast}
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px">📊 Financial Summary</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Savings Rate</div><div style="font-size:16px;font-weight:800;color:${+savRateInsight >= 20 ? 'var(--emerald)' : 'var(--rose)'}">${savRateInsight}%</div></div>
+        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Cash Flow</div><div style="font-size:16px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmtD(cf)}</div></div>
+        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Freedom</div><div style="font-size:16px;font-weight:800;color:var(--accent)">${ffmVal}mo</div></div>
+        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Budget Used</div><div style="font-size:16px;font-weight:800;color:${+budgetUsed > 90 ? 'var(--rose)' : 'var(--text-primary)'}">${budgetUsed}%</div></div>
+      </div>
+    </div>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px">🤖 AI Insight</div>
+      <div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${insightAI.replace(/<div class="ic"><span class="ie">🤖<\/span><div class="ix">/g,'').replace(/<\/div><\/div>$/,'')}</div>
+    </div>`;
+
   c.innerHTML = `<div class="mob-dash">
     <div class="mob-dash-balance">
       <div class="mob-dash-greeting">${getGreeting()}</div>
@@ -526,16 +575,24 @@ function renderMobileDashboard(c, year) {
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_expense')}</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
-    ${getMobileOverspentHtml()}
-    ${safeBuildForecastHtml('mobile')}
-    <div class="mob-dash-chart">
-      <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
-      <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
+    <div class="mob-dash-tabs">
+      <button class="mob-dash-tab active" onclick="switchMobDashTab('overview',this)">Overview</button>
+      <button class="mob-dash-tab" onclick="switchMobDashTab('insights',this)">Insights</button>
     </div>
-    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
-    <div class="mob-dash-recent">
-      <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
-      ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
+    <div class="mob-dash-tab-content" id="mobDashTabOverview">
+      ${getMobileOverspentHtml()}
+      <div class="mob-dash-chart">
+        <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
+        <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
+      </div>
+      ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
+      <div class="mob-dash-recent">
+        <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
+        ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
+      </div>
+    </div>
+    <div class="mob-dash-tab-content" id="mobDashTabInsights" style="display:none">
+      ${insightsContent}
     </div>
   </div>`;
 
@@ -568,4 +625,12 @@ function renderMobileDashboard(c, year) {
       }
     });
   }, 50);
+}
+
+// v15.8.2: Mobile dashboard tab switcher
+function switchMobDashTab(tab, el) {
+  document.querySelectorAll('.mob-dash-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('mobDashTabOverview').style.display = tab === 'overview' ? '' : 'none';
+  document.getElementById('mobDashTabInsights').style.display = tab === 'insights' ? '' : 'none';
 }
