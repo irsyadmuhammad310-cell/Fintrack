@@ -16,7 +16,7 @@ function renderTransactions(c) {
   renderTxnTable();
 }
 
-// === MOBILE TRANSACTIONS (v15.8.1 — Card-free interactive list) ===
+// === MOBILE TRANSACTIONS (v15.8.2 — Edit/Delete + Daily totals) ===
 function renderMobileTransactions(c) {
   const year = getSelectedYear();
   const m = document.getElementById('mf').value;
@@ -65,7 +65,11 @@ function renderMobileTransactions(c) {
     else if (d.toDateString() === yesterday.toDateString()) dateLabel = t('txn_yesterday');
     else dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: d.getFullYear() !== year ? 'numeric' : undefined });
 
-    listHtml += `<div class="mob-txn-date-header">${dateLabel}</div>`;
+    // v15.8.2: Calculate daily total expense for this date
+    const dayExpense = txns.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
+    const dayExpLabel = dayExpense > 0 ? `<span class="mob-txn-day-total">-${fmtD(dayExpense)}</span>` : '';
+
+    listHtml += `<div class="mob-txn-date-header">${dateLabel}${dayExpLabel}</div>`;
     txns.forEach(tx => {
       const emoji = typeof catEmoji(tx.c) === 'function' ? catEmoji(tx.c)(tx) : catEmoji(tx.c);
       const amtColor = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
@@ -73,7 +77,7 @@ function renderMobileTransactions(c) {
       const bgColor = tx.t === 'Income' ? 'var(--emerald-light)' : tx.t === 'Savings' ? 'var(--blue-light)' : 'var(--rose-light)';
       const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
       const meta = [tx.c, tx.s, accName].filter(Boolean).join(' · ');
-      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit',${tx.id})">
+      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="showMobTxnActions(${tx.id})">
         <div class="mob-txn-cat-dot" style="background:${bgColor}">${emoji}</div>
         <div class="mob-txn-info">
           <div class="mob-txn-name">${tx.dt || tx.c}</div>
@@ -96,6 +100,38 @@ function renderMobileTransactions(c) {
     </div>
     ${filterHtml}
     <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
+  lucide.createIcons();
+}
+
+// v15.8.2: Mobile transaction action sheet (Edit / Delete)
+function showMobTxnActions(id) {
+  const tx = TXN.find(x => x.id === id);
+  if (!tx) return;
+  const amtColor = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
+  const sign = tx.t === 'Income' ? '+' : '-';
+  const h = `<div class="mo show" id="mobTxnSheet" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}">
+    <div class="mob-action-sheet" onclick="event.stopPropagation()">
+      <div class="mob-action-sheet-handle"></div>
+      <div class="mob-action-sheet-preview">
+        <div style="font-size:14px;font-weight:700">${tx.dt || tx.c}</div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${tx.c}${tx.s ? ' · ' + tx.s : ''} · ${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+        <div style="font-size:18px;font-weight:800;color:${amtColor};margin-top:6px;font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div>
+      </div>
+      <div class="mob-action-sheet-actions">
+        <button class="mob-action-btn" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow='';doAuth('edit',${id})">
+          <i data-lucide="pencil" width="16" height="16"></i>
+          <span>Edit Transaction</span>
+        </button>
+        <button class="mob-action-btn mob-action-danger" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow='';doAuth('delete',${id})">
+          <i data-lucide="trash-2" width="16" height="16"></i>
+          <span>Delete Transaction</span>
+        </button>
+      </div>
+      <button class="mob-action-cancel" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow=''">Cancel</button>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', h);
+  document.body.style.overflow = 'hidden';
   lucide.createIcons();
 }
 
