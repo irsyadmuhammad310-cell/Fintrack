@@ -11,41 +11,9 @@ document.querySelectorAll('.ni').forEach(el => el.addEventListener('click', () =
   navigate(el.dataset.page);
 }));
 
-function navigate(page) {
-  curPage = page;
-  const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
-  document.getElementById('pt').textContent = t(titleKeys[page]) || page;
-  document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
-
-  // Set default month filter per tab
-  const mf = document.getElementById('mf');
-  if (mf) {
-    if (page === 'transactions') {
-      // Transactions defaults to current month
-      mf.value = String(new Date().getMonth());
-    } else if (page === 'dashboard' || page === 'analytics') {
-      // Dashboard & Insights default to total year
-      mf.value = 'total';
-    }
-  }
-
-  // Sync sidebar nav
-  document.querySelectorAll('.ni').forEach(i => i.classList.remove('active'));
-  const sidebarItem = document.querySelector(`.ni[data-page="${page}"]`);
-  if (sidebarItem) sidebarItem.classList.add('active');
-
-  // Sync bottom nav (mobile)
-  syncBottomNav(page);
-
-  // v15.3.1: Toggle FABs based on active tab (mobile only)
-  updateMobileFAB(page);
-
-  render();
-}
-
-// v15.3.1: FAB logic — Add FAB on Home/Transactions, AI FAB on all others
+// v15.3.1: FAB logic
 function updateMobileFAB(page) {
-  if (window.innerWidth > 900) return; // Desktop: do nothing
+  if (window.innerWidth > 900) return;
   const addFab = document.getElementById('mobGlobalFab');
   const aiFab = document.getElementById('aiFab');
   if (page === 'dashboard' || page === 'transactions') {
@@ -79,3 +47,84 @@ function render() {
 }
 
 function refresh() { render(); }
+
+// === HARDWARE BACK BUTTON (Android / PWA) ===
+// Uses browser history API: each navigation pushes state.
+// Back button pops history → navigates back. Double-back on Home exits app.
+let _lastBackTime = 0;
+
+function navigate(page) {
+  curPage = page;
+  // Push to browser history so hardware back button works
+  if (history.state?.page !== page) {
+    history.pushState({ page }, '', '');
+  }
+  const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
+  document.getElementById('pt').textContent = t(titleKeys[page]) || page;
+  document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
+
+  // Set default month filter per tab
+  const mf = document.getElementById('mf');
+  if (mf) {
+    if (page === 'transactions') {
+      mf.value = String(new Date().getMonth());
+    } else if (page === 'dashboard' || page === 'analytics') {
+      mf.value = 'total';
+    }
+  }
+
+  // Sync sidebar nav
+  document.querySelectorAll('.ni').forEach(i => i.classList.remove('active'));
+  const sidebarItem = document.querySelector(`.ni[data-page="${page}"]`);
+  if (sidebarItem) sidebarItem.classList.add('active');
+
+  // Sync bottom nav (mobile)
+  syncBottomNav(page);
+
+  // v15.3.1: Toggle FABs based on active tab (mobile only)
+  updateMobileFAB(page);
+
+  render();
+}
+
+// Listen for popstate (hardware back button)
+window.addEventListener('popstate', function(e) {
+  // Close any open modals first
+  const modal = document.querySelector('.mo.show') || document.querySelector('.bsheet.show') || document.getElementById('coverSheet') || document.getElementById('mobTxnSheet');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = '';
+    // Re-push current state so next back still works
+    history.pushState({ page: curPage }, '', '');
+    return;
+  }
+
+  // If we have a previous page in state, go there
+  if (e.state && e.state.page) {
+    curPage = e.state.page;
+    syncBottomNav(curPage);
+    updateMobileFAB(curPage);
+    render();
+    return;
+  }
+
+  // If on dashboard (home), double-back to exit
+  if (curPage === 'dashboard') {
+    const now = Date.now();
+    if (now - _lastBackTime < 2000) {
+      // Double back: close the app (or go to browser)
+      window.close();
+      // If window.close doesn't work (PWA), navigate away
+      history.back();
+      return;
+    }
+    _lastBackTime = now;
+    toast('Press back again to exit');
+    // Push state back so we don't actually leave
+    history.pushState({ page: 'dashboard' }, '', '');
+    return;
+  }
+
+  // Otherwise go back to dashboard
+  navigate('dashboard');
+});
