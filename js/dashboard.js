@@ -1,6 +1,6 @@
 // === DASHBOARD (FinTrack Premium V1.0.0) ===
 function renderDashboard(c) {
-  const year = getSelectedYear()
+  const year = getSelectedYear();
 
   // v15.8.1: Mobile gets stripped-down dashboard (unless user forced desktop view)
   const forceDesktop = localStorage.getItem('ft_desktop_mode') === 'true';
