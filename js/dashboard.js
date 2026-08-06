@@ -48,7 +48,7 @@ function renderDashboard(c) {
         else if (tx.t === 'Savings') monthly[mi] -= tx.a;
       }
     });
-    const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.initialBalance), 0);
+    const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'), 0);
     const base = INITIAL_DEPOSIT - liabTotal;
     const priorYears = TXN.filter(tx => new Date(tx.d).getFullYear() < year).reduce((s, tx) => {
       if (tx.t === 'Income') return s + tx.a;
@@ -165,7 +165,7 @@ ${safeBuildForecastHtml('desktop')}
     });
 
     // Main trend chart
-    const savLine = yearData.map(m => m.i - m.e);
+    const savLine = yearData.map(m => m.s);
     let mainChart = null;
     function drawMainChart(chartType) {
       if (mainChart) mainChart.destroy();
