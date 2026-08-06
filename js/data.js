@@ -109,9 +109,12 @@ function saveACCOUNTS() { localStorage.setItem('ft_accounts', JSON.stringify(ACC
 function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
   if (!acc) return 0;
+  const cur = acc.currency || 'MYR';
   const txnTotal = TXN.filter(tx => tx.acc === accId).reduce((sum, tx) => {
-    if (tx.t === 'Income') return sum + tx.a;
-    if (tx.t === 'Expense') return sum - tx.a;
+    // tx.a is stored in MYR; convert back to native currency for correct balance
+    const nativeAmt = cur === 'MYR' ? tx.a : convertFromTo(tx.a, 'MYR', cur);
+    if (tx.t === 'Income') return sum + nativeAmt;
+    if (tx.t === 'Expense') return sum - nativeAmt;
     return sum;
   }, 0);
   return acc.initialBalance + txnTotal;
@@ -194,8 +197,8 @@ function getNetWorthByPeriod(year, month) {
     else if (tx.t === 'Expense') nw -= tx.a;
     else if (tx.t === 'Savings') nw -= tx.a;
   });
-  // Subtract liability balances (converted to display currency) (v15.1)
-  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => { nw -= convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'); });
+  // Subtract liability balances converted to MYR (base currency)
+  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => { nw -= convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'); });
   return nw;
 }
 
@@ -393,6 +396,7 @@ function getBANKS() {
 }
 
 // === COMPUTED DATA (derived from TXN) ===
+// NOTE: tx.a is already in MYR (base currency, converted at save time). No further conversion needed.
 function computeMonthlyData(year) {
   const months = [];
   for (let m = 0; m < 12; m++) {
