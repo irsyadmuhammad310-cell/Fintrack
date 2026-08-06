@@ -298,6 +298,18 @@ function anGetInsights(inc, exp, sav, net, year, MD) {
 }
 
 // === MOBILE INSIGHTS (V1.0.0 — Full Analytics Page) ===
+// All insight/health functions live here (moved from dashboard.js)
+
+// Liquidity tiers by account type
+const LIQUIDITY_HIGH = ['Cash', 'Savings Account', 'Digital Wallet'];
+const LIQUIDITY_MID = ['Current Account', 'Credit/Debit Card'];
+const LIQUIDITY_LOW = ['Investment Account'];
+
+function getHighLiquidityAssets() {
+  return ACCOUNTS.filter(a => a.type === 'asset' && LIQUIDITY_HIGH.includes(a.accountType))
+    .reduce((s, a) => s + getAccountBalance(a.id), 0);
+}
+
 function renderMobileInsights(c, year, month) {
   anDestroy();
   var mf = document.getElementById('mf') ? document.getElementById('mf').value : 'total';
@@ -315,7 +327,6 @@ function renderMobileInsights(c, year, month) {
   var periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : getYearlyBudgetTotal(year);
   var budgetUsed = periodBudget > 0 ? Math.min(100, (te / periodBudget * 100)).toFixed(0) : 0;
 
-  // Use the comprehensive V1.0.0 Insights builder from dashboard.js
   var html = '<div class="mob-insights">';
   html += buildMobileInsightsTab(MD, year, mf, ti, te, ts, nw, net, budgetUsed, periodBudget);
   html += '</div>';
