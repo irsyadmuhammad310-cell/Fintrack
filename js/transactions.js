@@ -1,4 +1,4 @@
-// === TRANSACTIONS (v15.8.1) ===
+// === TRANSACTIONS (FinTrack Premium V1.0.0) ===
 function renderTransactions(c) {
   const selYear = getSelectedYear();
   const selMonth = document.getElementById('mf').value;
@@ -16,7 +16,7 @@ function renderTransactions(c) {
   renderTxnTable();
 }
 
-// === MOBILE TRANSACTIONS (v15.8.2 — Edit/Delete + Daily totals) ===
+// === MOBILE TRANSACTIONS (V1.0.0 — Edit/Delete + Daily totals) ===
 function renderMobileTransactions(c) {
   const year = getSelectedYear();
   const m = document.getElementById('mf').value;
@@ -77,7 +77,7 @@ function renderMobileTransactions(c) {
       const bgColor = tx.t === 'Income' ? 'var(--emerald-light)' : tx.t === 'Savings' ? 'var(--blue-light)' : 'var(--rose-light)';
       const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
       const meta = [tx.c, tx.s, accName].filter(Boolean).join(' · ');
-      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="showMobTxnActions(${tx.id})">
+      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit',${tx.id})">
         <div class="mob-txn-cat-dot" style="background:${bgColor}">${emoji}</div>
         <div class="mob-txn-info">
           <div class="mob-txn-name">${tx.dt || tx.c}</div>
@@ -100,38 +100,6 @@ function renderMobileTransactions(c) {
     </div>
     ${filterHtml}
     <div class="mob-txn-list" id="mobTxnList">${listHtml}</div>`;
-  lucide.createIcons();
-}
-
-// v15.8.2: Mobile transaction action sheet (Edit / Delete)
-function showMobTxnActions(id) {
-  const tx = TXN.find(x => x.id === id);
-  if (!tx) return;
-  const amtColor = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-  const sign = tx.t === 'Income' ? '+' : '-';
-  const h = `<div class="mo show" id="mobTxnSheet" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}">
-    <div class="mob-action-sheet" onclick="event.stopPropagation()">
-      <div class="mob-action-sheet-handle"></div>
-      <div class="mob-action-sheet-preview">
-        <div style="font-size:14px;font-weight:700">${tx.dt || tx.c}</div>
-        <div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${tx.c}${tx.s ? ' · ' + tx.s : ''} · ${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-        <div style="font-size:18px;font-weight:800;color:${amtColor};margin-top:6px;font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div>
-      </div>
-      <div class="mob-action-sheet-actions">
-        <button class="mob-action-btn" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow='';doAuth('edit',${id})">
-          <i data-lucide="pencil" width="16" height="16"></i>
-          <span>Edit Transaction</span>
-        </button>
-        <button class="mob-action-btn mob-action-danger" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow='';doAuth('delete',${id})">
-          <i data-lucide="trash-2" width="16" height="16"></i>
-          <span>Delete Transaction</span>
-        </button>
-      </div>
-      <button class="mob-action-cancel" onclick="document.getElementById('mobTxnSheet').remove();document.body.style.overflow=''">Cancel</button>
-    </div>
-  </div>`;
-  document.body.insertAdjacentHTML('beforeend', h);
-  document.body.style.overflow = 'hidden';
   lucide.createIcons();
 }
 
@@ -195,7 +163,7 @@ function openAdd() {
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><button class="mx" onclick="tryClose()">✕</button></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">${t('dash_savings')}</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose)" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">${t('dash_savings')}</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   // Bootstrap category memory on first modal open
