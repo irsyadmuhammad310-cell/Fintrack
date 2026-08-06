@@ -1,4 +1,4 @@
-// === INIT (v11.5 Modular Boot) ===
+// === INIT (FinTrack Premium V1.0.0 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
@@ -573,21 +573,20 @@ function showRecoveryReminder() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-// === UPDATE BANNER (v15.1 — PWA User-Controlled Update) ===
+// === UPDATE BANNER (V1.0.0 — PWA User-Controlled Update) ===
 // Changelog: shown to user before they decide to update
 const FINTRACK_CHANGELOG = {
-  'fintrack-v15.3.1': {
-    version: 'v15.3.1',
-    date: '28 Jul 2026',
+  'fintrack-v1.0.0': {
+    version: 'V1.0.0',
+    date: '5 Aug 2026',
     changes: [
-      'Mobile FAB: Add Transaction on Home/Transactions only, AI Assistant on other tabs',
-      'Dashboard auto-refreshes after transaction add/edit/delete',
-      'Budget Planner shows planned values (not actual spending)',
-      'Bottom nav: Home, Transactions, Goals, Insights, Settings',
-      'Language switching updates all UI immediately',
-      'Expanded currency list (50+ currencies including Middle East)',
-      'Direct-click currency and language selection in Settings',
-      'Settings reorganized: Profile, Preferences, Financial, System'
+      'Mobile Insights: Cash Flow, Expense Breakdown, Account Breakdown, Dynamic AI Insights',
+      'Financial Health: CFP Board standard 6-ratio model (savings, housing, debt, liquidity, expenses, net worth)',
+      'Transactions: Edit/Delete action sheet, daily expense totals per date header',
+      'Dashboard: Overview/Insights tabs, Cash Flow Forecast follows selected period',
+      'All data synchronized with selected Year and Month',
+      'Multilingual financial health detection (EN, Malay, Indo, CN, JP, KO, RU)',
+      'Version unified to FinTrack Premium V1.0.0'
     ]
   }
 };
