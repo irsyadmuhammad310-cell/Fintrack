@@ -522,10 +522,17 @@ function copyBudgetToAll(year, monthIdx) {
 
 // === COVER OVERSPENDING FLOW (v15.8) ===
 function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
+  // Ensure types are correct
+  monthIdx = parseInt(monthIdx);
+  year = parseInt(year);
   const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  // Try year as string (JSON always stores object keys as strings)
   const yearKey = String(year);
-  const monthPlan = PLANS[yearKey] && PLANS[yearKey][monthIdx];
-  if (!monthPlan || !monthPlan.expCats) { toast('❌ No budget plan found'); return; }
+  const yearPlans = PLANS[yearKey] || PLANS[year] || null;
+  if (!yearPlans) { toast('❌ No budget plans for ' + year); return; }
+  // Brute force: try every possible key format for the month
+  const monthPlan = yearPlans[monthIdx] || yearPlans[String(monthIdx)] || yearPlans[monthIdx.toString().padStart(2, '0')] || (() => { const keys = Object.keys(yearPlans); const match = keys.find(k => parseInt(k) === monthIdx); return match ? yearPlans[match] : null; })();
+  if (!monthPlan || !monthPlan.expCats || Object.keys(monthPlan.expCats).length === 0) { toast('❌ No expense budget set for ' + MONTH_NAMES[monthIdx] + ' ' + year); return; }
 
   // Get actual spending per category this month
   const monthTxns = TXN.filter(tx => {
@@ -640,11 +647,17 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
 
   const plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
   const yearKey = String(year);
-  if (!plans[yearKey] || !plans[yearKey][monthIdx]) { toast('❌ Budget plan not found'); return; }
+  // Try both numeric and string key
+  if (!plans[yearKey] && !plans[year]) { toast('❌ Budget plan not found'); return; }
+  const yearPlans = plans[yearKey] || plans[year];
+  const plan = yearPlans[monthIdx] || yearPlans[String(monthIdx)] || (() => { const keys = Object.keys(yearPlans); const match = keys.find(k => parseInt(k) === monthIdx); return match ? yearPlans[match] : null; })();
+  if (!plan || !plan.expCats) { toast('❌ Budget plan not found for this month'); return; }
 
-  const plan = plans[yearKey][monthIdx];
-  if (!plan.expCats[fromCat] && plan.expCats[fromCat] !== 0) { toast('❌ Source category not found'); return; }
-  if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found'); return; }
+  // Find which key was used so we can save back correctly
+  const monthKey = yearPlans[monthIdx] ? monthIdx : String(monthIdx);
+
+  if (!plan.expCats[fromCat] && plan.expCats[fromCat] !== 0) { toast('❌ Source category not found in budget'); return; }
+  if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found in budget'); return; }
 
   // FIX 1: Cap transfer at source's actual budget (prevent creating money)
   const actualAmt = Math.min(amount, plan.expCats[fromCat]);
@@ -657,6 +670,8 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   // Recalculate totals
   plan.e = Math.round(Object.values(plan.expCats).reduce((s, v) => s + v, 0) * 100) / 100;
 
+  // Save back using the correct key
+  plans[yearKey][monthKey] = plan;
   localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
   closeCoverSheet();
   toast(`✅ Moved ${fmt(actualAmt)} from ${fromCat} → ${toCat}`);
