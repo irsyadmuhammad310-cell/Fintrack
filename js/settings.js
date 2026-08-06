@@ -1,7 +1,7 @@
-// === SETTINGS (v15.8.1) ===
+// === SETTINGS (FinTrack Premium V1.0.0) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'v15.8.1';
+const FINTRACK_VERSION = 'V1.0.0';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
@@ -83,7 +83,7 @@ async function checkForUpdates() {
 function renderGeneralTab(c) {
   let html = '';
   // AI Assistant section
-  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="sparkles" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_ai_assistant')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_ai_desc')}</div></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">${t('set_api_key')}</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_gemini_key" value="${getAIKey()}" placeholder="Paste your Gemini API key" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGeminiKey()">${t('misc_save')}</button></div></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6">Get a free key: <b>aistudio.google.com</b></div><div id="geminiKeyStatus" style="margin-top:8px"></div></div>`;
+  html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="sparkles" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">${t('set_ai_assistant')}</div><div style="font-size:10px;color:var(--text-tertiary)">${t('set_ai_desc')}</div></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">${t('set_api_key')} (Gemini)</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_gemini_key" value="${getAIKey()}" placeholder="Paste your Gemini API key" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGeminiKey()">${t('misc_save')}</button></div></div><div style="margin-bottom:10px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Groq API Key (Fallback)</label><div style="display:flex;gap:8px"><input class="fi" type="password" id="set_groq_key" value="${getGroqKey()}" placeholder="Paste your Groq API key (optional)" style="font-size:12px;flex:1"><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="saveGroqKey()">${t('misc_save')}</button></div></div><div style="font-size:10px;color:var(--text-tertiary);line-height:1.6">Gemini: <b>aistudio.google.com</b> · Groq: <b>console.groq.com/keys</b> (free, faster, used as fallback)</div><div id="geminiKeyStatus" style="margin-top:8px"></div></div>`;
   // Auto-Categorization section
   const catMemSize = Object.keys(JSON.parse(localStorage.getItem('ft_cat_memory') || '{}')).length;
   html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="brain" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Auto-Categorization</div><div style="font-size:10px;color:var(--text-tertiary)">Learns from your past transactions to auto-suggest categories</div></div></div><div class="trow"><div class="tinf"><div class="tna">Smart Suggestions</div><div class="tde">Show category suggestions when typing descriptions</div></div><div class="tsw ${localStorage.getItem('ft_autocat_off') !== 'true' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_autocat_off',this.classList.contains('on')?'false':'true')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px"><div><div style="font-size:11px;font-weight:500">Category Memory</div><div style="font-size:10px;color:var(--text-tertiary)">${catMemSize} learned pattern${catMemSize !== 1 ? 's' : ''} stored</div></div><button class="btn bs" style="font-size:10px;padding:5px 12px;color:var(--rose);border-color:var(--rose)" onclick="if(confirm('Clear all learned category patterns? The system will re-learn from scratch.')){clearCatMemory();renderGeneralTab(document.getElementById('setc'))}">Clear Memory</button></div></div>`;
@@ -307,12 +307,21 @@ function promptDeleteSub(type, cat, sub) {
 function saveGeminiKey() {
   const key = document.getElementById('set_gemini_key').value.trim();
   setAIKey(key);
+  // Clear cooldown when key changes
+  localStorage.removeItem('ft_ai_cooldown');
+  if (typeof aiRateLimitUntil !== 'undefined') aiRateLimitUntil = 0;
   const status = document.getElementById('geminiKeyStatus');
   if (key) {
-    status.innerHTML = '<span style="color:var(--emerald);font-size:11px;font-weight:500">✅ Key saved. AI chat is now powered by Gemini.</span>';
+    status.innerHTML = '<span style="color:var(--emerald);font-size:11px;font-weight:500">✅ Gemini key saved. Cooldown cleared.</span>';
   } else {
-    status.innerHTML = '<span style="color:var(--text-tertiary);font-size:11px">Key removed. AI will prompt for setup.</span>';
+    status.innerHTML = '<span style="color:var(--text-tertiary);font-size:11px">Key removed.</span>';
   }
+}
+
+function saveGroqKey() {
+  const key = document.getElementById('set_groq_key').value.trim();
+  setGroqKey(key);
+  toast(key ? '✅ Groq key saved (fallback active)' : '🗑 Groq key removed');
 }
 
 function handleAddYear() {
