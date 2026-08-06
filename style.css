@@ -2290,3 +2290,55 @@ tr:hover td { background: var(--bg-primary); }
   gap: 10px;
   animation: fi 250ms var(--ease-out);
 }
+
+/* V1.0.0 Fix: All tabs scrollable on mobile */
+@media (max-width: 900px) {
+  .cnt {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    height: calc(100vh - 56px - 64px) !important;
+    max-height: calc(100vh - 56px - 64px) !important;
+  }
+  .mob-dash, .mob-txn-list, .mob-insights, .pg {
+    overflow-y: visible !important;
+    min-height: auto !important;
+  }
+}
+
+/* V1.0.0: Refined Mobile Transaction UI */
+.mob-txn-row {
+  border-radius: 10px;
+  padding: 12px 10px !important;
+  margin-bottom: 2px;
+  border-bottom: none !important;
+  transition: background 100ms;
+}
+
+.mob-txn-row:active {
+  background: var(--bg-card) !important;
+  transform: scale(0.99);
+}
+
+@media (max-width: 900px) {
+  .mob-txn-date-header {
+    padding: 14px 4px 8px !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 4px;
+  }
+  .mob-txn-summary {
+    gap: 6px !important;
+    margin-bottom: 12px !important;
+  }
+  .mob-txn-pill {
+    padding: 12px 8px !important;
+    border-radius: 12px !important;
+  }
+  .mob-txn-pill-val {
+    font-size: 15px !important;
+  }
+}
