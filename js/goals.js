@@ -133,7 +133,7 @@ function renderGoals(c) {
     pInc = MD[+mf].i; pExp = MD[+mf].e; pSav = MD[+mf].s;
   }
   const incPct = budgetTotalForProgress > 0 ? Math.min((pInc / budgetTotalForProgress * 100), 100).toFixed(0) : 0;
-  const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : budgetTotalForProgress / 12) * 100), 100).toFixed(0) : 0;
+  const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
   const savPct = pInc > 0 ? Math.min((pSav / pInc * 100), 100).toFixed(0) : 0;
 
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:10px">${t('goal_budget_progress')}</div>`;
