@@ -23,19 +23,6 @@ function renderGoals(c) {
   const totalRemaining = totalTarget - totalSaved;
   const overallPct = totalTarget > 0 ? (totalSaved / totalTarget * 100).toFixed(0) : 0;
 
-  // === GOAL SUMMARY (6 KPI cards) ===
-  const budgetTotal = getYearlyBudgetTotal(year);
-  const totalExp = MD.reduce((s, m) => s + m.e, 0);
-  const budgetLeft = budgetTotal - totalExp;
-  let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:20px">`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_total')}</div><div class="goal-kpi-val">${GOALS.length}</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_progress')}</div><div class="goal-kpi-val">${overallPct}%</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_saved')}</div><div class="goal-kpi-val" style="color:var(--emerald)">${fmt(totalSaved)}</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_annual_budget')}</div><div class="goal-kpi-val">${fmt(budgetTotal)}</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_actual_spent')}</div><div class="goal-kpi-val" style="color:var(--rose)">${fmt(totalExp)}</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_budget_left')}</div><div class="goal-kpi-val" style="color:${budgetLeft >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${budgetLeft < 0 ? '-' : ''}${fmt(Math.abs(budgetLeft))}</div></div>`;
-  html += `</div>`;
-
   // === GOAL PROGRESS SECTION ===
   html += `<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><div><div style="font-size:16px;font-weight:700">${t('goal_progress')}</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">${t('goal_sub')}</div></div><button class="btn bp" style="font-size:11px;padding:6px 14px" onclick="openGoalModal()"><i data-lucide="plus" width="11" height="11"></i> ${t('goal_add')}</button></div>`;
 
