@@ -818,15 +818,6 @@ function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, per
   // Cash flow trend
   if (cf < 0) insights.push({ icon: '📉', text: `Negative cash flow of <b>${fmt(Math.abs(cf))}</b>. Spending exceeds income after savings.` });
   else if (cf > ti * 0.3) insights.push({ icon: '🚀', text: `Strong positive cash flow: <b>${fmt(cf)}</b>. Consider investing the surplus.` });
-
-  // Expense vs prev month comparison
-  if (mf !== 'total' && +mf > 0) {
-    const prevE = yearData[+mf - 1].e;
-    if (prevE > 0) {
-      const change = ((te - prevE) / prevE * 100).toFixed(0);
-      if (+change > 15) insights.push({ icon: '📈', text: `Expenses up <b>${change}%</b> vs ${MONTH_NAMES[+mf - 1]}. Check for one-off or recurring increases.` });
-      else if (+change < -10) insights.push({ icon: '📉', text: `Expenses down <b>${Math.abs(change)}%</b> vs ${MONTH_NAMES[+mf - 1]}. Great cost control!` });
-    }
   }
 
   if (!insights.length) insights.push({ icon: '🤖', text: `Your finances for <b>${monthName}</b> look stable. Keep tracking consistently.` });
