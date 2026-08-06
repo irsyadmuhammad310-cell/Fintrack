@@ -117,7 +117,11 @@ function renderSysSub(sub) {
   let html = `<div style="margin-bottom:12px"><button class="btn bs" style="font-size:11px;padding:5px 10px" onclick="renderSystemTab(document.getElementById('setc'))"><i data-lucide="arrow-left" width="11" height="11"></i> Back</button></div>`;
   if (sub === 'budgetcat') {
     const catMemSize = Object.keys(JSON.parse(localStorage.getItem('ft_cat_memory') || '{}')).length;
-    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Budget Categorization</div><div class="trow"><div class="tinf"><div class="tna">Smart Suggestions</div><div class="tde">Auto-suggest categories when typing</div></div><div class="tsw ${localStorage.getItem('ft_autocat_off') !== 'true' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_autocat_off',this.classList.contains('on')?'false':'true')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px"><div><div style="font-size:11px;font-weight:500">Category Memory</div><div style="font-size:10px;color:var(--text-tertiary)">${catMemSize} patterns learned</div></div><button class="btn bs" style="font-size:10px;padding:5px 12px;color:var(--rose);border-color:var(--rose)" onclick="if(confirm('Clear all patterns?')){if(typeof clearCatMemory==='function')clearCatMemory();renderSysSub('budgetcat')}">Clear</button></div></div>`;
+    const storageUsed = new Blob(Object.entries(localStorage).map(([k,v]) => k + v)).size;
+    const storageMax = 5 * 1024 * 1024;
+    const storagePct = Math.min(100, (storageUsed / storageMax * 100)).toFixed(1);
+    const storageColor = storagePct > 80 ? 'var(--rose)' : storagePct > 60 ? 'var(--amber)' : 'var(--emerald)';
+    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Budget Categorization</div><div class="trow"><div class="tinf"><div class="tna">Smart Suggestions</div><div class="tde">Auto-suggest categories when typing</div></div><div class="tsw ${localStorage.getItem('ft_autocat_off') !== 'true' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_autocat_off',this.classList.contains('on')?'false':'true')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px"><div><div style="font-size:11px;font-weight:500">Category Memory</div><div style="font-size:10px;color:var(--text-tertiary)">${catMemSize} patterns learned</div></div><button class="btn bs" style="font-size:10px;padding:5px 12px;color:var(--rose);border-color:var(--rose)" onclick="if(confirm('Clear all patterns?')){if(typeof clearCatMemory==='function')clearCatMemory();renderSysSub('budgetcat')}">Clear</button></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="hard-drive" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Storage</div><div style="font-size:10px;color:var(--text-tertiary)">${(storageUsed/1024).toFixed(0)} KB of ~5 MB used (${storagePct}%)</div></div></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:${storagePct}%;background:${storageColor};border-radius:3px;transition:width 300ms"></div></div></div>`;
   } else if (sub === 'years') {
     html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Year Management</div><div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()">+ Add</button></div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
     YEARS.forEach(y => { const hasData = yearHasData(y); const isCurrent = y === CURRENT_YEAR; html += `<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'};border-radius:7px;background:${isCurrent ? 'var(--accent-light)' : 'var(--bg-primary)'};font-size:12px;font-weight:${isCurrent ? '600' : '500'}"><span>${y}</span>${hasData ? '<span style="font-size:8px;color:var(--emerald);font-weight:600;margin-left:2px">DATA</span>' : ''}<button style="border:none;background:none;color:${hasData ? 'var(--border)' : 'var(--rose)'};cursor:${hasData ? 'not-allowed' : 'pointer'};font-size:12px;padding:0 2px;opacity:${hasData ? '0.3' : '1'}" onclick="${hasData ? '' : 'handleRemoveYear(' + y + ')'}">✕</button></div>`; });
@@ -197,15 +201,15 @@ function switchLang(lang) {
 // === CATEGORIES & ACCOUNTS TAB ===
 function renderCatAccountsTab(c) {
   let html = '<div style="margin-bottom:24px">';
-  html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> ${t('cat_title')}</div>`;
+  html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="display:flex;gap:4px">`;
   ['Income','Expense','Savings'].forEach(tp => {
-    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderCatAccountsTab(document.getElementById('setc'))">${t('misc_' + tp.toLowerCase())}</button>`;
+    html += `<button class="btn ${catTypeFilter === tp ? 'bp' : 'bs'}" style="font-size:11px;padding:5px 12px" onclick="catTypeFilter='${tp}';renderCatAccountsTab(document.getElementById('setc'))">${tp}</button>`;
   });
-  html += `</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="promptAddCategory()"><i data-lucide="plus" width="11" height="11"></i> ${t('cat_add')}</button></div>`;
+  html += `</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="promptAddCategory()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
   const cats = SCHEMA[catTypeFilter] || {};
   if (!Object.keys(cats).length) {
-    html += `<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px solid var(--border);border-radius:10px">${t('cat_no_cats')}</div>`;
+    html += `<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px;border:1px solid var(--border);border-radius:10px">No categories yet</div>`;
   } else {
     Object.entries(cats).forEach(([cat, subs]) => {
       html += `<div style="margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden">`;
@@ -217,7 +221,7 @@ function renderCatAccountsTab(c) {
         });
         html += `</div>`;
       }
-      html += `<div style="padding:6px 14px 10px;border-top:1px solid var(--border-light)"><button style="border:none;background:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font);font-weight:500" onclick="promptAddSub('${catTypeFilter}','${cat}')">+ ${t('cat_add_sub')}</button></div></div>`;
+      html += `<div style="padding:6px 14px 10px;border-top:1px solid var(--border-light)"><button style="border:none;background:none;color:var(--accent);font-size:10px;cursor:pointer;font-family:var(--font);font-weight:500" onclick="promptAddSub('${catTypeFilter}','${cat}')">+ Add Subcategory</button></div></div>`;
     });
   }
   html += '</div>';
@@ -237,9 +241,9 @@ function renderAccountsSection() {
     const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
     html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');renderCatAccountsTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
   }
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> ${t('acc_title')}</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> ${t('acc_add')}</button></div>`;
+  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
   if (assets.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">${t('acc_assets')}</div>`;
+    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assets</div>`;
     assets.forEach(a => {
       const bal = getAccountBalance(a.id);
       const cur = a.currency || 'MYR';
@@ -251,7 +255,7 @@ function renderAccountsSection() {
     });
   }
   if (liabilities.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">${t('acc_liabilities')}</div>`;
+    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Liabilities</div>`;
     liabilities.forEach(a => {
       const cur = a.currency || 'MYR';
       const showDual = cur !== displayCurrency;
@@ -260,7 +264,7 @@ function renderAccountsSection() {
       html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
     });
   }
-  html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">${t('acc_net_worth')}</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
+  html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">Net Worth</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
   return html;
 }
 
@@ -362,8 +366,35 @@ function saveAccount(e, editId) {
       const oldInitialBalance = acc.initialBalance;
       acc.name = name; acc.type = type; acc.accountType = accountType; acc.currency = currency; acc.notes = notes;
       if (newInitialBalance !== oldInitialBalance) {
+        // Only create adjustment if old balance was NOT zero (meaning user already set it before)
+        if (oldInitialBalance !== 0) {
+          // User is manually changing an existing balance = adjustment
+          const diff = newInitialBalance - oldInitialBalance;
+          if (diff !== 0) {
+            // Liability adjustment = Expense (paying more debt or adding debt)
+            // Asset adjustment = Income (money appeared) or Expense (money disappeared)
+            let txnType;
+            if (acc.type === 'liability') {
+              txnType = 'Expense'; // Liability changes always show as expense
+            } else {
+              txnType = diff > 0 ? 'Income' : 'Expense'; // Asset: positive = income, negative = expense
+            }
+            TXN.push({
+              id: nxId++,
+              d: new Date().toISOString().split('T')[0],
+              t: txnType,
+              c: 'Balance Adjustment',
+              s: acc.type === 'liability' ? 'Liability Adjustment' : 'Asset Adjustment',
+              a: Math.abs(diff),
+              dt: `Adj: ${name}`,
+              acc: acc.type === 'asset' ? acc.id : undefined,
+              liab: acc.type === 'liability' ? acc.id : undefined
+            });
+            saveTXN();
+          }
+        }
+        // Always update the stored balance
         acc.initialBalance = newInitialBalance;
-        createBalanceAdjustment(acc.id, oldInitialBalance, newInitialBalance, 'Starting Account Balance Adjustment');
       }
     }
     TXN.forEach(tx => { if (tx.acc === editId && tx.dt && tx.dt.includes('Adj:')) tx.dt = `Adj: ${name}`; });
