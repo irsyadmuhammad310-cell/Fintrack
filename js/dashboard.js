@@ -543,9 +543,6 @@ function renderMobileDashboard(c, year) {
     return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${cat.n}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
   }).join('');
 
-  // V1.0.0: Build comprehensive Insights tab
-  const insightsContent = buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget);
-
   c.innerHTML = `<div class="mob-dash">
     <div class="mob-dash-balance">
       <div class="mob-dash-greeting">${getGreeting()}</div>
@@ -603,10 +600,11 @@ function renderMobileDashboard(c, year) {
 // === V1.0.0: COMPREHENSIVE MOBILE INSIGHTS TAB (used by analytics.js) ===
 function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
   let html = '';
+  const banks = getBANKS();
+  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.initialBalance), 0);
+  const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
 
   // 1. TOTAL ASSETS & NET WORTH
-  const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
-  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.initialBalance), 0);
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💎 Wealth Summary</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -664,7 +662,6 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   }
 
   // 6. ACCOUNT BREAKDOWN
-  const banks = getBANKS();
   const totalBal = banks.reduce((s, b) => s + b.balance, 0);
   if (banks.length) {
     const sorted = [...banks].sort((a, b) => b.balance - a.balance);
