@@ -584,8 +584,8 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   const firstCat = availableCats[0];
   h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${fmt(firstCat.remaining)} → ${fmt(firstCat.remaining - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt negative">-${fmt(Math.min(firstMax, overAmount))}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${fmt(overAmount)} → ${overAmount <= Math.min(firstMax, overAmount) ? fmt(0) : '-' + fmt(overAmount - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt positive">+${fmt(Math.min(firstMax, overAmount))}</div></div></div>`;
 
-  // Action buttons — use data attributes instead of inline onclick (safe for all category names)
-  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" data-cover-from="${firstCat.cat.replace(/"/g,'"')}" data-cover-to="${overspentCat.replace(/"/g,'"')}" data-cover-year="${year}" data-cover-month="${monthIdx}">Cover ${fmt(Math.min(firstMax, overAmount))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
+  // Action buttons
+  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${fmt(Math.min(firstMax, overAmount))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
 
   if (isMobile) {
     h += `</div></div>`;
@@ -621,11 +621,12 @@ function selectCoverSource(el) {
     }
   }
 
-  // Update confirm button text and data-from attribute
+  // Update confirm button text and onclick
   const confirmBtn = document.getElementById('coverConfirmBtn');
   if (confirmBtn) {
-    confirmBtn.textContent = 'Cover ' + fmt(parseFloat(amtInput.value));
-    confirmBtn.dataset.coverFrom = cat;
+    const amt = parseFloat(amtInput.value);
+    confirmBtn.textContent = 'Cover ' + fmt(amt);
+    confirmBtn.onclick = function() { executeCoverTransfer(cat, confirmBtn.getAttribute('data-cover-to') || '', parseInt(confirmBtn.getAttribute('data-cover-year')), parseInt(confirmBtn.getAttribute('data-cover-month'))); };
   }
 }
 
