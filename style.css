@@ -1245,9 +1245,12 @@ tr:hover td { background: var(--bg-primary); }
 }
 
 .mob-txn-pill-val {
-  font-size: 14px;
+  font-size: clamp(10px, 3.5vw, 14px);
   font-weight: 800;
   font-feature-settings: 'tnum';
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mob-txn-pill-val.income { color: var(--emerald); }
@@ -1424,9 +1427,12 @@ tr:hover td { background: var(--bg-primary); }
 }
 
 .mob-dash-stat-val {
-  font-size: 14px;
+  font-size: clamp(10px, 3.5vw, 14px);
   font-weight: 800;
   font-feature-settings: 'tnum';
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mob-dash-chart {
@@ -2339,6 +2345,6 @@ tr:hover td { background: var(--bg-primary); }
     border-radius: 12px !important;
   }
   .mob-txn-pill-val {
-    font-size: 15px !important;
+    font-size: clamp(10px, 3.5vw, 14px) !important;
   }
 }
