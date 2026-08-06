@@ -297,62 +297,29 @@ function anGetInsights(inc, exp, sav, net, year, MD) {
   }).join('');
 }
 
-// === MOBILE INSIGHTS (v15.8.1 — Clean, scannable) ===
+// === MOBILE INSIGHTS (V1.0.0 — Full Analytics Page) ===
 function renderMobileInsights(c, year, month) {
+  anDestroy();
+  var mf = document.getElementById('mf') ? document.getElementById('mf').value : 'total';
   var MD = computeMonthlyData(year);
-  var ti = MD.reduce(function(s,m){return s+m.i;},0);
-  var te = MD.reduce(function(s,m){return s+m.e;},0);
-  var ts = MD.reduce(function(s,m){return s+m.s;},0);
+  var ti, te, ts;
+  if (mf === 'total') {
+    ti = MD.reduce(function(s,m){return s+m.i;},0);
+    te = MD.reduce(function(s,m){return s+m.e;},0);
+    ts = MD.reduce(function(s,m){return s+m.s;},0);
+  } else {
+    ti = MD[+mf].i; te = MD[+mf].e; ts = MD[+mf].s;
+  }
   var net = ti - te - ts;
-  var savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : '0';
-  var budget = getYearlyBudgetTotal(year);
-  var budgetUsage = budget > 0 ? (te / budget * 100).toFixed(0) : '-';
+  var nw = getNetWorthByPeriod(year, mf);
+  var periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : getYearlyBudgetTotal(year);
+  var budgetUsed = periodBudget > 0 ? Math.min(100, (te / periodBudget * 100)).toFixed(0) : 0;
 
-  // Health Score
-  var healthScore = anCalcHealthScore(ti, te, ts, net, year);
-  var healthColor = healthScore >= 80 ? 'var(--emerald)' : healthScore >= 65 ? 'var(--gold)' : healthScore >= 50 ? 'var(--amber)' : 'var(--rose)';
-  var healthLabel = healthScore >= 95 ? t('an_excellent') : healthScore >= 80 ? t('an_very_good') : healthScore >= 65 ? t('an_good') : healthScore >= 50 ? t('an_fair') : t('an_needs_work');
+  // Use the comprehensive V1.0.0 Insights builder from dashboard.js
+  var html = '<div class="mob-insights">';
+  html += buildMobileInsightsTab(MD, year, mf, ti, te, ts, nw, net, budgetUsed, periodBudget);
+  html += '</div>';
 
-  // AI Insights
-  var insights = anGetInsights(ti, te, ts, net, year, MD);
-
-  c.innerHTML = '<div class="mob-insights">' +
-    // Score
-    '<div class="mob-ins-score"><div class="mob-ins-score-num" style="color:' + healthColor + '">' + healthScore + '</div><div class="mob-ins-score-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="mob-ins-score-bar"><div class="mob-ins-score-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div></div>' +
-    // Metrics
-    '<div class="mob-ins-metrics">' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_savings_rate') + '</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(savRate) >= 10 ? 'var(--emerald)' : 'var(--rose)') + '">' + savRate + '%</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_budget_used') + '</div><div class="mob-ins-metric-val" style="color:' + (parseFloat(budgetUsage) <= 100 ? 'var(--emerald)' : 'var(--rose)') + '">' + budgetUsage + '%</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_cash_flow') + '</div><div class="mob-ins-metric-val" style="color:' + (net >= 0 ? 'var(--emerald)' : 'var(--rose)') + '">' + (net >= 0 ? '+' : '') + fmtD(net) + '</div></div>' +
-      '<div class="mob-ins-metric"><div class="mob-ins-metric-label">' + t('an_net_worth') + '</div><div class="mob-ins-metric-val">' + fmt(typeof getNetWorth === 'function' ? getNetWorth() : 0) + '</div></div>' +
-    '</div>' +
-    // Chart
-    '<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px"><div style="font-size:12px;font-weight:700;margin-bottom:8px">' + t('an_monthly_flow') + '</div><div style="height:150px"><canvas id="mobInsChart"></canvas></div></div>' +
-    // Tips
-    '<div class="mob-ins-tips"><div class="mob-ins-tips-title">💡 ' + t('an_insights') + '</div>' + insights.replace(/an-insight/g, 'mob-ins-tip').replace(/an-ins-icon/g, 'mob-ins-tip-icon').replace(/an-ins-good|an-ins-warn|an-ins-info/g, '') + '</div>' +
-  '</div>';
-
-  // Render chart
-  setTimeout(function() {
-    var ctx = document.getElementById('mobInsChart');
-    if (!ctx) return;
-    var dk = document.documentElement.dataset.theme === 'dark';
-    var tc = dk ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)';
-    var am = MD.filter(function(m) { return m.i > 0 || m.e > 0; });
-    if (!am.length) am = MD;
-    var labels = am.map(function(m){return m.m;});
-    anCharts.push(new Chart(ctx, {
-      type: 'bar',
-      data: { labels: labels, datasets: [
-        { label: 'Income', data: am.map(function(m){return m.i;}), backgroundColor: 'rgba(16,185,129,0.7)', borderRadius: 4 },
-        { label: 'Expense', data: am.map(function(m){return m.e;}), backgroundColor: 'rgba(244,63,94,0.7)', borderRadius: 4 }
-      ]},
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 }, padding: 10 } } },
-        scales: { x: { grid: { display: false }, ticks: { color: tc, font: { size: 9 } } }, y: { display: false } },
-        animation: { duration: 400 }
-      }
-    }));
-  }, 60);
+  c.innerHTML = html;
+  if (typeof lucide !== 'undefined') lucide.createIcons();
 }
