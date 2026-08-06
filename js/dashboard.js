@@ -597,7 +597,9 @@ function renderMobileDashboard(c, year) {
   }, 50);
 }
 
-// === V1.0.0: COMPREHENSIVE MOBILE INSIGHTS TAB (used by analytics.js) ===
+// === V1.0.0: All insight/health/AI functions moved to analytics.js ===
+// buildMobileInsightsTab, computeFinancialHealth, getHighLiquidityAssets,
+// buildDynamicAIInsights are now in analytics.js
 function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
   let html = '';
   const banks = getBANKS();
@@ -686,12 +688,20 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
 }
 
 // === V1.0.0: FINANCIAL HEALTH CALCULATION (CFP Board Standard) ===
+// Liquidity tiers by account type
+const LIQUIDITY_HIGH = ['Cash', 'Savings Account', 'Digital Wallet'];
+const LIQUIDITY_MID = ['Current Account', 'Credit/Debit Card'];
+const LIQUIDITY_LOW = ['Investment Account'];
+
+function getHighLiquidityAssets() {
+  return ACCOUNTS.filter(a => a.type === 'asset' && LIQUIDITY_HIGH.includes(a.accountType))
+    .reduce((s, a) => s + getAccountBalance(a.id), 0);
+}
+
 function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf) {
   const metrics = [];
-
-  // === HELPER: Multilingual keyword matcher (language-independent) ===
-  const HOUSING_KEYWORDS = ['housing','house','rent','mortgage','apartment','condo','sewa','rumah','pinjaman rumah','kediaman','apartmen','perumahan','kontrakan','kos','cicilan rumah','住宅','家賃','住房','房贷','房租','월세','주택','квартира','ипотека','аренда','utilities','utiliti','elektrik','air','wifi'];
-  const DEBT_KEYWORDS = ['loan','debt','instalment','installment','payment','pinjaman','hutang','ansuran','cicilan','bayaran','借金','ローン','贷款','还款','대출','кредит','ptptn','motor','car','kereta','personal loan'];
+  const HOUSING_KEYWORDS = ['mortgage','rent','sewa','rumah','pinjaman rumah','kediaman','perumahan','kontrakan','cicilan rumah'];
+  const LOAN_KEYWORDS = ['loan','debt','instalment','installment','pinjaman','hutang','ansuran','cicilan','ptptn','motor','car','kereta','personal loan'];
 
   function matchesKeywords(text, keywords) {
     if (!text) return false;
@@ -699,132 +709,74 @@ function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, 
     return keywords.some(kw => lower.includes(kw) || lower === kw);
   }
 
-  // Get monthly data
-  const monthlyIncome = ti > 0 ? ti : 1; // prevent divide by zero
+  const monthlyIncome = ti > 0 ? ti : 1;
   const yearData = computeMonthlyData(year);
-
-  // Get period transactions
-  const periodTxns = TXN.filter(tx => {
-    const d = new Date(tx.d);
-    if (d.getFullYear() !== year) return false;
-    if (mf !== 'total' && d.getMonth() !== +mf) return false;
-    return true;
-  });
-
+  const periodTxns = TXN.filter(tx => { const d = new Date(tx.d); if (d.getFullYear() !== year) return false; if (mf !== 'total' && d.getMonth() !== +mf) return false; return true; });
   const periodExpenses = periodTxns.filter(tx => tx.t === 'Expense');
 
-  // ═══════════════════════════════════════════
-  // 1. SAVINGS RATE (weight: 20%) — Target: ≥20%
-  // ═══════════════════════════════════════════
+  // 1. SAVINGS (20%): all Savings-type transactions / income
   const savRate = ti > 0 ? (ts / ti * 100) : 0;
-  // Linear scale: 0% = 0 points, 20%+ = 100 points
   const savScore = Math.min(100, Math.max(0, savRate / 20 * 100));
   metrics.push({ label: 'Savings', value: savRate.toFixed(0) + '%', target: '≥20%', color: savRate >= 20 ? 'var(--emerald)' : savRate >= 10 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // 2. HOUSING RATIO (weight: 15%) — Target: ≤28%
-  // Detection: liability-linked mortgage + multilingual category matching
-  // ═══════════════════════════════════════════
+  // 2. HOUSING (15%): Mortgage liability OR Loan with sub mortgage/rent
   let housingExpense = 0;
   periodExpenses.forEach(tx => {
-    // Signal 1: Linked to liability with mortgage/housing type
-    if (tx.liab) {
-      const liabAcc = ACCOUNTS.find(a => a.id === tx.liab);
-      if (liabAcc && matchesKeywords(liabAcc.name, HOUSING_KEYWORDS)) {
-        housingExpense += tx.a;
-        return;
-      }
-      if (liabAcc && matchesKeywords(liabAcc.accountType, ['mortgage','home loan'])) {
-        housingExpense += tx.a;
-        return;
-      }
-    }
-    // Signal 2: Category or subcategory matches housing keywords
-    if (matchesKeywords(tx.c, HOUSING_KEYWORDS) || matchesKeywords(tx.s, HOUSING_KEYWORDS)) {
-      housingExpense += tx.a;
-    }
+    if (tx.liab) { const la = ACCOUNTS.find(a => a.id === tx.liab); if (la && (la.accountType === 'Mortgage' || matchesKeywords(la.name, HOUSING_KEYWORDS))) { housingExpense += tx.a; return; } }
+    if (matchesKeywords(tx.s, ['mortgage','rent','sewa','rumah'])) { housingExpense += tx.a; }
+    else if (matchesKeywords(tx.c, ['rent','sewa','housing','rumah'])) { housingExpense += tx.a; }
   });
   const housingRatio = ti > 0 ? (housingExpense / monthlyIncome * 100) : 0;
-  // Score: ≤28% = 100, 28-40% = linear decline, >40% = 0
   const housingScore = housingRatio <= 28 ? 100 : housingRatio >= 40 ? 0 : Math.round((40 - housingRatio) / 12 * 100);
   metrics.push({ label: 'Housing', value: housingRatio.toFixed(0) + '%', target: '≤28%', color: housingRatio <= 28 ? 'var(--emerald)' : housingRatio <= 35 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // 3. DEBT SERVICE RATIO (weight: 20%) — Target: <36%
-  // Detection: tx.liab (strongest, language-free) + category keyword fallback
-  // ═══════════════════════════════════════════
+  // 3. DEBT (20%): all Loan expenses (linked to liability OR loan category)
   let debtPayments = 0;
   periodExpenses.forEach(tx => {
-    // Signal 1 (strongest): Transaction linked to ANY liability account
-    if (tx.liab) {
-      debtPayments += tx.a;
-      return;
-    }
-    // Signal 2: Category/sub matches debt keywords (but NOT housing, to avoid double-count)
-    if (!matchesKeywords(tx.c, HOUSING_KEYWORDS) && !matchesKeywords(tx.s, HOUSING_KEYWORDS)) {
-      if (matchesKeywords(tx.c, DEBT_KEYWORDS) || matchesKeywords(tx.s, DEBT_KEYWORDS)) {
-        debtPayments += tx.a;
-      }
+    if (tx.liab) { debtPayments += tx.a; return; }
+    if (matchesKeywords(tx.c, LOAN_KEYWORDS) || matchesKeywords(tx.s, LOAN_KEYWORDS)) {
+      if (!matchesKeywords(tx.s, ['mortgage','rent','sewa','rumah']) && !matchesKeywords(tx.c, ['rent','sewa','housing','rumah'])) { debtPayments += tx.a; }
     }
   });
   const debtRatio = ti > 0 ? (debtPayments / monthlyIncome * 100) : 0;
-  // Score: <36% = 100 (linear from 0), 36-50% = decline, >50% = 0
-  const debtScore = debtRatio <= 36 ? Math.round((36 - debtRatio) / 36 * 100 + (debtRatio <= 20 ? 0 : 0)) : debtRatio >= 50 ? 0 : Math.round((50 - debtRatio) / 14 * 50);
-  // Simpler: ≤20% = 100, 20-36% = 80-50 linear, >36% penalty
   const debtScoreFinal = debtRatio <= 20 ? 100 : debtRatio <= 36 ? Math.round(100 - (debtRatio - 20) / 16 * 50) : debtRatio <= 50 ? Math.round(50 - (debtRatio - 36) / 14 * 50) : 0;
   metrics.push({ label: 'Debt', value: debtRatio.toFixed(0) + '%', target: '<36%', color: debtRatio < 36 ? 'var(--emerald)' : debtRatio <= 43 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // 4. LIQUIDITY RATIO (weight: 15%) — Target: 3-6 months
-  // ═══════════════════════════════════════════
-  const liquidAssets = ACCOUNTS.filter(a => a.type === 'asset').reduce((s, a) => s + getAccountBalance(a.id), 0);
-  const avgMonthlyExpense = (() => {
-    const months = yearData.filter(m => m.e > 0);
-    return months.length ? months.reduce((s, m) => s + m.e, 0) / months.length : te || 1;
-  })();
-  const liquidityMonths = avgMonthlyExpense > 0 ? liquidAssets / avgMonthlyExpense : 0;
-  // Score: 0mo = 0, 3mo = 60, 6mo+ = 100
-  const liquidityScore = liquidityMonths >= 6 ? 100 : liquidityMonths >= 3 ? Math.round(60 + (liquidityMonths - 3) / 3 * 40) : Math.round(liquidityMonths / 3 * 60);
-  metrics.push({ label: 'Reserve', value: liquidityMonths.toFixed(1) + 'mo', target: '≥6mo', color: liquidityMonths >= 6 ? 'var(--emerald)' : liquidityMonths >= 3 ? 'var(--amber)' : 'var(--rose)' });
+  // 4. RESERVE (15%): HIGH liquidity only (Cash, Savings Account, Digital Wallet) / avg monthly expense
+  const highLiquid = getHighLiquidityAssets();
+  const avgMonthExp = (() => { const m = yearData.filter(m => m.e > 0); return m.length ? m.reduce((s, x) => s + x.e, 0) / m.length : te || 1; })();
+  const reserveMonths = avgMonthExp > 0 ? highLiquid / avgMonthExp : 0;
+  const liquidityScore = reserveMonths >= 6 ? 100 : reserveMonths >= 3 ? Math.round(60 + (reserveMonths - 3) / 3 * 40) : Math.round(reserveMonths / 3 * 60);
+  metrics.push({ label: 'Reserve', value: reserveMonths.toFixed(1) + 'mo', target: '≥6mo', color: reserveMonths >= 6 ? 'var(--emerald)' : reserveMonths >= 3 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // 5. EXPENSE RATIO (weight: 15%) — Target: <75%
-  // ═══════════════════════════════════════════
-  const expRatio = ti > 0 ? (te / monthlyIncome * 100) : 100;
-  // Score: ≤50% = 100, 50-75% = linear decline to 50, 75-100% = decline to 0
-  const expScore = expRatio <= 50 ? 100 : expRatio <= 75 ? Math.round(100 - (expRatio - 50) / 25 * 50) : expRatio <= 100 ? Math.round(50 - (expRatio - 75) / 25 * 50) : 0;
-  metrics.push({ label: 'Exp/Inc', value: expRatio.toFixed(0) + '%', target: '<75%', color: expRatio < 75 ? 'var(--emerald)' : expRatio <= 90 ? 'var(--amber)' : 'var(--rose)' });
+  // 5. CASH FLOW (15%): Month = avg daily expense / daily income. Year = avg monthly expense / monthly income
+  let cfRatio = 0;
+  if (mf !== 'total') {
+    const dim = new Date(year, +mf + 1, 0).getDate();
+    cfRatio = ti > 0 ? ((te / dim) / (ti / dim) * 100) : 100;
+  } else {
+    const active = yearData.filter(m => m.i > 0 || m.e > 0).length || 1;
+    cfRatio = ti > 0 ? ((te / active) / (ti / active) * 100) : 100;
+  }
+  const cfScore = cfRatio <= 50 ? 100 : cfRatio <= 75 ? Math.round(100 - (cfRatio - 50) / 25 * 50) : cfRatio <= 100 ? Math.round(50 - (cfRatio - 75) / 25 * 50) : 0;
+  metrics.push({ label: 'Cash Flow', value: cfRatio.toFixed(0) + '%', target: '<75%', color: cfRatio < 75 ? 'var(--emerald)' : cfRatio <= 90 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // 6. NET WORTH TRAJECTORY (weight: 15%) — Target: positive growth
-  // ═══════════════════════════════════════════
+  // 6. NET WORTH GROWTH (15%)
   let nwGrowthPct = 0;
   if (mf !== 'total' && +mf > 0) {
-    const currentNW = getNetWorthByPeriod(year, mf);
-    const prevNW = getNetWorthByPeriod(year, String(+mf - 1));
-    nwGrowthPct = prevNW !== 0 ? ((currentNW - prevNW) / Math.abs(prevNW) * 100) : (currentNW > 0 ? 100 : 0);
+    const cur = getNetWorthByPeriod(year, mf), prev = getNetWorthByPeriod(year, String(+mf - 1));
+    nwGrowthPct = prev !== 0 ? ((cur - prev) / Math.abs(prev) * 100) : (cur > 0 ? 100 : 0);
   } else {
-    // Year-to-date: compare first active month to latest
-    const activeMonths = yearData.filter(m => m.i > 0 || m.e > 0);
-    if (activeMonths.length >= 2) {
-      const firstIdx = yearData.indexOf(activeMonths[0]);
-      const lastIdx = yearData.indexOf(activeMonths[activeMonths.length - 1]);
-      const firstNW = getNetWorthByPeriod(year, String(firstIdx));
-      const lastNW = getNetWorthByPeriod(year, String(lastIdx));
-      nwGrowthPct = firstNW !== 0 ? ((lastNW - firstNW) / Math.abs(firstNW) * 100) : (lastNW > 0 ? 100 : 0);
-    }
+    const am = yearData.filter(m => m.i > 0 || m.e > 0);
+    if (am.length >= 2) { const fi = yearData.indexOf(am[0]), li = yearData.indexOf(am[am.length-1]); const f = getNetWorthByPeriod(year, String(fi)), l = getNetWorthByPeriod(year, String(li)); nwGrowthPct = f !== 0 ? ((l - f) / Math.abs(f) * 100) : (l > 0 ? 100 : 0); }
   }
-  // Score: ≥5% growth = 100, 0% = 50, negative = 0-50 linear
   const nwScore = nwGrowthPct >= 5 ? 100 : nwGrowthPct >= 0 ? Math.round(50 + nwGrowthPct / 5 * 50) : Math.max(0, Math.round(50 + nwGrowthPct / 10 * 50));
   metrics.push({ label: 'Growth', value: (nwGrowthPct >= 0 ? '+' : '') + nwGrowthPct.toFixed(1) + '%', target: 'Positive', color: nwGrowthPct > 0 ? 'var(--emerald)' : nwGrowthPct === 0 ? 'var(--amber)' : 'var(--rose)' });
 
-  // ═══════════════════════════════════════════
-  // WEIGHTED FINAL SCORE (CFP-aligned weights)
-  // ═══════════════════════════════════════════
-  const weights = [0.20, 0.15, 0.20, 0.15, 0.15, 0.15]; // must sum to 1.0
-  const scores = [savScore, housingScore, debtScoreFinal, liquidityScore, expScore, nwScore];
+  // WEIGHTED SCORE
+  const weights = [0.20, 0.15, 0.20, 0.15, 0.15, 0.15];
+  const scores = [savScore, housingScore, debtScoreFinal, liquidityScore, cfScore, nwScore];
   const finalScore = Math.round(scores.reduce((sum, s, i) => sum + s * weights[i], 0));
-
   const label = finalScore >= 90 ? 'Excellent' : finalScore >= 75 ? 'Good' : finalScore >= 60 ? 'Fair' : finalScore >= 40 ? 'Needs Work' : 'Critical';
   return { score: Math.min(100, Math.max(0, finalScore)), label, metrics };
 }
