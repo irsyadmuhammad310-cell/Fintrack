@@ -298,17 +298,9 @@ function anGetInsights(inc, exp, sav, net, year, MD) {
 }
 
 // === MOBILE INSIGHTS (V1.0.0 — Full Analytics Page) ===
-// All insight/health functions live here (moved from dashboard.js)
-
-// Liquidity tiers by account type
-const LIQUIDITY_HIGH = ['Cash', 'Savings Account', 'Digital Wallet'];
-const LIQUIDITY_MID = ['Current Account', 'Credit/Debit Card'];
-const LIQUIDITY_LOW = ['Investment Account'];
-
-function getHighLiquidityAssets() {
-  return ACCOUNTS.filter(a => a.type === 'asset' && LIQUIDITY_HIGH.includes(a.accountType))
-    .reduce((s, a) => s + getAccountBalance(a.id), 0);
-}
+// Health/insight functions (computeFinancialHealth, buildMobileInsightsTab,
+// getHighLiquidityAssets, buildDynamicAIInsights, LIQUIDITY constants)
+// live in dashboard.js — shared via global scope.
 
 function renderMobileInsights(c, year, month) {
   anDestroy();
