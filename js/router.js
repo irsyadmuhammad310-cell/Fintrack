@@ -112,15 +112,13 @@ window.addEventListener('popstate', function(e) {
   if (curPage === 'dashboard') {
     const now = Date.now();
     if (now - _lastBackTime < 2000) {
-      // Double back: close the app (or go to browser)
-      window.close();
-      // If window.close doesn't work (PWA), navigate away
-      history.back();
+      // Double back: actually exit by not preventing default
+      // Let the browser handle the back (exits PWA or goes to previous page)
       return;
     }
     _lastBackTime = now;
     toast('Press back again to exit');
-    // Push state back so we don't actually leave
+    // Push state back so we don't actually leave yet
     history.pushState({ page: 'dashboard' }, '', '');
     return;
   }
