@@ -1,4 +1,4 @@
-// === DASHBOARD (v15.8.1 — Mobile-First Simplified) ===
+// === DASHBOARD (FinTrack Premium V1.0.0) ===
 function renderDashboard(c) {
   const year = getSelectedYear();
 
@@ -543,26 +543,8 @@ function renderMobileDashboard(c, year) {
     return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${cat.n}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
   }).join('');
 
-  // v15.8.2: Build Insights tab content (Cash Flow Forecast + AI Insight)
-  const insightForecast = safeBuildForecastHtml('mobile');
-  const insightAI = generateDashInsights(yearData, computeExpenseCategories(year), ti, te, ts, nw, cf, year, mf);
-  const ffmVal = getFinancialFreedomMonths(year, mf);
-  const savRateInsight = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
-  const insightsContent = `
-    ${insightForecast}
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:10px">📊 Financial Summary</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Savings Rate</div><div style="font-size:16px;font-weight:800;color:${+savRateInsight >= 20 ? 'var(--emerald)' : 'var(--rose)'}">${savRateInsight}%</div></div>
-        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Cash Flow</div><div style="font-size:16px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmtD(cf)}</div></div>
-        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Freedom</div><div style="font-size:16px;font-weight:800;color:var(--accent)">${ffmVal}mo</div></div>
-        <div style="padding:10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Budget Used</div><div style="font-size:16px;font-weight:800;color:${+budgetUsed > 90 ? 'var(--rose)' : 'var(--text-primary)'}">${budgetUsed}%</div></div>
-      </div>
-    </div>
-    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-top:10px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:8px">🤖 AI Insight</div>
-      <div style="font-size:11px;line-height:1.6;color:var(--text-secondary)">${insightAI.replace(/<div class="ic"><span class="ie">🤖<\/span><div class="ix">/g,'').replace(/<\/div><\/div>$/,'')}</div>
-    </div>`;
+  // V1.0.0: Build comprehensive Insights tab
+  const insightsContent = buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget);
 
   c.innerHTML = `<div class="mob-dash">
     <div class="mob-dash-balance">
@@ -575,24 +557,15 @@ function renderMobileDashboard(c, year) {
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_expense')}</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
-    <div class="mob-dash-tabs">
-      <button class="mob-dash-tab active" onclick="switchMobDashTab('overview',this)">Overview</button>
-      <button class="mob-dash-tab" onclick="switchMobDashTab('insights',this)">Insights</button>
+    ${getMobileOverspentHtml()}
+    <div class="mob-dash-chart">
+      <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
+      <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
     </div>
-    <div class="mob-dash-tab-content" id="mobDashTabOverview">
-      ${getMobileOverspentHtml()}
-      <div class="mob-dash-chart">
-        <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
-        <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
-      </div>
-      ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
-      <div class="mob-dash-recent">
-        <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
-        ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
-      </div>
-    </div>
-    <div class="mob-dash-tab-content" id="mobDashTabInsights" style="display:none">
-      ${insightsContent}
+    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
+    <div class="mob-dash-recent">
+      <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
+      ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
     </div>
   </div>`;
 
@@ -627,10 +600,292 @@ function renderMobileDashboard(c, year) {
   }, 50);
 }
 
-// v15.8.2: Mobile dashboard tab switcher
-function switchMobDashTab(tab, el) {
-  document.querySelectorAll('.mob-dash-tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  document.getElementById('mobDashTabOverview').style.display = tab === 'overview' ? '' : 'none';
-  document.getElementById('mobDashTabInsights').style.display = tab === 'insights' ? '' : 'none';
+// === V1.0.0: COMPREHENSIVE MOBILE INSIGHTS TAB (used by analytics.js) ===
+function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
+  let html = '';
+
+  // 1. TOTAL ASSETS & NET WORTH
+  const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
+  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.initialBalance), 0);
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💎 Wealth Summary</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Total Assets</div><div style="font-size:16px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div>
+      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div style="font-size:16px;font-weight:800;color:${nw >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(nw)}</div></div>
+    </div>
+    ${liabTotal > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--rose-light);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--rose)">Liabilities</span><span style="font-size:11px;font-weight:700;color:var(--rose);font-feature-settings:'tnum'">-${fmt(liabTotal)}</span></div>` : ''}
+  </div>`;
+
+  // 2. FINANCIAL HEALTH SCORE
+  const health = computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf);
+  const healthColor = health.score >= 80 ? 'var(--emerald)' : health.score >= 60 ? 'var(--amber)' : 'var(--rose)';
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💪 Financial Health</div>
+    <div style="font-size:42px;font-weight:900;color:${healthColor};line-height:1;margin-bottom:4px">${health.score}</div>
+    <div style="font-size:11px;font-weight:600;color:${healthColor};margin-bottom:10px">${health.label}</div>
+    <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;max-width:200px;margin:0 auto 12px"><div style="height:100%;width:${health.score}%;background:${healthColor};border-radius:3px"></div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center">
+      ${health.metrics.map(m => `<div style="padding:6px;background:var(--bg-primary);border-radius:6px"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">${m.label}</div><div style="font-size:11px;font-weight:700;color:${m.color}">${m.value}</div></div>`).join('')}
+    </div>
+  </div>`;
+
+  // 3. CASH FLOW SECTION
+  const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
+  const prevCf = prevMonth ? prevMonth.i - prevMonth.s - prevMonth.e : null;
+  const cfChange = prevCf !== null && prevCf !== 0 ? ((cf - prevCf) / Math.abs(prevCf) * 100).toFixed(0) : null;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💰 Cash Flow</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmtD(ti)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmtD(te)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmtD(cf)}</div></div>
+    </div>
+    ${cfChange !== null ? `<div style="font-size:10px;color:${+cfChange >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-weight:500;text-align:center">${+cfChange >= 0 ? '▲' : '▼'} ${Math.abs(cfChange)}% vs previous month</div>` : ''}
+  </div>`;
+
+  // 4. CASH FLOW FORECAST
+  html += safeBuildForecastHtml('mobile');
+
+  // 5. EXPENSE BREAKDOWN
+  const expCats = computeExpenseCategoriesByPeriod(year, mf);
+  const totalExp = expCats.reduce((s, c) => s + c.a, 0);
+  const colors = ['#ef4444','#8b5cf6','#ec4899','#10b981','#f59e0b','#6366f1','#06b6d4','#f97316','#14b8a6','#a855f7'];
+  if (expCats.length) {
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:12px">📊 Expense Breakdown</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        ${expCats.slice(0, 8).map((cat, i) => {
+          const pct = totalExp > 0 ? (cat.a / totalExp * 100).toFixed(0) : 0;
+          return `<div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cat.n}</span><span style="font-size:11px;font-weight:700;font-feature-settings:'tnum';flex-shrink:0">${fmtD(cat.a)} (${pct}%)</span></div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[i % colors.length]};border-radius:2px"></div></div></div></div>`;
+        }).join('')}
+      </div>
+      ${expCats.length > 8 ? `<div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-top:8px">+ ${expCats.length - 8} more categories</div>` : ''}
+    </div>`;
+  }
+
+  // 6. ACCOUNT BREAKDOWN
+  const banks = getBANKS();
+  const totalBal = banks.reduce((s, b) => s + b.balance, 0);
+  if (banks.length) {
+    const sorted = [...banks].sort((a, b) => b.balance - a.balance);
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700">🏦 Account Breakdown</div><div style="font-size:12px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalBal)}</div></div>
+      <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:12px">
+        ${sorted.map((b, i) => { const w = totalBal > 0 ? (b.balance / totalBal * 100) : 0; return `<div style="height:100%;width:${w}%;background:${colors[i % colors.length]}"></div>`; }).join('')}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${sorted.map((b, i) => {
+          const pct = totalBal > 0 ? (b.balance / totalBal * 100).toFixed(0) : 0;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-primary);border-radius:8px"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]}"></div><span style="font-size:11px;font-weight:600">${b.name}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:700;font-feature-settings:'tnum'">${fmt(b.balance)}</span><span style="font-size:9px;color:var(--text-tertiary);font-weight:600">${pct}%</span></div></div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  // 7. DYNAMIC AI INSIGHTS
+  html += buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, periodBudget);
+
+  return html;
+}
+
+// === V1.0.0: FINANCIAL HEALTH CALCULATION (CFP Board Standard) ===
+function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf) {
+  const metrics = [];
+
+  // === HELPER: Multilingual keyword matcher (language-independent) ===
+  const HOUSING_KEYWORDS = ['housing','house','rent','mortgage','apartment','condo','sewa','rumah','pinjaman rumah','kediaman','apartmen','perumahan','kontrakan','kos','cicilan rumah','住宅','家賃','住房','房贷','房租','월세','주택','квартира','ипотека','аренда','utilities','utiliti','elektrik','air','wifi'];
+  const DEBT_KEYWORDS = ['loan','debt','instalment','installment','payment','pinjaman','hutang','ansuran','cicilan','bayaran','借金','ローン','贷款','还款','대출','кредит','ptptn','motor','car','kereta','personal loan'];
+
+  function matchesKeywords(text, keywords) {
+    if (!text) return false;
+    const lower = text.toLowerCase().trim();
+    return keywords.some(kw => lower.includes(kw) || lower === kw);
+  }
+
+  // Get monthly data
+  const monthlyIncome = ti > 0 ? ti : 1; // prevent divide by zero
+  const yearData = computeMonthlyData(year);
+
+  // Get period transactions
+  const periodTxns = TXN.filter(tx => {
+    const d = new Date(tx.d);
+    if (d.getFullYear() !== year) return false;
+    if (mf !== 'total' && d.getMonth() !== +mf) return false;
+    return true;
+  });
+
+  const periodExpenses = periodTxns.filter(tx => tx.t === 'Expense');
+
+  // ═══════════════════════════════════════════
+  // 1. SAVINGS RATE (weight: 20%) — Target: ≥20%
+  // ═══════════════════════════════════════════
+  const savRate = ti > 0 ? (ts / ti * 100) : 0;
+  // Linear scale: 0% = 0 points, 20%+ = 100 points
+  const savScore = Math.min(100, Math.max(0, savRate / 20 * 100));
+  metrics.push({ label: 'Savings', value: savRate.toFixed(0) + '%', target: '≥20%', color: savRate >= 20 ? 'var(--emerald)' : savRate >= 10 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // 2. HOUSING RATIO (weight: 15%) — Target: ≤28%
+  // Detection: liability-linked mortgage + multilingual category matching
+  // ═══════════════════════════════════════════
+  let housingExpense = 0;
+  periodExpenses.forEach(tx => {
+    // Signal 1: Linked to liability with mortgage/housing type
+    if (tx.liab) {
+      const liabAcc = ACCOUNTS.find(a => a.id === tx.liab);
+      if (liabAcc && matchesKeywords(liabAcc.name, HOUSING_KEYWORDS)) {
+        housingExpense += tx.a;
+        return;
+      }
+      if (liabAcc && matchesKeywords(liabAcc.accountType, ['mortgage','home loan'])) {
+        housingExpense += tx.a;
+        return;
+      }
+    }
+    // Signal 2: Category or subcategory matches housing keywords
+    if (matchesKeywords(tx.c, HOUSING_KEYWORDS) || matchesKeywords(tx.s, HOUSING_KEYWORDS)) {
+      housingExpense += tx.a;
+    }
+  });
+  const housingRatio = ti > 0 ? (housingExpense / monthlyIncome * 100) : 0;
+  // Score: ≤28% = 100, 28-40% = linear decline, >40% = 0
+  const housingScore = housingRatio <= 28 ? 100 : housingRatio >= 40 ? 0 : Math.round((40 - housingRatio) / 12 * 100);
+  metrics.push({ label: 'Housing', value: housingRatio.toFixed(0) + '%', target: '≤28%', color: housingRatio <= 28 ? 'var(--emerald)' : housingRatio <= 35 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // 3. DEBT SERVICE RATIO (weight: 20%) — Target: <36%
+  // Detection: tx.liab (strongest, language-free) + category keyword fallback
+  // ═══════════════════════════════════════════
+  let debtPayments = 0;
+  periodExpenses.forEach(tx => {
+    // Signal 1 (strongest): Transaction linked to ANY liability account
+    if (tx.liab) {
+      debtPayments += tx.a;
+      return;
+    }
+    // Signal 2: Category/sub matches debt keywords (but NOT housing, to avoid double-count)
+    if (!matchesKeywords(tx.c, HOUSING_KEYWORDS) && !matchesKeywords(tx.s, HOUSING_KEYWORDS)) {
+      if (matchesKeywords(tx.c, DEBT_KEYWORDS) || matchesKeywords(tx.s, DEBT_KEYWORDS)) {
+        debtPayments += tx.a;
+      }
+    }
+  });
+  const debtRatio = ti > 0 ? (debtPayments / monthlyIncome * 100) : 0;
+  // Score: <36% = 100 (linear from 0), 36-50% = decline, >50% = 0
+  const debtScore = debtRatio <= 36 ? Math.round((36 - debtRatio) / 36 * 100 + (debtRatio <= 20 ? 0 : 0)) : debtRatio >= 50 ? 0 : Math.round((50 - debtRatio) / 14 * 50);
+  // Simpler: ≤20% = 100, 20-36% = 80-50 linear, >36% penalty
+  const debtScoreFinal = debtRatio <= 20 ? 100 : debtRatio <= 36 ? Math.round(100 - (debtRatio - 20) / 16 * 50) : debtRatio <= 50 ? Math.round(50 - (debtRatio - 36) / 14 * 50) : 0;
+  metrics.push({ label: 'Debt', value: debtRatio.toFixed(0) + '%', target: '<36%', color: debtRatio < 36 ? 'var(--emerald)' : debtRatio <= 43 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // 4. LIQUIDITY RATIO (weight: 15%) — Target: 3-6 months
+  // ═══════════════════════════════════════════
+  const liquidAssets = ACCOUNTS.filter(a => a.type === 'asset').reduce((s, a) => s + getAccountBalance(a.id), 0);
+  const avgMonthlyExpense = (() => {
+    const months = yearData.filter(m => m.e > 0);
+    return months.length ? months.reduce((s, m) => s + m.e, 0) / months.length : te || 1;
+  })();
+  const liquidityMonths = avgMonthlyExpense > 0 ? liquidAssets / avgMonthlyExpense : 0;
+  // Score: 0mo = 0, 3mo = 60, 6mo+ = 100
+  const liquidityScore = liquidityMonths >= 6 ? 100 : liquidityMonths >= 3 ? Math.round(60 + (liquidityMonths - 3) / 3 * 40) : Math.round(liquidityMonths / 3 * 60);
+  metrics.push({ label: 'Reserve', value: liquidityMonths.toFixed(1) + 'mo', target: '≥6mo', color: liquidityMonths >= 6 ? 'var(--emerald)' : liquidityMonths >= 3 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // 5. EXPENSE RATIO (weight: 15%) — Target: <75%
+  // ═══════════════════════════════════════════
+  const expRatio = ti > 0 ? (te / monthlyIncome * 100) : 100;
+  // Score: ≤50% = 100, 50-75% = linear decline to 50, 75-100% = decline to 0
+  const expScore = expRatio <= 50 ? 100 : expRatio <= 75 ? Math.round(100 - (expRatio - 50) / 25 * 50) : expRatio <= 100 ? Math.round(50 - (expRatio - 75) / 25 * 50) : 0;
+  metrics.push({ label: 'Exp/Inc', value: expRatio.toFixed(0) + '%', target: '<75%', color: expRatio < 75 ? 'var(--emerald)' : expRatio <= 90 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // 6. NET WORTH TRAJECTORY (weight: 15%) — Target: positive growth
+  // ═══════════════════════════════════════════
+  let nwGrowthPct = 0;
+  if (mf !== 'total' && +mf > 0) {
+    const currentNW = getNetWorthByPeriod(year, mf);
+    const prevNW = getNetWorthByPeriod(year, String(+mf - 1));
+    nwGrowthPct = prevNW !== 0 ? ((currentNW - prevNW) / Math.abs(prevNW) * 100) : (currentNW > 0 ? 100 : 0);
+  } else {
+    // Year-to-date: compare first active month to latest
+    const activeMonths = yearData.filter(m => m.i > 0 || m.e > 0);
+    if (activeMonths.length >= 2) {
+      const firstIdx = yearData.indexOf(activeMonths[0]);
+      const lastIdx = yearData.indexOf(activeMonths[activeMonths.length - 1]);
+      const firstNW = getNetWorthByPeriod(year, String(firstIdx));
+      const lastNW = getNetWorthByPeriod(year, String(lastIdx));
+      nwGrowthPct = firstNW !== 0 ? ((lastNW - firstNW) / Math.abs(firstNW) * 100) : (lastNW > 0 ? 100 : 0);
+    }
+  }
+  // Score: ≥5% growth = 100, 0% = 50, negative = 0-50 linear
+  const nwScore = nwGrowthPct >= 5 ? 100 : nwGrowthPct >= 0 ? Math.round(50 + nwGrowthPct / 5 * 50) : Math.max(0, Math.round(50 + nwGrowthPct / 10 * 50));
+  metrics.push({ label: 'Growth', value: (nwGrowthPct >= 0 ? '+' : '') + nwGrowthPct.toFixed(1) + '%', target: 'Positive', color: nwGrowthPct > 0 ? 'var(--emerald)' : nwGrowthPct === 0 ? 'var(--amber)' : 'var(--rose)' });
+
+  // ═══════════════════════════════════════════
+  // WEIGHTED FINAL SCORE (CFP-aligned weights)
+  // ═══════════════════════════════════════════
+  const weights = [0.20, 0.15, 0.20, 0.15, 0.15, 0.15]; // must sum to 1.0
+  const scores = [savScore, housingScore, debtScoreFinal, liquidityScore, expScore, nwScore];
+  const finalScore = Math.round(scores.reduce((sum, s, i) => sum + s * weights[i], 0));
+
+  const label = finalScore >= 90 ? 'Excellent' : finalScore >= 75 ? 'Good' : finalScore >= 60 ? 'Fair' : finalScore >= 40 ? 'Needs Work' : 'Critical';
+  return { score: Math.min(100, Math.max(0, finalScore)), label, metrics };
+}
+
+// === V1.0.0: DYNAMIC AI INSIGHTS ===
+function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, periodBudget) {
+  const insights = [];
+  const monthName = mf !== 'total' ? MONTH_NAMES[+mf] : year;
+
+  // Highest spending category
+  if (expCats.length) {
+    const top = expCats[0];
+    const pct = te > 0 ? (top.a / te * 100).toFixed(0) : 0;
+    insights.push({ icon: '📍', text: `<b>${top.n}</b> is your biggest expense (${pct}% of total). ${+pct > 40 ? 'Consider diversifying spending.' : 'Distribution looks balanced.'}` });
+  }
+
+  // Largest single transaction
+  const periodTxns = TXN.filter(tx => { const d = new Date(tx.d); if (d.getFullYear() !== year) return false; if (mf !== 'total' && d.getMonth() !== +mf) return false; return tx.t === 'Expense'; });
+  if (periodTxns.length) {
+    const biggest = periodTxns.reduce((max, tx) => tx.a > max.a ? tx : max, periodTxns[0]);
+    insights.push({ icon: '💳', text: `Largest expense: <b>${biggest.dt || biggest.c}</b> (${fmtD(biggest.a)}) on ${new Date(biggest.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` });
+  }
+
+  // Budget warnings
+  const overspent = getDashboardOverspentCats();
+  if (overspent.length) {
+    insights.push({ icon: '⚠️', text: `<b>${overspent.length} categor${overspent.length > 1 ? 'ies' : 'y'}</b> over budget. Total overspend: ${fmt(overspent.reduce((s, o) => s + o.over, 0))}.` });
+  } else if (+budgetUsed <= 70 && periodBudget > 0) {
+    insights.push({ icon: '✅', text: `Budget under control at <b>${budgetUsed}%</b> used. Well managed!` });
+  }
+
+  // Savings insight
+  const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
+  if (+savRate >= 30) insights.push({ icon: '🏆', text: `Savings rate is <b>${savRate}%</b>. Excellent discipline!` });
+  else if (+savRate >= 20) insights.push({ icon: '👍', text: `Savings rate: <b>${savRate}%</b>. Meeting the recommended 20% target.` });
+  else if (+savRate > 0) insights.push({ icon: '💡', text: `Savings rate: <b>${savRate}%</b>. Aim for 20%+ to build faster.` });
+  else if (ti > 0) insights.push({ icon: '🔴', text: `No savings this period. Try to allocate at least 20% of income.` });
+
+  // Cash flow trend
+  if (cf < 0) insights.push({ icon: '📉', text: `Negative cash flow of <b>${fmt(Math.abs(cf))}</b>. Spending exceeds income after savings.` });
+  else if (cf > ti * 0.3) insights.push({ icon: '🚀', text: `Strong positive cash flow: <b>${fmt(cf)}</b>. Consider investing the surplus.` });
+
+  // Expense vs prev month comparison
+  if (mf !== 'total' && +mf > 0) {
+    const prevE = yearData[+mf - 1].e;
+    if (prevE > 0) {
+      const change = ((te - prevE) / prevE * 100).toFixed(0);
+      if (+change > 15) insights.push({ icon: '📈', text: `Expenses up <b>${change}%</b> vs ${MONTH_NAMES[+mf - 1]}. Check for one-off or recurring increases.` });
+      else if (+change < -10) insights.push({ icon: '📉', text: `Expenses down <b>${Math.abs(change)}%</b> vs ${MONTH_NAMES[+mf - 1]}. Great cost control!` });
+    }
+  }
+
+  if (!insights.length) insights.push({ icon: '🤖', text: `Your finances for <b>${monthName}</b> look stable. Keep tracking consistently.` });
+
+  return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;margin-bottom:10px">🤖 AI Insights</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${insights.slice(0, 6).map(i => `<div style="display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)"><span style="font-size:13px;flex-shrink:0">${i.icon}</span><span>${i.text}</span></div>`).join('')}
+    </div>
+  </div>`;
 }
