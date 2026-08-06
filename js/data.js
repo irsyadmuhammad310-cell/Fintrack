@@ -217,17 +217,6 @@ function getFinancialFreedomMonths(year, month) {
   const avgMonthlyExpense = expenses / months;
   return parseFloat((totalAssets / avgMonthlyExpense).toFixed(1));
 }
-
-// Compute savings categories from TXN for any year/month
-function computeSavingsCategories(year, month) {
-  const cats = {};
-  TXN.filter(tx => {
-    const d = new Date(tx.d);
-    if (tx.t !== 'Savings') return false;
-    if (month === 'total') return d.getFullYear() === year;
-    return d.getFullYear() === year && d.getMonth() === +month;
-  }).forEach(tx => { if (!cats[tx.c]) cats[tx.c] = 0; cats[tx.c] += tx.a; });
-  return Object.entries(cats).map(([n, a]) => ({ n, a: Math.round(a * 100) / 100 })).sort((a, b) => b.a - a.a);
 }
 
 // Compute expense categories for a specific period
