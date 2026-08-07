@@ -1,5 +1,58 @@
 // === HELPERS & UI UTILITIES (v15.8.1) ===
 
+// === HIDE/SHOW AMOUNTS (Eye toggle) ===
+function toggleHideAmounts() {
+  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
+  localStorage.setItem('ft_hide_amounts', hidden ? 'false' : 'true');
+  applyHideAmounts();
+}
+
+function applyHideAmounts() {
+  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
+  const blur = hidden ? 'blur(8px)' : 'none';
+  // Target all money-displaying elements across all tabs
+  const selectors = [
+    '.mob-dash-amount',          // Mobile dashboard NW
+    '.mob-dash-stat-val',        // Mobile dashboard stats
+    '.mob-txn-amount',           // Mobile transaction amounts
+    '.mob-txn-pill-val',         // Transaction summary pills
+    '.kv',                       // Desktop KPI values
+    '.bank-balance',             // Bank account cards
+    '.goal-kpi-val',             // Goal KPI values
+    '.goal-card-num',            // Goal saved/target
+    '.goal-detail-num',          // Goal expanded details
+    '.goal-card-pct',            // Goal percentage
+    '.tsv',                      // Transaction summary values
+    '.an-goal-big',              // Analytics goal %
+    '.an-inv-row span:last-child', // Analytics investment values
+    '.an-health-score',          // Health score number
+    '.cover-alert-meta',         // Overspent amounts
+    '.budget-prog-amt',          // Budget progress amounts
+    '[style*="font-feature-settings"]' // Any element with tnum (money formatting)
+  ];
+  document.querySelectorAll(selectors.join(',')).forEach(el => {
+    el.style.filter = blur;
+    el.style.userSelect = hidden ? 'none' : '';
+  });
+  // Update eye button icon if present
+  const eyeBtn = document.getElementById('mobEyeBtn');
+  if (eyeBtn) {
+    eyeBtn.innerHTML = hidden
+      ? '<i data-lucide="eye-off" width="16" height="16"></i>'
+      : '<i data-lucide="eye" width="16" height="16"></i>';
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  }
+}
+
+// Auto-apply after any page render
+const _origRender = typeof render === 'function' ? render : null;
+if (_origRender) {
+  render = function() {
+    _origRender();
+    setTimeout(applyHideAmounts, 60);
+  };
+}
+
 // === PIN SECURITY (v15.7 — SHA-256 hashed) ===
 async function hashPIN(pin) {
   const encoder = new TextEncoder();
