@@ -243,7 +243,8 @@ function renderAccountsSection() {
   }
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
   if (assets.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Assets</div>`;
+    const totalAssetDisplay = assets.reduce((s, a) => s + getAccountBalanceInDisplay(a.id), 0);
+    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span>Assets</span><span style="font-size:11px;font-feature-settings:'tnum'">${fmt(totalAssetDisplay)}</span></div>`;
     assets.forEach(a => {
       const bal = getAccountBalance(a.id);
       const cur = a.currency || 'MYR';
@@ -255,7 +256,8 @@ function renderAccountsSection() {
     });
   }
   if (liabilities.length) {
-    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Liabilities</div>`;
+    const totalLiabDisplay = liabilities.reduce((s, a) => s + convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'), 0);
+    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center"><span>Liabilities</span><span style="font-size:11px;font-feature-settings:'tnum'">-${fmt(totalLiabDisplay)}</span></div>`;
     liabilities.forEach(a => {
       const cur = a.currency || 'MYR';
       const showDual = cur !== displayCurrency;
