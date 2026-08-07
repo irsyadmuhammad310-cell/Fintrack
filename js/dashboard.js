@@ -26,7 +26,7 @@ function renderDashboard(c) {
     te = yearData[+mf].e;
     ts = yearData[+mf].s;
   }
-  const nw = getNetWorthByPeriod(year, mf), cf = ti - te;
+  const nw = getNetWorth(), cf = ti - te;
   const bal = getCarryForwardBalance(year, mf);
   const ffm = getFinancialFreedomMonths(year, mf);
   const budgetTotal = getYearlyBudgetTotal(year);
@@ -485,7 +485,7 @@ function renderMobileDashboard(c, year) {
     ts = yearData[+mf].s;
   }
 
-  const nw = getNetWorthByPeriod(year, mf);
+  const nw = getNetWorth();
   const cf = ti - te;
   const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
   const budgetTotal = getYearlyBudgetTotal(year);
