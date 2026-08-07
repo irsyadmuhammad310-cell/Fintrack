@@ -431,15 +431,15 @@ function initApp() {
 // === FIRST-RUN ONBOARDING (with name + title input) ===
 function showOnboarding() {
   var steps = [
-    { title: 'Welcome to FinTrack!', desc: 'Your personal finance tracker built to last 30 years. First, what should we call you?', icon: '👋', hasInput: true },
-    { title: 'Set Up Categories', desc: 'Go to Settings → Categories to add your Income, Expense, and Savings categories. These are the building blocks for everything.', icon: '📂' },
-    { title: 'Add Accounts', desc: 'Go to Settings → Accounts to set up your bank accounts, e-wallets, and cash. This helps track where your money lives.', icon: '🏦' },
-    { title: 'Record Transactions', desc: 'Use the Transactions tab to add income, expenses, and savings. This is your single source of truth for all financial data.', icon: '📝' },
-    { title: 'Track Goals', desc: 'Set savings goals in the Goals tab. Link them to your Savings categories and they auto-sync from transactions.', icon: '🎯' },
-    { title: 'Monitor Investments', desc: 'The Investment tab shows your portfolio, synced from Savings transactions. Add instruments to the Watchlist for live market prices.', icon: '📈' },
-    { title: 'Analyze & Report', desc: 'Analytics shows why your finances are changing. Reports lets you export professional P&L statements in PDF, Excel, or CSV.', icon: '📊' },
-    { title: 'Secure Your Data', desc: 'Go to Settings → Security to enable AES-256 encryption. Your data will be locked with your passkey.', icon: '🔐' },
-    { title: 'You\'re all set!', desc: 'Start by adding categories in Settings, then record your first transaction. Everything updates automatically across all tabs.', icon: '🚀' }
+    { title: 'Welcome to FinTrack!', desc: 'Your personal finance tracker that works offline and keeps your data private. First, what should we call you?', icon: '👋', hasInput: true },
+    { title: 'Step 1: Set Your Currency', desc: 'Go to Settings → General → Currency and pick your display currency (MYR, SGD, USD, etc). This is how all amounts will be shown.', icon: '💱' },
+    { title: 'Step 2: Add Your Accounts', desc: 'Go to Settings → Categories & Accounts → Accounts. Add your bank accounts, e-wallets, and cash. Set the correct currency and starting balance for each.', icon: '🏦' },
+    { title: 'Step 3: Set Up Categories', desc: 'Still in Settings → Categories & Accounts. Add your Income sources (Salary, Freelance), Expense categories (Food, Transport, Rent), and Savings categories (Emergency Fund, Travel).', icon: '📂' },
+    { title: 'Step 4: Create a Budget', desc: 'Go to Goals tab → Budget Planner at the bottom. Tap a month and set how much you plan to spend per category. Copy to all months for a quick setup.', icon: '📊' },
+    { title: 'Step 5: Record Transactions', desc: 'Tap the + button to add your first transaction. Pick the type, category, account, and amount. The app converts everything to your base currency automatically.', icon: '📝' },
+    { title: 'Step 6: Set Savings Goals', desc: 'In the Goals tab, create goals and link them to your Savings categories. Every time you record a Savings transaction, your goal progress updates automatically.', icon: '🎯' },
+    { title: 'Step 7: Secure Your Data', desc: 'Go to Settings → Security. Set a PIN, enable App Lock, and save your Recovery Code. Your data stays on-device, encrypted.', icon: '🔐' },
+    { title: 'You\'re ready!', desc: 'Your dashboard will populate as you add transactions. Check Insights for financial health analysis, and Reports for monthly statements. Happy tracking!', icon: '🚀' }
   ];
   var currentStep = 0;
 
