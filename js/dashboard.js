@@ -691,8 +691,8 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
 
 // === V1.0.0: FINANCIAL HEALTH CALCULATION (CFP Board Standard) ===
 // Liquidity tiers by account type
-const LIQUIDITY_HIGH = ['Cash', 'Savings Account', 'Digital Wallet'];
-const LIQUIDITY_MID = ['Current Account', 'Credit/Debit Card'];
+const LIQUIDITY_HIGH = ['Cash', 'Savings Account', 'Digital Wallet', 'Current Account'];
+const LIQUIDITY_MID = ['Credit/Debit Card'];
 const LIQUIDITY_LOW = ['Investment Account'];
 
 function getHighLiquidityAssets() {
