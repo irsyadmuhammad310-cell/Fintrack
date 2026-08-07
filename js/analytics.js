@@ -20,7 +20,7 @@ function renderAnalytics(c) {
   var ti = MD.reduce(function(s,m){return s+m.i;},0);
   var te = MD.reduce(function(s,m){return s+m.e;},0);
   var ts = MD.reduce(function(s,m){return s+m.s;},0);
-  var net = ti - te - ts;
+  var net = ti - te;
   var nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
   var savRate = ti > 0 ? (ts / ti * 100).toFixed(1) : '0.0';
 
@@ -111,7 +111,7 @@ function anRenderCharts(year, MD, am) {
 
   // Cash Flow
   var el4 = document.getElementById('anCashFlow');
-  var cfData = am.map(function(m){return m.i - m.e - m.s;});
+  var cfData = am.map(function(m){return m.i - m.e;});
   if (el4) anCharts.push(new Chart(el4, { type:'bar', data:{ labels:labels, datasets:[{ data:cfData, backgroundColor:cfData.map(function(v){return v>=0?'rgba(16,185,129,0.7)':'rgba(244,63,94,0.7)';}), borderRadius:4 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{grid:{display:false},ticks:{color:tc,font:{size:9}}}, y:{grid:{color:gc},ticks:{color:tc,font:{size:9}}} } } }));
 
   // Budget vs Actual
@@ -314,7 +314,7 @@ function renderMobileInsights(c, year, month) {
   } else {
     ti = MD[+mf].i; te = MD[+mf].e; ts = MD[+mf].s;
   }
-  var net = ti - te - ts;
+  var net = ti - te;
   var nw = getNetWorthByPeriod(year, mf);
   var periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : getYearlyBudgetTotal(year);
   var budgetUsed = periodBudget > 0 ? Math.min(100, (te / periodBudget * 100)).toFixed(0) : 0;
