@@ -132,7 +132,7 @@ function renderGoals(c) {
   } else {
     pInc = MD[+mf].i; pExp = MD[+mf].e; pSav = MD[+mf].s;
   }
-  const incPct = budgetTotalForProgress > 0 ? Math.min((pInc / budgetTotalForProgress * 100), 100).toFixed(0) : 0;
+  const incPct = pInc > 0 && budgetTotalForProgress > 0 ? Math.min((pInc / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
   const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
   const savPct = pInc > 0 ? Math.min((pSav / pInc * 100), 100).toFixed(0) : 0;
 
