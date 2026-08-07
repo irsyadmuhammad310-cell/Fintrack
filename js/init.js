@@ -431,15 +431,15 @@ function initApp() {
 // === FIRST-RUN ONBOARDING (with name + title input) ===
 function showOnboarding() {
   var steps = [
-    { title: 'Welcome to FinTrack!', desc: 'Your personal finance tracker that works offline and keeps your data private. First, what should we call you?', icon: '👋', hasInput: true },
-    { title: 'Step 1: Set Your Currency', desc: 'Go to Settings → General → Currency and pick your display currency (MYR, SGD, USD, etc). This is how all amounts will be shown.', icon: '💱' },
-    { title: 'Step 2: Add Your Accounts', desc: 'Go to Settings → Categories & Accounts → Accounts. Add your bank accounts, e-wallets, and cash. Set the correct currency and starting balance for each.', icon: '🏦' },
-    { title: 'Step 3: Set Up Categories', desc: 'Still in Settings → Categories & Accounts. Add your Income sources (Salary, Freelance), Expense categories (Food, Transport, Rent), and Savings categories (Emergency Fund, Travel).', icon: '📂' },
-    { title: 'Step 4: Create a Budget', desc: 'Go to Goals tab → Budget Planner at the bottom. Tap a month and set how much you plan to spend per category. Copy to all months for a quick setup.', icon: '📊' },
-    { title: 'Step 5: Record Transactions', desc: 'Tap the + button to add your first transaction. Pick the type, category, account, and amount. The app converts everything to your base currency automatically.', icon: '📝' },
-    { title: 'Step 6: Set Savings Goals', desc: 'In the Goals tab, create goals and link them to your Savings categories. Every time you record a Savings transaction, your goal progress updates automatically.', icon: '🎯' },
-    { title: 'Step 7: Secure Your Data', desc: 'Go to Settings → Security. Set a PIN, enable App Lock, and save your Recovery Code. Your data stays on-device, encrypted.', icon: '🔐' },
-    { title: 'You\'re ready!', desc: 'Your dashboard will populate as you add transactions. Check Insights for financial health analysis, and Reports for monthly statements. Happy tracking!', icon: '🚀' }
+    { title: 'Hey there! 👋', desc: 'FinTrack keeps your money data private, offline, and always in your control. No cloud, no ads, no tracking. Let\'s get you set up in under 3 minutes.', icon: '👋', hasInput: true },
+    { title: 'Pick Your Currency', desc: 'What currency do you think in? We\'ll display everything in this. You can still have accounts in other currencies, they auto-convert.\n\n→ Settings → General → Currency', icon: '💱' },
+    { title: 'Where\'s Your Money?', desc: 'Add your real accounts: bank savings, current account, e-wallets, cash stash. Set the starting balance so we know where you\'re starting from.\n\n→ Settings → Categories & Accounts → Accounts', icon: '🏦' },
+    { title: 'How Do You Spend?', desc: 'Create categories that match YOUR life. Salary, freelance gigs for income. Food, transport, subscriptions for expenses. Emergency fund, travel fund for savings.\n\n→ Settings → Categories & Accounts', icon: '🏷️' },
+    { title: 'Set Your Limits', desc: 'Tell us how much you WANT to spend per category each month. We\'ll alert you before you overshoot. Copy one month to all 12 for instant setup.\n\n→ Goals → Budget Planner', icon: '🎯' },
+    { title: 'Log Your First Transaction', desc: 'Tap the purple + button. Pick type, category, account, amount. Done. Every transaction auto-updates your dashboard, goals, and insights.\n\n→ Tap + anywhere', icon: '✍️' },
+    { title: 'Dream Bigger', desc: 'Want a Japan trip? Emergency fund? New laptop? Create a goal, link it to a Savings category. Every time you save, the progress bar moves automatically.\n\n→ Goals → + New Goal', icon: '🚀' },
+    { title: 'Lock It Down', desc: 'Your finances are personal. Set a PIN, enable biometric unlock, and save your recovery code. If your phone gets stolen, your data stays locked.\n\n→ Settings → Security', icon: '🔒' },
+    { title: 'You\'re in control.', desc: 'Start logging transactions. In a week you\'ll see patterns. In a month you\'ll see progress. In a year you\'ll wonder how you lived without this.\n\nLet\'s go. 💪', icon: '⚡' }
   ];
   var currentStep = 0;
 
