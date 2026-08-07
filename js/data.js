@@ -204,7 +204,11 @@ function getNetWorthByPeriod(year, month) {
 
 // Financial Freedom Months: Available Assets / Average Monthly Expense (v15.1 multi-currency)
 function getFinancialFreedomMonths(year, month) {
-  const totalAssets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalanceInDisplay(a.id), 0);
+  // Both values in MYR for consistent division
+  const totalAssetsMYR = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => {
+    const nativeBal = getAccountBalance(a.id);
+    return sum + convertFromTo(nativeBal, a.currency || 'MYR', 'MYR');
+  }, 0);
   let expenses, months;
   if (month === 'total') {
     expenses = TXN.filter(tx => tx.t === 'Expense' && new Date(tx.d).getFullYear() === year).reduce((s, tx) => s + tx.a, 0);
@@ -215,7 +219,7 @@ function getFinancialFreedomMonths(year, month) {
   }
   if (expenses === 0 || months === 0) return null;
   const avgMonthlyExpense = expenses / months;
-  return parseFloat((totalAssets / avgMonthlyExpense).toFixed(1));
+  return parseFloat((totalAssetsMYR / avgMonthlyExpense).toFixed(1));
 }
 
 // Compute savings categories from TXN for any year/month
