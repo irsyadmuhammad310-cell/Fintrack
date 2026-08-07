@@ -566,8 +566,9 @@ function renderMobileDashboard(c, year) {
     </div>
   </div>`;
 
-  // Render mini chart
+  // Render mini chart + apply hide state
   setTimeout(() => {
+    if (typeof applyHideAmounts === 'function') applyHideAmounts();
     const ctx = document.getElementById('mobDashChart')?.getContext('2d');
     if (!ctx) return;
     const dk = document.documentElement.dataset.theme === 'dark';
