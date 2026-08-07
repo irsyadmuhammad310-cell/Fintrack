@@ -44,14 +44,20 @@ function applyHideAmounts() {
   }
 }
 
-// Auto-apply after any page render
-const _origRender = typeof render === 'function' ? render : null;
-if (_origRender) {
-  render = function() {
-    _origRender();
-    setTimeout(applyHideAmounts, 60);
-  };
-}
+// MutationObserver: re-apply blur whenever #cnt content changes (covers all tab switches)
+document.addEventListener('DOMContentLoaded', () => {
+  const cnt = document.getElementById('cnt');
+  if (cnt) {
+    const observer = new MutationObserver(() => {
+      if (localStorage.getItem('ft_hide_amounts') === 'true') {
+        setTimeout(applyHideAmounts, 50);
+      }
+    });
+    observer.observe(cnt, { childList: true, subtree: true });
+  }
+  // Initial apply
+  setTimeout(applyHideAmounts, 200);
+});
 
 // === PIN SECURITY (v15.7 — SHA-256 hashed) ===
 async function hashPIN(pin) {
