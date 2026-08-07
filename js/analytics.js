@@ -306,6 +306,18 @@ function renderMobileInsights(c, year, month) {
   anDestroy();
   var mf = document.getElementById('mf') ? document.getElementById('mf').value : 'total';
   var MD = computeMonthlyData(year);
+
+  // If selected month is in the future and has no data, show empty state
+  if (mf !== 'total') {
+    var now = new Date();
+    var selDate = new Date(year, +mf, 1);
+    var hasData = MD[+mf].i > 0 || MD[+mf].e > 0 || MD[+mf].s > 0;
+    if (selDate > now && !hasData) {
+      c.innerHTML = '<div class="mob-insights"><div style="padding:60px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">📅</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">' + MONTH_NAMES[+mf] + ' ' + year + ' hasn\'t started yet</div><div style="font-size:12px;color:var(--text-tertiary)">Select "Total Year" or a past/current month to view insights.</div></div></div>';
+      return;
+    }
+  }
+
   var ti, te, ts;
   if (mf === 'total') {
     ti = MD.reduce(function(s,m){return s+m.i;},0);
