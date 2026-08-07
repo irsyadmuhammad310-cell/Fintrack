@@ -603,15 +603,16 @@ function renderMobileDashboard(c, year) {
 function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
   let html = '';
   const banks = getBANKS();
-  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + Math.abs(a.initialBalance), 0);
+  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'), 0);
   const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
+  const netWorthLive = getNetWorth();
 
   // 1. TOTAL ASSETS & NET WORTH
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💎 Wealth Summary</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Total Assets</div><div style="font-size:16px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div>
-      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div style="font-size:16px;font-weight:800;color:${nw >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(nw)}</div></div>
+      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div style="font-size:16px;font-weight:800;color:${netWorthLive >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(netWorthLive)}</div></div>
     </div>
     ${liabTotal > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--rose-light);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--rose)">Liabilities</span><span style="font-size:11px;font-weight:700;color:var(--rose);font-feature-settings:'tnum'">-${fmt(liabTotal)}</span></div>` : ''}
   </div>`;
@@ -695,7 +696,7 @@ const LIQUIDITY_LOW = ['Investment Account'];
 
 function getHighLiquidityAssets() {
   return ACCOUNTS.filter(a => a.type === 'asset' && LIQUIDITY_HIGH.includes(a.accountType))
-    .reduce((s, a) => s + getAccountBalance(a.id), 0);
+    .reduce((s, a) => s + convertFromTo(getAccountBalance(a.id), a.currency || 'MYR', 'MYR'), 0);
 }
 
 function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf) {
