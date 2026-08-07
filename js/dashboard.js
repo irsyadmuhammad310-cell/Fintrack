@@ -26,7 +26,7 @@ function renderDashboard(c) {
     te = yearData[+mf].e;
     ts = yearData[+mf].s;
   }
-  const nw = getNetWorthByPeriod(year, mf), cf = ti - ts - te;
+  const nw = getNetWorthByPeriod(year, mf), cf = ti - te;
   const bal = getCarryForwardBalance(year, mf);
   const ffm = getFinancialFreedomMonths(year, mf);
   const budgetTotal = getYearlyBudgetTotal(year);
@@ -65,13 +65,13 @@ function renderDashboard(c) {
     income: yearData.map(m => m.i),
     expense: yearData.map(m => m.e),
     savings: yearData.map(m => m.s),
-    cashflow: yearData.map(m => m.i - m.s - m.e)
+    cashflow: yearData.map(m => m.i - m.e)
   };
 
   function buildSparkSeries() {
     const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     if (mf === 'total') {
-      return { labels: monthNames, networth: yearData.map((m, i) => getNetWorthByPeriod(year, String(i))), balance: balSpark, income: yearData.map(m => m.i), expense: yearData.map(m => m.e), savings: yearData.map(m => m.s), cashflow: yearData.map(m => m.i - m.s - m.e) };
+      return { labels: monthNames, networth: yearData.map((m, i) => getNetWorthByPeriod(year, String(i))), balance: balSpark, income: yearData.map(m => m.i), expense: yearData.map(m => m.e), savings: yearData.map(m => m.s), cashflow: yearData.map(m => m.i - m.e) };
     }
     const mi = +mf, daysInMonth = new Date(year, mi + 1, 0).getDate();
     const lbls = [], iArr = [], eArr = [], sArr = [], cfArr = [], nwArr = [];
@@ -84,7 +84,7 @@ function renderDashboard(c) {
       cE += dt.filter(t => t.t === 'Expense').reduce((a, t) => a + t.a, 0);
       cS += dt.filter(t => t.t === 'Savings').reduce((a, t) => a + t.a, 0);
       iArr.push(cI); eArr.push(cE); sArr.push(cS);
-      cfArr.push(cI - cS - cE); nwArr.push(cI - cE);
+      cfArr.push(cI - cE); nwArr.push(cI - cE);
     }
     return { labels: lbls, networth: nwArr, balance: balSpark, income: iArr, expense: eArr, savings: sArr, cashflow: cfArr };
   }
@@ -178,7 +178,7 @@ ${safeBuildForecastHtml('desktop')}
     // Budget & Cash Flow chart
     const bSpend = yearData.map(m => m.e);
     const bLimit = yearData.map((m, idx) => getMonthlyBudget(year, idx));
-    const bNet = yearData.map(m => m.i - m.s - m.e);
+    const bNet = yearData.map(m => m.i - m.e);
     new Chart(document.getElementById('bchart'), { data: { labels: mns, datasets: [{ type: 'bar', label: 'Budget limit', data: bLimit, backgroundColor: dk ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)', borderWidth: 1, borderRadius: 5, barThickness: 18 }, { type: 'bar', label: 'Actual spend', data: bSpend, backgroundColor: bSpend.map((v, idx) => v > bLimit[idx] ? 'rgba(244,63,94,0.8)' : 'rgba(16,185,129,0.7)'), borderRadius: 5, barThickness: 10 }, { type: 'line', label: 'Cash flow', data: bNet, borderColor: '#6366f1', borderWidth: 2.5, tension: .4, pointRadius: 3, pointBackgroundColor: '#6366f1', pointBorderColor: dk ? '#1e1e2e' : '#fff', pointBorderWidth: 2, yAxisID: 'y1', fill: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 }, padding: 12 } }, tooltip: { mode: 'index', intersect: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#1a1a2e', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, padding: 10, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }, scales: { x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc, drawBorder: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } }, y1: { position: 'right', grid: { display: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } } } } });
 
     // Expense Breakdown Doughnut
@@ -486,7 +486,7 @@ function renderMobileDashboard(c, year) {
   }
 
   const nw = getNetWorthByPeriod(year, mf);
-  const cf = ti - ts - te;
+  const cf = ti - te;
   const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
   const budgetTotal = getYearlyBudgetTotal(year);
   // Use selected month's budget if a month is selected, otherwise yearly
@@ -631,7 +631,7 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
 
   // 3. CASH FLOW SECTION
   const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
-  const prevCf = prevMonth ? prevMonth.i - prevMonth.s - prevMonth.e : null;
+  const prevCf = prevMonth ? prevMonth.i - prevMonth.e : null;
   const cfChange = prevCf !== null && prevCf !== 0 ? ((cf - prevCf) / Math.abs(prevCf) * 100).toFixed(0) : null;
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💰 Cash Flow</div>
