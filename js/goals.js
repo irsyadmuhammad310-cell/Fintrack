@@ -11,7 +11,10 @@ let GOALS = JSON.parse(localStorage.getItem('ft_goals') || 'null') || JSON.parse
 let goalNxId = parseInt(localStorage.getItem('ft_goalNxId') || '10');
 function saveGOALS() { localStorage.setItem('ft_goals', JSON.stringify(GOALS)); localStorage.setItem('ft_goalNxId', goalNxId); }
 
+let mobileGoalSubTab = 'goals'; // goals | budget
+
 function renderGoals(c) {
+  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') { renderMobileGoals(c); return; }
   if (!goalBudgetYear) goalBudgetYear = getSelectedYear();
   const year = goalBudgetYear;
   const MD = computeMonthlyData(year);
@@ -711,6 +714,236 @@ document.addEventListener('click', function(e) {
     return;
   }
 });
+
+// === MOBILE GOALS + BUDGET (Sub-tab UI) ===
+function renderMobileGoals(c) {
+  if (!goalBudgetYear) goalBudgetYear = getSelectedYear();
+  const year = goalBudgetYear;
+  const MD = computeMonthlyData(year);
+  syncGoalsWithSavings();
+
+  let html = '';
+  // Header
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px;margin-bottom:14px"><div style="font-size:22px;font-weight:800;letter-spacing:-0.03em">Goals</div><div style="display:flex;gap:8px"><button class="btn bs" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px" onclick="document.getElementById(\'mobGoalSearch\')?.focus()"><i data-lucide="search" width="14" height="14"></i></button><button class="btn bs" style="width:32px;height:32px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px" onclick="openGoalModal()"><i data-lucide="plus" width="14" height="14"></i></button></div></div>';
+
+  // Segmented control
+  html += '<div style="display:flex;background:var(--bg-card);border-radius:12px;padding:3px;border:1px solid var(--border);margin-bottom:16px">';
+  html += '<div style="flex:1;padding:9px 12px;text-align:center;font-size:12px;font-weight:600;border-radius:9px;cursor:pointer;transition:all 200ms;' + (mobileGoalSubTab === 'goals' ? 'background:var(--accent);color:#fff' : 'color:var(--text-tertiary)') + '" onclick="mobileGoalSubTab=\'goals\';renderGoals(document.getElementById(\'cnt\'))">Goals</div>';
+  html += '<div style="flex:1;padding:9px 12px;text-align:center;font-size:12px;font-weight:600;border-radius:9px;cursor:pointer;transition:all 200ms;' + (mobileGoalSubTab === 'budget' ? 'background:var(--accent);color:#fff' : 'color:var(--text-tertiary)') + '" onclick="mobileGoalSubTab=\'budget\';renderGoals(document.getElementById(\'cnt\'))">Budget</div>';
+  html += '</div>';
+
+  if (mobileGoalSubTab === 'goals') {
+    html += renderMobileGoalsTab(MD, year);
+  } else {
+    html += renderMobileBudgetTab(MD, year);
+  }
+
+  c.innerHTML = html;
+  lucide.createIcons();
+}
+
+function renderMobileGoalsTab(MD, year) {
+  let html = '';
+  const totalSaved = GOALS.reduce((s, g) => s + g.c, 0);
+  const totalTarget = GOALS.reduce((s, g) => s + g.t, 0);
+  const overallPct = totalTarget > 0 ? (totalSaved / totalTarget * 100).toFixed(0) : 0;
+  const onTrack = GOALS.filter(g => {
+    if (g.c >= g.t) return true;
+    const today = new Date(); today.setHours(0,0,0,0);
+    const due = new Date(g.due); due.setHours(0,0,0,0);
+    const daysLeft = Math.ceil((due - today) / 86400000);
+    const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+    const remaining = g.t - g.c;
+    const monthlyReq = remaining / monthsLeft;
+    const linkedCats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
+    if (linkedCats.length) {
+      const savTxns = TXN.filter(tx => tx.t === 'Savings' && linkedCats.includes(tx.c));
+      const months = new Set(savTxns.map(tx => tx.d.substring(0, 7))).size;
+      const avg = months > 0 ? g.c / months : 0;
+      return avg >= monthlyReq * 0.8;
+    }
+    return true;
+  }).length;
+  const ringOffset = totalTarget > 0 ? (263.9 * (1 - totalSaved / totalTarget)).toFixed(1) : 263.9;
+
+  // Ring hero
+  html += '<div style="display:flex;align-items:center;gap:20px;margin-bottom:18px">';
+  html += '<div style="position:relative;width:96px;height:96px;flex-shrink:0">';
+  html += '<svg width="96" height="96" viewBox="0 0 96 96" style="transform:rotate(-90deg)"><circle cx="48" cy="48" r="40" fill="none" stroke="var(--border)" stroke-width="7"/><circle cx="48" cy="48" r="40" fill="none" stroke="var(--emerald)" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="' + (251.2 * (1 - overallPct / 100)).toFixed(1) + '" style="transition:stroke-dashoffset 800ms cubic-bezier(0.22,1,0.36,1)"/></svg>';
+  html += '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:22px;font-weight:800;color:var(--emerald);font-feature-settings:\'tnum\'">' + overallPct + '%</span><span style="font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-tertiary)">Overall</span></div>';
+  html += '</div>';
+  html += '<div style="display:flex;flex-direction:column;gap:8px">';
+  html += '<div><div style="font-size:10px;color:var(--text-tertiary);font-weight:500">Total Saved</div><div style="font-size:15px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + fmt(totalSaved) + '</div></div>';
+  html += '<div><div style="font-size:10px;color:var(--text-tertiary);font-weight:500">Total Target</div><div style="font-size:15px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(totalTarget) + '</div></div>';
+  html += '<div style="font-size:10px;color:var(--text-secondary)">' + onTrack + ' of ' + GOALS.length + ' on track</div>';
+  html += '</div></div>';
+
+  // Filter chips
+  html += '<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px">';
+  [['all', t('txn_all') + ' (' + GOALS.length + ')'], ['active', t('goal_active')], ['completed', t('goal_completed')], ['paused', t('goal_paused')]].forEach(([f, label]) => {
+    const isActive = goalFilter === f;
+    html += '<div style="padding:6px 14px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all 150ms;' + (isActive ? 'background:var(--accent);color:#fff;border:1px solid var(--accent)' : 'background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border)') + '" onclick="goalFilter=\'' + f + '\';renderGoals(document.getElementById(\'cnt\'))">' + label + '</div>';
+  });
+  html += '</div>';
+
+  // Filter & sort goals
+  let filtered = [...GOALS];
+  if (goalFilter === 'active') filtered = filtered.filter(g => g.c < g.t && !g.paused);
+  else if (goalFilter === 'completed') filtered = filtered.filter(g => g.c >= g.t);
+  else if (goalFilter === 'paused') filtered = filtered.filter(g => g.paused);
+  if (goalSort === 'progress') filtered.sort((a, b) => (b.c / b.t) - (a.c / a.t));
+  else if (goalSort === 'name') filtered.sort((a, b) => a.n.localeCompare(b.n));
+  else if (goalSort === 'due') filtered.sort((a, b) => new Date(a.due) - new Date(b.due));
+  else if (goalSort === 'amount') filtered.sort((a, b) => b.t - a.t);
+
+  // Goal rows
+  if (!filtered.length) {
+    html += '<div style="padding:40px;text-align:center;border:1px solid var(--border);border-radius:12px"><div style="font-size:28px;margin-bottom:8px">🎯</div><div style="font-size:12px;color:var(--text-tertiary)">' + (goalFilter === 'all' ? 'No goals yet. Tap + to create one.' : 'No matching goals.') + '</div></div>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column">';
+    filtered.forEach(g => {
+      const p = Math.max(0, Math.min(g.c / g.t, 1));
+      const pct = (p * 100).toFixed(0);
+      const remaining = g.t - g.c;
+      const isCompleted = g.c >= g.t;
+      const barColor = isCompleted ? 'var(--emerald)' : p >= 0.7 ? 'var(--emerald)' : p >= 0.4 ? 'var(--amber)' : 'var(--accent)';
+      const bgColor = isCompleted ? 'var(--emerald-light,oklch(0.22 0.05 155))' : p >= 0.7 ? 'var(--emerald-light,oklch(0.22 0.05 155))' : p >= 0.4 ? 'oklch(0.22 0.04 75)' : 'var(--accent-light,oklch(0.22 0.06 265))';
+      const segClass = isCompleted || p >= 0.7 ? '' : p >= 0.4 ? 'amber' : 'accent';
+      const filledSegs = Math.round(p * 10);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dueDate = new Date(g.due); dueDate.setHours(0,0,0,0);
+      const daysLeft = Math.ceil((dueDate - today) / 86400000);
+
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260));cursor:pointer" onclick="expandedGoal=' + (expandedGoal === g.id ? 'null' : g.id) + ';renderGoals(document.getElementById(\'cnt\'))">';
+      html += '<div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:' + bgColor + '">' + g.e + '</div>';
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="font-size:13px;font-weight:600;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + g.n + '</div>';
+      html += '<div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:1px">' + fmt(g.c) + ' / ' + fmt(g.t) + ' · ' + (g.due || 'No deadline') + '</div>';
+      // Segmented bar
+      html += '<div style="display:flex;gap:2px;margin-top:6px">';
+      for (let i = 0; i < 10; i++) {
+        html += '<div style="height:3px;flex:1;border-radius:1.5px;background:' + (i < filledSegs ? barColor : 'var(--border)') + '"></div>';
+      }
+      html += '</div></div>';
+      html += '<div style="text-align:right;flex-shrink:0"><div style="font-size:15px;font-weight:800;font-feature-settings:\'tnum\';color:' + barColor + '">' + pct + '%</div><div style="font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:1px">' + (remaining > 0 ? fmt(remaining) + ' left' : '✅ Done') + '</div></div>';
+      html += '</div>';
+
+      // Expanded detail
+      if (expandedGoal === g.id) {
+        const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+        const monthlyReq = remaining > 0 ? remaining / monthsLeft : 0;
+        const linkedCats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
+        const isSynced = linkedCats.length > 0;
+        html += '<div style="padding:12px 0 14px;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260))">';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_remaining') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(remaining) + '</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_days_left') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\';color:' + (daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)') + '">' + (daysLeft > 0 ? daysLeft + 'd' : t('goal_overdue')) + '</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_monthly_contrib') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(monthlyReq) + '/mo</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? '🔗 ' + linkedCats.join(', ') : t('goal_manual')) + '</div></div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + g.id + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + g.id + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + g.id + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
+        html += '</div>';
+      }
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+function renderMobileBudgetTab(MD, year) {
+  let html = '';
+  const mf = document.getElementById('mf').value;
+  const budgetTotal = getYearlyBudgetTotal(year);
+  let pInc, pExp, pSav;
+  if (mf === 'total') { pInc = MD.reduce((s, m) => s + m.i, 0); pExp = MD.reduce((s, m) => s + m.e, 0); pSav = MD.reduce((s, m) => s + m.s, 0); }
+  else { pInc = MD[+mf].i; pExp = MD[+mf].e; pSav = MD[+mf].s; }
+  const monthlyBudget = mf === 'total' ? budgetTotal : getMonthlyBudget(year, +mf);
+
+  // Summary pills
+  html += '<div style="display:flex;gap:8px;margin-bottom:18px">';
+  html += '<div style="flex:1;padding:12px 10px;border-radius:12px;background:var(--bg-card);border:1px solid var(--border);text-align:center"><div style="font-size:14px;font-weight:800;font-feature-settings:\'tnum\';color:var(--emerald)">' + fmt(pInc) + '</div><div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Income</div></div>';
+  html += '<div style="flex:1;padding:12px 10px;border-radius:12px;background:var(--bg-card);border:1px solid var(--border);text-align:center"><div style="font-size:14px;font-weight:800;font-feature-settings:\'tnum\';color:var(--rose)">' + fmt(pExp) + '</div><div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Spent</div></div>';
+  html += '<div style="flex:1;padding:12px 10px;border-radius:12px;background:var(--bg-card);border:1px solid var(--border);text-align:center"><div style="font-size:14px;font-weight:800;font-feature-settings:\'tnum\';color:var(--blue)">' + fmt(pSav) + '</div><div style="font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-tertiary)">Saved</div></div>';
+  html += '</div>';
+
+  // Progress bars
+  const incPct = monthlyBudget > 0 ? Math.min((pInc / monthlyBudget * 100), 100).toFixed(0) : 0;
+  const expPct = monthlyBudget > 0 ? Math.min((pExp / monthlyBudget * 100), 100).toFixed(0) : 0;
+  const savPct = pInc > 0 ? Math.min((pSav / pInc * 100), 100).toFixed(0) : 0;
+  const periodLabel = mf === 'total' ? year + ' Progress' : MONTH_NAMES[+mf] + ' Progress';
+
+  html += '<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:-0.01em">' + periodLabel + '</div>';
+  // Income
+  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_income') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + incPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + incPct + '%;background:var(--emerald);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pInc) + ' earned</span><span>' + fmt(monthlyBudget) + ' planned</span></div></div>';
+  // Expense
+  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_expense') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';font-feature-settings:\'tnum\'">' + expPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + expPct + '%;background:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pExp) + ' spent</span><span>' + fmt(monthlyBudget) + ' budgeted</span></div></div>';
+  // Savings rate
+  html += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('an_savings_rate') + '</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:\'tnum\'">' + savPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + savPct + '%;background:var(--blue);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pSav) + ' saved</span><span>' + fmt(pInc) + ' income</span></div></div>';
+  html += '</div>';
+
+  // Overspent categories
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const STATUS_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const statusYearKey = String(currentYear);
+  const statusMonthPlan = STATUS_PLANS[statusYearKey] && STATUS_PLANS[statusYearKey][currentMonth];
+  if (statusMonthPlan && statusMonthPlan.expCats) {
+    const monthTxns = TXN.filter(tx => { const d = new Date(tx.d); return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense'; });
+    const overspentCats = [];
+    Object.entries(statusMonthPlan.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0); if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget }); });
+    if (overspentCats.length > 0) {
+      html += '<div style="height:1px;background:var(--border);margin:18px 0"></div>';
+      html += '<div style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:var(--rose)">⚠️ Overspent</span><span style="font-size:10px;color:var(--text-tertiary)">' + MONTH_NAMES[currentMonth] + ' ' + currentYear + '</span></div>';
+      overspentCats.forEach(item => {
+        const pctOver = ((item.spent / item.budget) * 100).toFixed(0);
+        const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
+        html += '<div style="background:var(--bg-card);border:1px solid oklch(0.3 0.05 15);border-radius:12px;padding:14px;margin-bottom:8px">';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:16px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:oklch(0.22 0.04 15);border-radius:8px">' + catEmoji + '</div><div><div style="font-size:12px;font-weight:600">' + item.cat + '</div><div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\'">' + fmt(item.spent) + ' / ' + fmt(item.budget) + ' (' + pctOver + '%)</div></div></div><div style="font-size:12px;font-weight:700;color:var(--rose);font-feature-settings:\'tnum\'">-' + fmt(item.over) + '</div></div>';
+        html += '<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:100%;background:var(--rose);border-radius:2px"></div></div>';
+        html += '<button class="btn bp cover-btn" data-cover-cat="' + item.cat.replace(/"/g, '&quot;') + '" data-cover-over="' + item.over + '" data-cover-year="' + currentYear + '" data-cover-month="' + currentMonth + '" style="font-size:11px;padding:7px 14px"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover from another category</button>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+  }
+
+  // Monthly budget cards (horizontal scroll)
+  html += '<div style="height:1px;background:var(--border);margin:0 0 18px"></div>';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:13px;font-weight:700;letter-spacing:-0.01em">' + t('goal_budget_planner') + '</span><select class="fsel" style="font-size:10px;padding:4px 20px 4px 8px" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById(\'cnt\'))">' + YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></div>';
+
+  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const yearKey = String(year);
+  const yearPlan = BUDGET_PLANS[yearKey] || {};
+
+  html += '<div style="display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:14px;scrollbar-width:none" class="mob-budget-scroll">';
+  MD.forEach((m, idx) => {
+    const plan = yearPlan[idx] || null;
+    const hasPlan = !!plan;
+    const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
+    const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
+    const planSav = plan ? (plan.s || 0) : 0;
+    const isCurrentMonth = idx === new Date().getMonth() && year === new Date().getFullYear();
+
+    html += '<div style="min-width:160px;scroll-snap-align:start;background:var(--bg-card);border:1px solid ' + (isCurrentMonth ? 'var(--accent)' : 'var(--border)') + ';border-radius:14px;padding:14px;flex-shrink:0;cursor:pointer" onclick="showBudgetRowMenu(event,' + year + ',' + idx + ',' + hasPlan + ')">';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:12px;font-weight:700">' + MONTH_NAMES[idx] + (isCurrentMonth ? ' ●' : '') + '</span>';
+    if (hasPlan) html += '<span style="font-size:8px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:2px 6px;border-radius:4px">' + t('misc_planned') + '</span>';
+    else html += '<span style="font-size:8px;color:var(--text-tertiary)">No plan</span>';
+    html += '</div>';
+    if (hasPlan) {
+      html += '<div style="display:flex;flex-direction:column;gap:5px">';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planInc) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planExp) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planSav) + '</span></div>';
+      html += '</div>';
+    } else {
+      html += '<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text-tertiary)">Tap to set budget</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  return html;
+}
 
 // === BUDGET ALERTS (v15.4 — Actually functional) ===
 function checkBudgetAlerts() {
