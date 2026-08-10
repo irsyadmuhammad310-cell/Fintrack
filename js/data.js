@@ -103,9 +103,9 @@ function buildYearOptions(selectedYear) {
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const CATEGORY_BUDGETS = {
-  'Loan': 18840, 'Gift': 7200, 'Food': 3000,
-  'Transportation': 10620, 'Entertainment': 4320,
-  'Housing': 4800, 'Insurance & Taxes': 3960
+  'Loan': 1884000, 'Gift': 720000, 'Food': 300000,
+  'Transportation': 1062000, 'Entertainment': 432000,
+  'Housing': 480000, 'Insurance & Taxes': 396000
 };
 
 // === BUDGET PLANNER HELPERS (master data for all budget) ===
@@ -431,7 +431,7 @@ function deleteCategory(type, category) {
 let TXN = [];
 
 // === DATA VERSION & MIGRATION (v1.0.2) ===
-const FT_DATA_VERSION = 2; // v1 = raw floats, v2 = integer cents
+const FT_DATA_VERSION = 3; // v1 = raw floats, v2 = integer cents, v3 = budget plans in cents
 function getDataVersion() { return parseInt(localStorage.getItem('ft_data_version') || '1'); }
 function setDataVersion(v) { localStorage.setItem('ft_data_version', String(v)); }
 
@@ -460,6 +460,36 @@ function migrateToIntegerCents() {
   console.log('[FinTrack] Migrated to integer cents (v2). ' + TXN.length + ' transactions converted.');
 }
 
+// Migrate v2 → v3: budget plans to integer cents
+function migrateBudgetsToCents() {
+  if (getDataVersion() >= 3) return;
+  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var changed = false;
+  Object.keys(plans).forEach(function(yearKey) {
+    var yearPlan = plans[yearKey];
+    for (var m = 0; m < 12; m++) {
+      if (yearPlan[m]) {
+        // Convert expCats values
+        if (yearPlan[m].expCats) {
+          Object.keys(yearPlan[m].expCats).forEach(function(cat) {
+            yearPlan[m].expCats[cat] = Math.round(yearPlan[m].expCats[cat] * 100);
+          });
+          changed = true;
+        }
+        // Convert income (i) and expense total (e) if present
+        if (typeof yearPlan[m].i === 'number') { yearPlan[m].i = Math.round(yearPlan[m].i * 100); changed = true; }
+        if (typeof yearPlan[m].e === 'number') { yearPlan[m].e = Math.round(yearPlan[m].e * 100); changed = true; }
+        if (typeof yearPlan[m].s === 'number') { yearPlan[m].s = Math.round(yearPlan[m].s * 100); changed = true; }
+      }
+    }
+  });
+  if (changed) {
+    localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  }
+  setDataVersion(3);
+  console.log('[FinTrack] Migrated budget plans to integer cents (v3).');
+}
+
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
 let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
@@ -474,8 +504,9 @@ function loadTXN() {
   const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
-  // Run migration after loading
+  // Run migrations after loading
   migrateToIntegerCents();
+  migrateBudgetsToCents();
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
