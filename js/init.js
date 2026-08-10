@@ -5,10 +5,10 @@ document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 document.getElementById('yf').innerHTML = buildYearOptions(CURRENT_YEAR);
 
 // === USER NAME & GREETING ===
-function getUserName() { return localStorage.getItem('ft_username') || ''; }
-function getUserTitle() { return localStorage.getItem('ft_user_title') || ''; }
-function setUserName(name) { localStorage.setItem('ft_username', name); updateUserDisplay(); }
-function setUserTitle(title) { localStorage.setItem('ft_user_title', title); }
+function getUserName() { return safeGet('ft_username') || ''; }
+function getUserTitle() { return safeGet('ft_user_title') || ''; }
+function setUserName(name) { safeSave('ft_username', name); updateUserDisplay(); }
+function setUserTitle(title) { safeSave('ft_user_title', title); }
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -80,8 +80,16 @@ function init() {
     }
     return;
   }
-  loadTXN();
-  initApp();
+  // Load IndexedDB → in-memory cache → then boot the app
+  ftLoadAll().then(function() {
+    loadAllModuleData();
+    initApp();
+  }).catch(function(e) {
+    console.error('[FinTrack] Boot failed:', e);
+    // Emergency fallback: try loading from whatever is in _ftStore
+    loadAllModuleData();
+    initApp();
+  });
 }
 
 async function initWithPasskey(passkey) {
@@ -123,7 +131,8 @@ async function ftTryBiometric() {
   var success = await ftBiometricAuth();
   if (success) {
     ftIsUnlocked = true;
-    loadTXN();
+    await ftLoadAll();
+    loadAllModuleData();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -240,7 +249,8 @@ async function ftDoUnlock() {
   var valid = await verifyPIN(passkey);
   if (valid) {
     ftIsUnlocked = true;
-    loadTXN();
+    await ftLoadAll();
+    loadAllModuleData();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -349,7 +359,8 @@ async function saveNewPINAfterRecovery() {
   var unlockEl = document.getElementById('ftUnlock');
   if (unlockEl) unlockEl.remove();
   ftIsUnlocked = true;
-  loadTXN();
+  await ftLoadAll();
+  loadAllModuleData();
   initApp();
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = '';
@@ -363,14 +374,14 @@ function showFirstTimeSecuritySetup() {
 }
 
 function initApp() {
-  const st = localStorage.getItem('theme');
+  const st = safeGet('theme');
   if (st) {
     document.documentElement.dataset.theme = st;
     if (st === 'dark') document.getElementById('thico').dataset.lucide = 'moon';
   }
   // Load language + currency preferences
-  currentLang = localStorage.getItem('ft_lang') || 'en';
-  displayCurrency = localStorage.getItem('ft_currency') || 'MYR';
+  currentLang = safeGet('ft_lang') || 'en';
+  displayCurrency = safeGet('ft_currency') || 'MYR';
   // Apply CJK font if needed
   if (currentLang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (currentLang === 'ja') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
@@ -424,8 +435,8 @@ function initApp() {
     });
   }
   // Show onboarding for first-time users, greeting toast for returning users
-  if (!localStorage.getItem('ft_onboarded')) { showOnboarding(); }
-  else if (!localStorage.getItem('ft_security_setup_done') && !getPKHash()) {
+  if (!safeGet('ft_onboarded')) { showOnboarding(); }
+  else if (!safeGet('ft_security_setup_done') && !getPKHash()) {
     // Prompt security setup if user hasn't set up PIN yet (returning users from pre-v15.7)
     setTimeout(() => showRecoveryReminder(), 1000);
   }
@@ -507,7 +518,7 @@ function showOnboarding() {
   window.onboardPrev = function() { if (currentStep > 0) { currentStep--; renderStep(); } };
   window.onboardDone = function() {
     if (currentStep === 0) { saveOnboardName(); }
-    localStorage.setItem('ft_onboarded', '1');
+    safeSave('ft_onboarded', '1');
     var el = document.getElementById('onboardOverlay');
     if (el) el.remove();
     updateUserDisplay();
@@ -557,7 +568,7 @@ async function completeFirstTimeSetup() {
   await saveSecurityAnswers(sq1, sa1, sq2, sa2);
   // Generate and show recovery code
   var code = await setupRecoveryCode();
-  localStorage.setItem('ft_security_setup_done', 'true');
+  safeSave('ft_security_setup_done', 'true');
   // Close setup modal
   var modal = document.getElementById('mSecSetup');
   if (modal) { modal.remove(); document.body.style.overflow = ''; }
