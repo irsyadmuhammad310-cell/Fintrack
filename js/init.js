@@ -1,4 +1,4 @@
-// === INIT (FinTrack Premium V1.0.0 Modular Boot) ===
+// === INIT (FinTrack Premium V1.0.2 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
@@ -392,6 +392,10 @@ function initApp() {
   fetchExchangeRates();
   // Update notification badge
   updateNotifBadge();
+  // v1.0.2: Initialize session idle tracking
+  if (typeof initIdleTracking === 'function') initIdleTracking();
+  // v1.0.2: Show private browsing warning if storage unavailable
+  if (typeof showPrivateBrowsingWarning === 'function') showPrivateBrowsingWarning();
   // v15.5: Check budget alerts on app load
   if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
@@ -573,12 +577,12 @@ function showRecoveryReminder() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-// === UPDATE BANNER (V1.0.0 — PWA User-Controlled Update) ===
+// === UPDATE BANNER (V1.0.2 — PWA User-Controlled Update) ===
 // Changelog: shown to user before they decide to update
 const FINTRACK_CHANGELOG = {
   'fintrack-v1.0.0': {
     version: 'V1.0.0',
-    date: '5 Aug 2026',
+    date: '6 Aug 2026',
     changes: [
       'Mobile Insights: Cash Flow, Expense Breakdown, Account Breakdown, Dynamic AI Insights',
       'Financial Health: CFP Board standard 6-ratio model (savings, housing, debt, liquidity, expenses, net worth)',
@@ -587,6 +591,40 @@ const FINTRACK_CHANGELOG = {
       'All data synchronized with selected Year and Month',
       'Multilingual financial health detection (EN, Malay, Indo, CN, JP, KO, RU)',
       'Version unified to FinTrack Premium V1.0.0'
+    ]
+  },
+  'fintrack-v1.0.1': {
+    version: 'V1.0.1',
+    date: '7 Aug 2026',
+    changes: [
+      'Calculation audit: Cash Flow = Income - Expense (standard)',
+      'Net Worth unified to getNetWorth() across all tabs',
+      'Eye toggle: global hide/show amounts with MutationObserver',
+      'Onboarding redesigned (9-step guided flow)',
+      'getAccountBalance fixed for multi-currency',
+      'Reserve ratio includes Current Account'
+    ]
+  },
+  'fintrack-v1.0.2': {
+    version: 'V1.0.2',
+    date: '10 Aug 2026',
+    changes: [
+      'Security: PBKDF2 PIN hashing (100K iterations) + per-device salt',
+      'Security: PIN lockout after 5 failed attempts (exponential backoff)',
+      'Security: Auto-lock session after 5 min idle',
+      'Security: XSS sanitization (escapeHTML) on all user inputs',
+      'Storage: safeSave() wrapper with quota warnings (75%/90%)',
+      'Storage: iOS Private Browsing detection + in-memory fallback',
+      'Data: Integer cents storage (eliminates floating point rounding)',
+      'Data: Multi-tab sync via StorageEvent listener',
+      'Data: Cascading account delete (no orphaned transactions)',
+      'Data: Transfer type excluded from income/expense totals',
+      'Data: Schema validation on JSON import',
+      'Data: Backup reminder every 50 transactions',
+      'Data: Budget divide-by-zero guard',
+      'UI: ARIA labels + colorblind-safe indicators',
+      'UI: Focus-visible keyboard navigation rings',
+      'UI: Mobile keyboard no longer covers save button'
     ]
   }
 };
