@@ -179,7 +179,7 @@ function renderGoals(c) {
       overspentCats.forEach((item, idx) => {
         const pct = ((item.spent / item.budget) * 100).toFixed(0);
         const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
-        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(Math.round(item.spent * 100))} / ${fmt(Math.round(item.budget * 100))} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(Math.round(item.over * 100))} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'&quot;')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
+        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(Math.round(item.spent * 100))} / ${fmt(Math.round(item.budget * 100))} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(Math.round(item.over * 100))} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
       });
       html += `</div></div>`;
     }
@@ -206,9 +206,9 @@ function renderGoals(c) {
       html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700">${MONTH_NAMES[idx]}</span>${hasPlan ? '<span style="font-size:8px;font-weight:600;color:var(--accent);background:var(--accent-light);padding:2px 6px;border-radius:4px">' + t('misc_planned') + '</span>' : '<span style="font-size:9px;color:var(--text-tertiary)">No plan</span>'}</div>`;
       if (hasPlan) {
         html += `<div style="display:flex;flex-direction:column;gap:6px">`;
-        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:'tnum'">${fmt(planInc)}</span></div>`;
-        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:'tnum'">${fmt(planExp)}</span></div>`;
-        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:'tnum'">${fmt(planSav)}</span></div>`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:'tnum'">${fmtR(planInc)}</span></div>`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:'tnum'">${fmtR(planExp)}</span></div>`;
+        html += `<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:'tnum'">${fmtR(planSav)}</span></div>`;
         html += `</div>`;
       } else {
         html += `<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text-tertiary)">Tap to set budget</div>`;
@@ -231,7 +231,7 @@ function renderGoals(c) {
     const dispE = hasPlan ? planExp : 0;
     const dispS = hasPlan ? planSav : 0;
     const hasAny = hasPlan;
-    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px;font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis">${MONTH_NAMES[idx]}${hasPlan ? ' <span style="font-size:7px;color:var(--accent);font-weight:600">' + t('misc_planned') + '</span>' : ''}</td><td style="padding:10px 6px;text-align:right;color:var(--emerald);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispI) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--rose);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispE) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--blue);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmt(dispS) : '-'}</td><td style="padding:10px 4px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
+    html += `<tr style="border-top:1px solid var(--border-light)${!hasAny ? ';opacity:0.35' : ''};cursor:pointer" onclick="showBudgetRowMenu(event,${year},${idx},${hasPlan})"><td style="padding:10px;font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis">${MONTH_NAMES[idx]}${hasPlan ? ' <span style="font-size:7px;color:var(--accent);font-weight:600">' + t('misc_planned') + '</span>' : ''}</td><td style="padding:10px 6px;text-align:right;color:var(--emerald);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmtR(dispI) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--rose);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmtR(dispE) : '-'}</td><td style="padding:10px 6px;text-align:right;color:var(--blue);font-feature-settings:'tnum';font-size:10px">${hasAny ? fmtR(dispS) : '-'}</td><td style="padding:10px 4px;text-align:center"><span style="color:var(--accent);font-size:12px">⋮</span></td></tr>`;
   });
   html += `</tbody></table></div>`;
   } // end desktop table
@@ -943,9 +943,9 @@ function renderMobileBudgetTab(MD, year) {
     html += '</div>';
     if (hasPlan) {
       html += '<div style="display:flex;flex-direction:column;gap:5px">';
-      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planInc) + '</span></div>';
-      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planExp) + '</span></div>';
-      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:\'tnum\'">' + fmt(planSav) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Income</span><span style="color:var(--emerald);font-weight:600;font-feature-settings:\'tnum\'">' + fmtR(planInc) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Expense</span><span style="color:var(--rose);font-weight:600;font-feature-settings:\'tnum\'">' + fmtR(planExp) + '</span></div>';
+      html += '<div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--text-secondary)">Savings</span><span style="color:var(--blue);font-weight:600;font-feature-settings:\'tnum\'">' + fmtR(planSav) + '</span></div>';
       html += '</div>';
     } else {
       html += '<div style="padding:12px 0;text-align:center;font-size:11px;color:var(--text-tertiary)">Tap to set budget</div>';
