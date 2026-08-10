@@ -241,19 +241,17 @@ function getYearlyBudgetTotal(year) {
       }
     }
   }
-  // Return in cents (×100) so it's compatible with tx.a and fmt()
-  return hasAnyPlan ? Math.round(total * 100) : 0;
+  return hasAnyPlan ? total : 0;
 }
 
 function getMonthlyBudget(year, monthIdx) {
   var plan = getBudgetPlan(year, monthIdx);
   if (plan) {
     var expTotal = plan.expCats ? Object.values(plan.expCats).reduce(function(s, v) { return s + v; }, 0) : (plan.e || 0);
-    // Return in cents (×100) so it's compatible with tx.a and fmt()
-    if (expTotal > 0) return Math.round(expTotal * 100);
+    if (expTotal > 0) return expTotal;
   }
   var yearly = getYearlyBudgetTotal(year);
-  return yearly > 0 ? yearly / 12 : 0; // Guard: never return NaN/Infinity
+  return yearly > 0 ? yearly / 12 : 0;
 }
 
 function getCategoryBudget(year, category) {
@@ -268,8 +266,7 @@ function getCategoryBudget(year, category) {
       }
     }
   }
-  // Return in cents
-  return total ? Math.round(total * 100) : (CATEGORY_BUDGETS[category] || 0);
+  return total || (CATEGORY_BUDGETS[category] || 0);
 }
 
 const DEFAULT_SCHEMA = {
@@ -560,94 +557,89 @@ function deleteCategory(type, category) {
 let TXN = [];
 
 // === DATA VERSION & MIGRATION (v1.0.2) ===
-const FT_DATA_VERSION = 3; // v1 = raw floats, v2 = integer cents, v3 = budget plans in cents
+// FULLY REVERTED: Everything stored as REAL CURRENCY. No cents anywhere.
+const FT_DATA_VERSION = 4;
 function getDataVersion() { return parseInt(safeGet('ft_data_version') || '1'); }
 function setDataVersion(v) { safeSave('ft_data_version', String(v)); }
 
-// Migrate v1 (float amounts) to v2 (integer cents)
-function migrateToIntegerCents() {
-  if (getDataVersion() >= 2) return; // Already migrated
-  if (TXN.length === 0) { setDataVersion(2); return; }
-  // Convert all tx.a from float to integer cents (multiply by 100)
-  TXN.forEach(function(tx) {
-    if (typeof tx.a === 'number') {
-      tx.a = Math.round(tx.a * 100); // RM 45.90 → 4590
+// ONE-TIME REVERT: Undo all cents migrations. Convert everything back to real currency.
+function revertAllToRealCurrency() {
+  if (safeGet('ft_revert_v4_done')) return;
+  console.log('[FinTrack] REVERTING ALL TO REAL CURRENCY...');
+  
+  // Fix transactions: if values look like cents (>=100 for what should be small amounts), divide by 100
+  // Detect: if average tx.a > 500, data is likely in cents
+  if (TXN.length > 0) {
+    var avg = TXN.reduce(function(s, tx) { return s + Math.abs(tx.a); }, 0) / TXN.length;
+    if (avg > 500) {
+      // Data is in cents. Divide all by 100.
+      TXN.forEach(function(tx) { tx.a = tx.a / 100; });
+      saveTXN();
+      console.log('[FinTrack] Transactions reverted (avg was ' + avg.toFixed(0) + ')');
     }
-  });
-  // Convert INITIAL_DEPOSIT
-  INITIAL_DEPOSIT = Math.round(INITIAL_DEPOSIT * 100);
-  saveInitialDeposit();
-  // Convert account initial balances
+  }
+  
+  // Fix INITIAL_DEPOSIT
+  if (Math.abs(INITIAL_DEPOSIT) > 50000) {
+    INITIAL_DEPOSIT = INITIAL_DEPOSIT / 100;
+    saveInitialDeposit();
+  }
+  
+  // Fix account balances
+  var accFixed = false;
   ACCOUNTS.forEach(function(acc) {
-    if (typeof acc.initialBalance === 'number') {
-      acc.initialBalance = Math.round(acc.initialBalance * 100);
+    if (Math.abs(acc.initialBalance) > 50000) {
+      acc.initialBalance = acc.initialBalance / 100;
+      accFixed = true;
     }
   });
-  saveACCOUNTS();
-  saveTXN();
-  setDataVersion(2);
-  console.log('[FinTrack] Migrated to integer cents (v2). ' + TXN.length + ' transactions converted.');
-}
-
-// Migrate v2 → v3: budget plans to integer cents
-// REVERTED: Budget plans now store values in REAL CURRENCY (not cents).
-// fmt() handles the cents→display conversion for transaction amounts,
-// but budget plans are separate from tx.a and stay as real values.
-function migrateBudgetsToCents() {
-  if (getDataVersion() >= 3) return;
-  // v1.0.2: We no longer convert budget plans to cents.
-  // Budget values stay as real currency (e.g. 1000 = RM 1000).
-  // Only tx.a uses cents. Budget plans are compared against tx.a via fmt() at display time.
-  setDataVersion(3);
-}
-
-// v1.0.2: Repair any budgets that got accidentally multiplied by the old migration
-function repairDoubleMigratedBudgets() {
-  if (safeGet('ft_budget_repair_done')) return;
+  if (accFixed) saveACCOUNTS();
+  
+  // Fix budget plans
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
-  var repaired = false;
   Object.keys(plans).forEach(function(yearKey) {
     var yearPlan = plans[yearKey];
     Object.keys(yearPlan).forEach(function(monthKey) {
       var p = yearPlan[monthKey];
       if (!p) return;
-      // Detect over-inflated values: if any expCat > 100000, it was likely multiplied by 100
-      // Normal budget: 1000 (RM 1000). After accidental ×100: 100000. After double: 10000000.
       if (p.expCats) {
-        var maxVal = Math.max.apply(null, Object.values(p.expCats).concat([0]));
-        if (maxVal >= 100000) {
-          // Divide by 100 to undo one multiplication
-          Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = Math.round(p.expCats[cat] / 100); });
-          repaired = true;
-          // Check if still too high (double-migrated)
-          var maxAfter = Math.max.apply(null, Object.values(p.expCats).concat([0]));
-          if (maxAfter >= 100000) {
-            Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = Math.round(p.expCats[cat] / 100); });
+        var vals = Object.values(p.expCats).filter(function(v) { return v > 0; });
+        if (vals.length) {
+          var maxVal = Math.max.apply(null, vals);
+          if (maxVal >= 10000) {
+            Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = p.expCats[cat] / 100; });
+          } else if (maxVal < 100 && maxVal > 0) {
+            Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = p.expCats[cat] * 100; });
           }
         }
       }
       if (p.incCats) {
-        var maxInc = Math.max.apply(null, Object.values(p.incCats).concat([0]));
-        if (maxInc >= 100000) {
-          Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = Math.round(p.incCats[cat] / 100); });
-          repaired = true;
-          var maxIncAfter = Math.max.apply(null, Object.values(p.incCats).concat([0]));
-          if (maxIncAfter >= 100000) {
-            Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = Math.round(p.incCats[cat] / 100); });
+        var ivals = Object.values(p.incCats).filter(function(v) { return v > 0; });
+        if (ivals.length) {
+          var maxInc = Math.max.apply(null, ivals);
+          if (maxInc >= 10000) {
+            Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = p.incCats[cat] / 100; });
+          } else if (maxInc < 100 && maxInc > 0) {
+            Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = p.incCats[cat] * 100; });
           }
         }
       }
-      if (typeof p.i === 'number' && p.i >= 100000) { p.i = Math.round(p.i / 100); if (p.i >= 100000) p.i = Math.round(p.i / 100); repaired = true; }
-      if (typeof p.e === 'number' && p.e >= 100000) { p.e = Math.round(p.e / 100); if (p.e >= 100000) p.e = Math.round(p.e / 100); repaired = true; }
-      if (typeof p.s === 'number' && p.s >= 100000) { p.s = Math.round(p.s / 100); if (p.s >= 100000) p.s = Math.round(p.s / 100); repaired = true; }
+      // Recalc totals from expCats/incCats
+      if (p.expCats) p.e = Object.values(p.expCats).reduce(function(s, v) { return s + v; }, 0);
+      if (p.incCats) p.i = Object.values(p.incCats).reduce(function(s, v) { return s + v; }, 0);
     });
   });
-  if (repaired) {
-    safeSave('ft_budget_plans', JSON.stringify(plans));
-    console.log('[FinTrack] Repaired inflated budget values.');
-  }
-  safeSave('ft_budget_repair_done', '1');
+  safeSave('ft_budget_plans', JSON.stringify(plans));
+  
+  safeSave('ft_revert_v4_done', '1');
+  setDataVersion(4);
+  console.log('[FinTrack] REVERT COMPLETE. All data in real currency.');
 }
+
+// Legacy no-ops
+function migrateToIntegerCents() {}
+function migrateBudgetsToCents() {}
+function repairDoubleMigratedBudgets() {}
 
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
 let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
@@ -667,10 +659,8 @@ function loadTXN() {
   const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
-  // Run migrations after loading
-  migrateToIntegerCents();
-  migrateBudgetsToCents();
-  repairDoubleMigratedBudgets();
+  // Run revert on first load
+  revertAllToRealCurrency();
 }
 
 // === MASTER DATA LOADER (called after ftLoadAll populates _ftStore) ===
