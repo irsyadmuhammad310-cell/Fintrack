@@ -241,14 +241,16 @@ function getYearlyBudgetTotal(year) {
       }
     }
   }
-  return hasAnyPlan ? total : 0;
+  // Return in cents (×100) so it's compatible with tx.a and fmt()
+  return hasAnyPlan ? Math.round(total * 100) : 0;
 }
 
 function getMonthlyBudget(year, monthIdx) {
   var plan = getBudgetPlan(year, monthIdx);
   if (plan) {
     var expTotal = plan.expCats ? Object.values(plan.expCats).reduce(function(s, v) { return s + v; }, 0) : (plan.e || 0);
-    if (expTotal > 0) return expTotal;
+    // Return in cents (×100) so it's compatible with tx.a and fmt()
+    if (expTotal > 0) return Math.round(expTotal * 100);
   }
   var yearly = getYearlyBudgetTotal(year);
   return yearly > 0 ? yearly / 12 : 0; // Guard: never return NaN/Infinity
@@ -266,7 +268,8 @@ function getCategoryBudget(year, category) {
       }
     }
   }
-  return total || (CATEGORY_BUDGETS[category] || 0);
+  // Return in cents
+  return total ? Math.round(total * 100) : (CATEGORY_BUDGETS[category] || 0);
 }
 
 const DEFAULT_SCHEMA = {
