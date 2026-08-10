@@ -822,3 +822,4 @@ function deleteReminder(id) {
 // === NOTIFICATION BELL — functions in helpers.js ===
 // updateNotifBadge, toggleNotifPanel, completeReminder, dismissReminder
 // are all defined in helpers.js (loaded before settings.js)div class="nsec">System</div><div class="sni" onclick="checkForUpdates()"><i data-lucide="refresh-cw" width="14" height="14"></i>Check for Updates</div><
+done
