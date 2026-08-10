@@ -368,7 +368,7 @@ function computeCashFlowForecast() {
   // Fallback to budget plan income if actual is 0
   const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(targetYear);
-  const monthPlan = PLANS[yearKey] && PLANS[yearKey][targetMonth];
+  const monthPlan = PLANS[yearKey] && (PLANS[yearKey][String(targetMonth)] || PLANS[yearKey][targetMonth]);
 
   let monthlyIncome = incomeThisMonth;
   if (monthlyIncome <= 0 && monthPlan) {
