@@ -699,7 +699,7 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   plans[yearKey][monthKey] = plan;
   safeSave('ft_budget_plans', JSON.stringify(plans));
   closeCoverSheet();
-  toast(`✅ Moved ${fmt(actualAmt)} from ${fromCat} → ${toCat}`);
+  toast(`✅ Moved RM ${actualAmt.toFixed(2)} from ${fromCat} → ${toCat}`);
   if (typeof render === 'function') render();
   else renderGoals(document.getElementById('cnt'));
 }
