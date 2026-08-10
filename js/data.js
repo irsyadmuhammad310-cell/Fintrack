@@ -1,8 +1,76 @@
 // === DATA & PERSISTENCE (v15.8.1) ===
+
+// === LOCALSTORAGE AVAILABILITY CHECK (v1.0.2) ===
+// iOS Private Browsing has 0 quota. Detect and fall back to in-memory.
+var _storageAvailable = true;
+var _memoryFallback = {};
+(function() {
+  try {
+    var test = '__ft_test__';
+    localStorage.setItem(test, '1');
+    localStorage.removeItem(test);
+  } catch (e) {
+    _storageAvailable = false;
+    console.warn('[FinTrack] localStorage unavailable. Using in-memory fallback. Data will NOT persist.');
+  }
+})();
+
+// Safe localStorage getter (works even in private browsing)
+function safeGet(key) {
+  if (!_storageAvailable) return _memoryFallback[key] || null;
+  return localStorage.getItem(key);
+}
+
+// === SAFE STORAGE WRAPPER (v1.0.2) ===
+// Wraps all localStorage writes with quota protection + warning system
+function safeSave(key, value) {
+  var val = typeof value === 'string' ? value : JSON.stringify(value);
+  if (!_storageAvailable) {
+    _memoryFallback[key] = val;
+    return true;
+  }
+  try {
+    localStorage.setItem(key, val);
+    checkStorageQuota();
+    return true;
+  } catch (e) {
+    if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+      toast('🚨 Storage full! Data NOT saved. Export backup in Settings → Data.');
+      console.error('[FinTrack] Storage quota exceeded for key:', key);
+      return false;
+    }
+    toast('❌ Save failed: ' + (e.message || 'Unknown error'));
+    console.error('[FinTrack] Save error:', e);
+    return false;
+  }
+}
+
+// Check storage usage and warn user proactively
+var _lastQuotaWarning = 0;
+function checkStorageQuota() {
+  // Only warn once per 60 seconds to avoid spam
+  if (Date.now() - _lastQuotaWarning < 60000) return;
+  var total = 0;
+  for (var k in localStorage) {
+    if (localStorage.hasOwnProperty(k)) {
+      total += (localStorage[k].length || 0) * 2; // UTF-16 = 2 bytes/char
+    }
+  }
+  var usedMB = total / (1024 * 1024);
+  var pct = Math.round((usedMB / 5) * 100);
+  if (pct >= 90) {
+    _lastQuotaWarning = Date.now();
+    toast('🔴 Storage ' + pct + '% full! Export backup NOW or risk data loss.');
+  } else if (pct >= 75) {
+    _lastQuotaWarning = Date.now();
+    toast('🟡 Storage ' + pct + '% full. Consider exporting a backup soon.');
+  }
+}
+
 // === GLOBAL YEAR MANAGEMENT (v11.5) ===
 const DEFAULT_YEARS = [2024, 2025, 2026, 2027, 2028];
 let YEARS = JSON.parse(localStorage.getItem('ft_years') || 'null') || [...DEFAULT_YEARS];
-function saveYEARS() { localStorage.setItem('ft_years', JSON.stringify(YEARS)); }
+function saveYEARS() { safeSave('ft_years', JSON.stringify(YEARS)); }
 function addYear(year) {
   year = parseInt(year);
   if (isNaN(year) || year < 1900 || year > 2100) return false;
@@ -71,7 +139,8 @@ function getMonthlyBudget(year, monthIdx) {
     var expTotal = plan.expCats ? Object.values(plan.expCats).reduce(function(s, v) { return s + v; }, 0) : (plan.e || 0);
     if (expTotal > 0) return expTotal;
   }
-  return getYearlyBudgetTotal(year) / 12;
+  var yearly = getYearlyBudgetTotal(year);
+  return yearly > 0 ? yearly / 12 : 0; // Guard: never return NaN/Infinity
 }
 
 function getCategoryBudget(year, category) {
@@ -94,7 +163,7 @@ const DEFAULT_SCHEMA = {
   Savings: {}
 };
 let SCHEMA = JSON.parse(localStorage.getItem('ft_schema') || 'null') || JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
-function saveSCHEMA() { localStorage.setItem('ft_schema', JSON.stringify(SCHEMA)); }
+function saveSCHEMA() { safeSave('ft_schema', JSON.stringify(SCHEMA)); }
 
 // === ACCOUNTS SYSTEM (v10.3) ===
 const ACCOUNT_TYPES = {
@@ -104,7 +173,7 @@ const ACCOUNT_TYPES = {
 const DEFAULT_ACCOUNTS = [];
 let ACCOUNTS = JSON.parse(localStorage.getItem('ft_accounts') || 'null') || JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
 let accNxId = parseInt(localStorage.getItem('ft_accNxId') || '10');
-function saveACCOUNTS() { localStorage.setItem('ft_accounts', JSON.stringify(ACCOUNTS)); localStorage.setItem('ft_accNxId', accNxId); }
+function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); safeSave('ft_accNxId', accNxId); }
 
 function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
@@ -249,7 +318,7 @@ function computeExpenseCategoriesByPeriod(year, month) {
 // === REMINDERS SYSTEM (v10.5) ===
 let REMINDERS = JSON.parse(localStorage.getItem('ft_reminders') || '[]');
 let reminderNxId = parseInt(localStorage.getItem('ft_reminderNxId') || '1');
-function saveREMINDERS() { localStorage.setItem('ft_reminders', JSON.stringify(REMINDERS)); localStorage.setItem('ft_reminderNxId', reminderNxId); }
+function saveREMINDERS() { safeSave('ft_reminders', JSON.stringify(REMINDERS)); safeSave('ft_reminderNxId', reminderNxId); }
 
 function getActiveReminders() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -361,28 +430,52 @@ function deleteCategory(type, category) {
 
 let TXN = [];
 
+// === DATA VERSION & MIGRATION (v1.0.2) ===
+const FT_DATA_VERSION = 2; // v1 = raw floats, v2 = integer cents
+function getDataVersion() { return parseInt(localStorage.getItem('ft_data_version') || '1'); }
+function setDataVersion(v) { localStorage.setItem('ft_data_version', String(v)); }
+
+// Migrate v1 (float amounts) to v2 (integer cents)
+function migrateToIntegerCents() {
+  if (getDataVersion() >= 2) return; // Already migrated
+  if (TXN.length === 0) { setDataVersion(2); return; }
+  // Convert all tx.a from float to integer cents (multiply by 100)
+  TXN.forEach(function(tx) {
+    if (typeof tx.a === 'number') {
+      tx.a = Math.round(tx.a * 100); // RM 45.90 → 4590
+    }
+  });
+  // Convert INITIAL_DEPOSIT
+  INITIAL_DEPOSIT = Math.round(INITIAL_DEPOSIT * 100);
+  saveInitialDeposit();
+  // Convert account initial balances
+  ACCOUNTS.forEach(function(acc) {
+    if (typeof acc.initialBalance === 'number') {
+      acc.initialBalance = Math.round(acc.initialBalance * 100);
+    }
+  });
+  saveACCOUNTS();
+  saveTXN();
+  setDataVersion(2);
+  console.log('[FinTrack] Migrated to integer cents (v2). ' + TXN.length + ' transactions converted.');
+}
+
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
 let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(TXN));
-    localStorage.setItem('ft_nxId', nxId);
-  } catch (e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22) {
-      toast('🚨 Storage full! Transaction NOT saved. Export your data and clear old records.');
-    } else {
-      toast('❌ Save failed: ' + (e.message || 'Unknown error'));
-    }
-  }
+  if (!safeSave(STORAGE_KEY, JSON.stringify(TXN))) return;
+  safeSave('ft_nxId', nxId);
 }
 function loadTXN() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = safeGet(STORAGE_KEY);
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
-  const sid = localStorage.getItem('ft_nxId');
+  const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
+  // Run migration after loading
+  migrateToIntegerCents();
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
@@ -401,10 +494,11 @@ function getBANKS() {
 
 // === COMPUTED DATA (derived from TXN) ===
 // NOTE: tx.a is already in MYR (base currency, converted at save time). No further conversion needed.
+// v1.0.2: Transfers excluded from income/expense totals
 function computeMonthlyData(year) {
   const months = [];
   for (let m = 0; m < 12; m++) {
-    const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m; });
+    const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m && !isTransfer(t); });
     months.push({ m: MONTH_NAMES[m], i: mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0), e: mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0), s: mTxns.filter(t => t.t === 'Savings').reduce((s, t) => s + t.a, 0) });
   }
   return months;
@@ -412,8 +506,130 @@ function computeMonthlyData(year) {
 
 function computeExpenseCategories(year) {
   const cats = {};
-  TXN.filter(t => { const d = new Date(t.d); return t.t === 'Expense' && d.getFullYear() === year; }).forEach(t => { if (!cats[t.c]) cats[t.c] = 0; cats[t.c] += t.a; });
+  TXN.filter(t => { const d = new Date(t.d); return t.t === 'Expense' && !isTransfer(t) && d.getFullYear() === year; }).forEach(t => { if (!cats[t.c]) cats[t.c] = 0; cats[t.c] += t.a; });
   return Object.entries(cats).map(([n, a]) => ({ n, a: Math.round(a * 100) / 100, b: getCategoryBudget(year, n) })).sort((a, b) => b.a - a.a);
 }
 
 function yearHasData(year) { return TXN.some(t => new Date(t.d).getFullYear() === year); }
+
+// === MULTI-TAB SYNC (v1.0.2) ===
+// Listen for storage changes from other tabs and reload affected data
+window.addEventListener('storage', function(e) {
+  if (!e.key || !e.key.startsWith('ft_')) return;
+  // Another tab wrote to our data. Reload.
+  if (e.key === STORAGE_KEY) {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) { try { TXN = JSON.parse(raw); } catch(err) {} }
+    toast('🔄 Data updated from another tab');
+    if (typeof navigate === 'function') navigate(curPage); // Re-render current page
+  } else if (e.key === 'ft_accounts') {
+    var raw2 = localStorage.getItem('ft_accounts');
+    if (raw2) { try { ACCOUNTS = JSON.parse(raw2); } catch(err) {} }
+  } else if (e.key === 'ft_schema') {
+    var raw3 = localStorage.getItem('ft_schema');
+    if (raw3) { try { SCHEMA = JSON.parse(raw3); } catch(err) {} }
+  }
+});
+
+// === PRIVATE BROWSING WARNING (v1.0.2) ===
+// Show banner if storage unavailable (call from init.js after DOM ready)
+function showPrivateBrowsingWarning() {
+  if (_storageAvailable) return;
+  var banner = document.createElement('div');
+  banner.id = 'ftPrivateBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:var(--amber,#d97706);color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;font-family:var(--font,system-ui)';
+  banner.textContent = '⚠️ Private Browsing detected. Your data will NOT be saved after closing this tab.';
+  document.body.prepend(banner);
+}
+
+// === CASCADING ACCOUNT DELETE (v1.0.2) ===
+// Delete account and handle orphaned transactions
+function deleteAccountCascade(accId, mode) {
+  // mode: 'delete' = remove transactions, 'reassign' = set acc to null
+  if (mode === 'delete') {
+    TXN = TXN.filter(tx => tx.acc !== accId);
+  } else {
+    TXN.forEach(tx => { if (tx.acc === accId) tx.acc = null; });
+  }
+  ACCOUNTS = ACCOUNTS.filter(a => a.id !== accId);
+  saveACCOUNTS();
+  saveTXN();
+}
+
+function getAccountTransactionCount(accId) {
+  return TXN.filter(tx => tx.acc === accId).length;
+}
+
+// === TRANSFER TYPE SUPPORT (v1.0.2) ===
+// Exclude transfers from income/expense totals
+function isTransfer(tx) {
+  return tx.t === 'Transfer' || (tx.c && tx.c.toLowerCase() === 'transfer') || (tx.c === 'Balance Adjustment');
+}
+
+// === SCHEMA VALIDATION ON IMPORT (v1.0.2) ===
+function validateImportData(jsonStr) {
+  var errors = [];
+  var imported = 0;
+  var skipped = 0;
+  try {
+    var data = JSON.parse(jsonStr);
+    // Validate transactions
+    if (data.ft_txn_data) {
+      var txns = typeof data.ft_txn_data === 'string' ? JSON.parse(data.ft_txn_data) : data.ft_txn_data;
+      if (Array.isArray(txns)) {
+        var valid = [];
+        txns.forEach(function(tx, i) {
+          // Required fields
+          if (!tx.id && tx.id !== 0) { skipped++; errors.push('Row ' + i + ': missing id'); return; }
+          if (!tx.d) { skipped++; errors.push('Row ' + i + ': missing date'); return; }
+          if (!tx.t) { skipped++; errors.push('Row ' + i + ': missing type'); return; }
+          // Coerce amount to number
+          if (typeof tx.a === 'string') tx.a = parseFloat(tx.a) || 0;
+          if (typeof tx.a !== 'number' || isNaN(tx.a)) { skipped++; errors.push('Row ' + i + ': invalid amount'); return; }
+          // Sanitize strings (strip HTML)
+          if (tx.dt) tx.dt = String(tx.dt).replace(/<[^>]*>/g, '');
+          if (tx.c) tx.c = String(tx.c).replace(/<[^>]*>/g, '');
+          if (tx.s) tx.s = String(tx.s).replace(/<[^>]*>/g, '');
+          // Validate type
+          if (!['Income', 'Expense', 'Savings', 'Transfer'].includes(tx.t)) {
+            tx.t = 'Expense'; // Default fallback
+          }
+          valid.push(tx);
+          imported++;
+        });
+        data.ft_txn_data = JSON.stringify(valid);
+      }
+    }
+    // Validate accounts
+    if (data.ft_accounts) {
+      var accs = typeof data.ft_accounts === 'string' ? JSON.parse(data.ft_accounts) : data.ft_accounts;
+      if (Array.isArray(accs)) {
+        accs.forEach(function(acc) {
+          if (typeof acc.initialBalance === 'string') acc.initialBalance = parseFloat(acc.initialBalance) || 0;
+          if (acc.name) acc.name = String(acc.name).replace(/<[^>]*>/g, '');
+        });
+        data.ft_accounts = JSON.stringify(accs);
+      }
+    }
+    return { success: true, data: data, imported: imported, skipped: skipped, errors: errors };
+  } catch (e) {
+    return { success: false, data: null, imported: 0, skipped: 0, errors: ['Invalid JSON: ' + e.message] };
+  }
+}
+
+// === BACKUP REMINDER (v1.0.2) ===
+var BACKUP_INTERVAL = 50; // Remind every 50 transactions
+function checkBackupReminder() {
+  var lastBackup = parseInt(localStorage.getItem('ft_last_backup_txn_count') || '0');
+  var current = TXN.length;
+  if (current - lastBackup >= BACKUP_INTERVAL) {
+    toast('💾 You have ' + (current - lastBackup) + ' new transactions since last backup. Export in Settings → Data.');
+  }
+}
+function markBackupDone() {
+  localStorage.setItem('ft_last_backup_txn_count', String(TXN.length));
+  localStorage.setItem('ft_last_backup_date', new Date().toISOString());
+}
+function getLastBackupDate() {
+  return localStorage.getItem('ft_last_backup_date') || null;
+}
