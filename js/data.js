@@ -1,9 +1,170 @@
-// === DATA & PERSISTENCE (v15.8.1) ===
+// === DATA & PERSISTENCE (v1.0.2 — IndexedDB Engine) ===
 
-// === LOCALSTORAGE AVAILABILITY CHECK (v1.0.2) ===
-// iOS Private Browsing has 0 quota. Detect and fall back to in-memory.
+// === INDEXEDDB STORAGE ENGINE ===
+// Primary: IndexedDB (unlimited storage, async)
+// In-memory cache (_ftStore): all reads are sync from here
+// Boot-critical keys stay in localStorage too (security, theme)
+var _ftStore = {};
+var _ftDBReady = false;
+var _ftDB = null;
+
+// Keys that remain in localStorage for pre-boot sync access
+const FT_LS_KEEP = ['ft_app_lock','ft_pk_hash','ft_pk','ft_device_salt','ft_bio_cred','ft_recovery_hash','ft_security_questions','theme','ft_data_version','ft_onboarded','ft_security_setup_done','ft_username','ft_user_title','ft_lang','ft_currency','ft_hide_amounts'];
+
+// IndexedDB CRUD module
+var ftDB = {
+  DB_NAME: 'FinTrackDB',
+  DB_VERSION: 1,
+  STORE: 'kv',
+
+  open: function() {
+    return new Promise(function(resolve, reject) {
+      if (_ftDB) { resolve(_ftDB); return; }
+      var req = indexedDB.open(ftDB.DB_NAME, ftDB.DB_VERSION);
+      req.onupgradeneeded = function(e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(ftDB.STORE)) {
+          db.createObjectStore(ftDB.STORE, { keyPath: 'k' });
+        }
+      };
+      req.onsuccess = function(e) { _ftDB = e.target.result; _ftDBReady = true; resolve(_ftDB); };
+      req.onerror = function(e) { console.error('[FinTrack] IndexedDB open failed:', e); reject(e); };
+    });
+  },
+
+  get: function(key) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readonly');
+        var req = tx.objectStore(ftDB.STORE).get(key);
+        req.onsuccess = function() { resolve(req.result ? req.result.v : null); };
+        req.onerror = function() { reject(req.error); };
+      });
+    });
+  },
+
+  set: function(key, value) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readwrite');
+        tx.objectStore(ftDB.STORE).put({ k: key, v: value });
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  },
+
+  delete: function(key) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readwrite');
+        tx.objectStore(ftDB.STORE).delete(key);
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  },
+
+  getAll: function() {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readonly');
+        var req = tx.objectStore(ftDB.STORE).getAll();
+        req.onsuccess = function() { resolve(req.result || []); };
+        req.onerror = function() { reject(req.error); };
+      });
+    });
+  }
+};
+
+// === SYNC READ/WRITE API (used by entire app) ===
+// safeGet: sync read from in-memory cache
+function safeGet(key) {
+  if (_ftStore.hasOwnProperty(key)) return _ftStore[key];
+  // Fallback to localStorage for boot-critical keys before DB loads
+  try { return localStorage.getItem(key); } catch(e) { return null; }
+}
+
+// safeSave: sync write to cache + async persist to IndexedDB
+function safeSave(key, value) {
+  var val = typeof value === 'string' ? value : JSON.stringify(value);
+  _ftStore[key] = val;
+  // Persist to IndexedDB (fire-and-forget with error handling)
+  if (_ftDBReady) {
+    ftDB.set(key, val).catch(function(e) {
+      console.error('[FinTrack] IndexedDB write failed for', key, e);
+      toast('❌ Save failed. Check storage permissions.');
+    });
+  }
+  // Also write boot-critical keys to localStorage (sync backup)
+  if (FT_LS_KEEP.includes(key)) {
+    try { localStorage.setItem(key, val); } catch(e) {}
+  }
+  return true;
+}
+
+// === MASTER BOOT LOADER (async, called once from init.js) ===
+async function ftLoadAll() {
+  try {
+    await ftDB.open();
+    // Check if migration from localStorage is needed
+    var migrated = await ftDB.get('_ft_migrated');
+    if (!migrated) {
+      await ftMigrateFromLocalStorage();
+    }
+    // Load all entries into _ftStore
+    var entries = await ftDB.getAll();
+    entries.forEach(function(entry) {
+      if (entry.k !== '_ft_migrated') {
+        _ftStore[entry.k] = entry.v;
+      }
+    });
+    _ftDBReady = true;
+    console.log('[FinTrack] IndexedDB loaded. ' + entries.length + ' keys.');
+  } catch(e) {
+    console.warn('[FinTrack] IndexedDB failed, falling back to localStorage.', e);
+    // Fallback: populate _ftStore from localStorage
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      _ftStore[k] = localStorage.getItem(k);
+    }
+  }
+}
+
+// === ONE-TIME MIGRATION: localStorage → IndexedDB ===
+async function ftMigrateFromLocalStorage() {
+  console.log('[FinTrack] Migrating localStorage → IndexedDB...');
+  var db = await ftDB.open();
+  var tx = db.transaction(ftDB.STORE, 'readwrite');
+  var store = tx.objectStore(ftDB.STORE);
+  var count = 0;
+  for (var i = 0; i < localStorage.length; i++) {
+    var key = localStorage.key(i);
+    var val = localStorage.getItem(key);
+    store.put({ k: key, v: val });
+    count++;
+  }
+  // Mark migration complete
+  store.put({ k: '_ft_migrated', v: '1' });
+  await new Promise(function(resolve, reject) {
+    tx.oncomplete = resolve;
+    tx.onerror = function() { reject(tx.error); };
+  });
+  // Clear localStorage except boot-critical keys
+  var keysToKeep = {};
+  FT_LS_KEEP.forEach(function(k) {
+    var v = localStorage.getItem(k);
+    if (v !== null) keysToKeep[k] = v;
+  });
+  localStorage.clear();
+  Object.keys(keysToKeep).forEach(function(k) {
+    localStorage.setItem(k, keysToKeep[k]);
+  });
+  console.log('[FinTrack] Migration complete. ' + count + ' keys moved to IndexedDB.');
+}
+
+// === iOS PRIVATE BROWSING DETECTION ===
 var _storageAvailable = true;
-var _memoryFallback = {};
 (function() {
   try {
     var test = '__ft_test__';
@@ -11,65 +172,14 @@ var _memoryFallback = {};
     localStorage.removeItem(test);
   } catch (e) {
     _storageAvailable = false;
-    console.warn('[FinTrack] localStorage unavailable. Using in-memory fallback. Data will NOT persist.');
+    console.warn('[FinTrack] localStorage unavailable (Private Browsing). IndexedDB may also be limited.');
   }
 })();
 
-// Safe localStorage getter (works even in private browsing)
-function safeGet(key) {
-  if (!_storageAvailable) return _memoryFallback[key] || null;
-  return localStorage.getItem(key);
-}
-
-// === SAFE STORAGE WRAPPER (v1.0.2) ===
-// Wraps all localStorage writes with quota protection + warning system
-function safeSave(key, value) {
-  var val = typeof value === 'string' ? value : JSON.stringify(value);
-  if (!_storageAvailable) {
-    _memoryFallback[key] = val;
-    return true;
-  }
-  try {
-    localStorage.setItem(key, val);
-    checkStorageQuota();
-    return true;
-  } catch (e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
-      toast('🚨 Storage full! Data NOT saved. Export backup in Settings → Data.');
-      console.error('[FinTrack] Storage quota exceeded for key:', key);
-      return false;
-    }
-    toast('❌ Save failed: ' + (e.message || 'Unknown error'));
-    console.error('[FinTrack] Save error:', e);
-    return false;
-  }
-}
-
-// Check storage usage and warn user proactively
-var _lastQuotaWarning = 0;
-function checkStorageQuota() {
-  // Only warn once per 60 seconds to avoid spam
-  if (Date.now() - _lastQuotaWarning < 60000) return;
-  var total = 0;
-  for (var k in localStorage) {
-    if (localStorage.hasOwnProperty(k)) {
-      total += (localStorage[k].length || 0) * 2; // UTF-16 = 2 bytes/char
-    }
-  }
-  var usedMB = total / (1024 * 1024);
-  var pct = Math.round((usedMB / 5) * 100);
-  if (pct >= 90) {
-    _lastQuotaWarning = Date.now();
-    toast('🔴 Storage ' + pct + '% full! Export backup NOW or risk data loss.');
-  } else if (pct >= 75) {
-    _lastQuotaWarning = Date.now();
-    toast('🟡 Storage ' + pct + '% full. Consider exporting a backup soon.');
-  }
-}
-
 // === GLOBAL YEAR MANAGEMENT (v11.5) ===
 const DEFAULT_YEARS = [2024, 2025, 2026, 2027, 2028];
-let YEARS = JSON.parse(localStorage.getItem('ft_years') || 'null') || [...DEFAULT_YEARS];
+let YEARS = [...DEFAULT_YEARS];
+function loadYEARS() { var raw = safeGet('ft_years'); if (raw) { try { YEARS = JSON.parse(raw); } catch(e) {} } }
 function saveYEARS() { safeSave('ft_years', JSON.stringify(YEARS)); }
 function addYear(year) {
   year = parseInt(year);
@@ -110,14 +220,14 @@ const CATEGORY_BUDGETS = {
 
 // === BUDGET PLANNER HELPERS (master data for all budget) ===
 function getBudgetPlan(year, monthIdx) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   if (plans[yearKey] && plans[yearKey][monthIdx]) return plans[yearKey][monthIdx];
   return null;
 }
 
 function getYearlyBudgetTotal(year) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var total = 0;
   var hasAnyPlan = false;
@@ -144,7 +254,7 @@ function getMonthlyBudget(year, monthIdx) {
 }
 
 function getCategoryBudget(year, category) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var total = 0;
   if (plans[yearKey]) {
@@ -162,7 +272,8 @@ const DEFAULT_SCHEMA = {
   Expense: {},
   Savings: {}
 };
-let SCHEMA = JSON.parse(localStorage.getItem('ft_schema') || 'null') || JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
+let SCHEMA = JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
+function loadSCHEMA() { var raw = safeGet('ft_schema'); if (raw) { try { SCHEMA = JSON.parse(raw); } catch(e) {} } }
 function saveSCHEMA() { safeSave('ft_schema', JSON.stringify(SCHEMA)); }
 
 // === ACCOUNTS SYSTEM (v10.3) ===
@@ -171,8 +282,14 @@ const ACCOUNT_TYPES = {
   liability: ['Credit Card Debt', 'Personal Loan', 'Mortgage', 'Vehicle Loan', 'Other Debt']
 };
 const DEFAULT_ACCOUNTS = [];
-let ACCOUNTS = JSON.parse(localStorage.getItem('ft_accounts') || 'null') || JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
-let accNxId = parseInt(localStorage.getItem('ft_accNxId') || '10');
+let ACCOUNTS = [];
+let accNxId = 10;
+function loadACCOUNTS() {
+  var raw = safeGet('ft_accounts');
+  if (raw) { try { ACCOUNTS = JSON.parse(raw); } catch(e) {} }
+  var nid = safeGet('ft_accNxId');
+  if (nid) accNxId = parseInt(nid);
+}
 function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); safeSave('ft_accNxId', accNxId); }
 
 function getAccountBalance(accId) {
@@ -210,8 +327,9 @@ function getNetWorth() {
 }
 
 // === OPENING BALANCE & CARRY-FORWARD (v11.2) ===
-let INITIAL_DEPOSIT = parseFloat(localStorage.getItem('ft_initial_deposit') || '0');
-function saveInitialDeposit() { localStorage.setItem('ft_initial_deposit', INITIAL_DEPOSIT); }
+let INITIAL_DEPOSIT = 0;
+function loadInitialDeposit() { var raw = safeGet('ft_initial_deposit'); if (raw) INITIAL_DEPOSIT = parseFloat(raw) || 0; }
+function saveInitialDeposit() { safeSave('ft_initial_deposit', INITIAL_DEPOSIT); }
 
 // Carry-forward balance: Opening Balance + cumulative (Income - Expense - Savings) up to selected period
 function getCarryForwardBalance(year, month) {
@@ -316,8 +434,14 @@ function computeExpenseCategoriesByPeriod(year, month) {
 }
 
 // === REMINDERS SYSTEM (v10.5) ===
-let REMINDERS = JSON.parse(localStorage.getItem('ft_reminders') || '[]');
-let reminderNxId = parseInt(localStorage.getItem('ft_reminderNxId') || '1');
+let REMINDERS = [];
+let reminderNxId = 1;
+function loadREMINDERS() {
+  var raw = safeGet('ft_reminders');
+  if (raw) { try { REMINDERS = JSON.parse(raw); } catch(e) {} }
+  var nid = safeGet('ft_reminderNxId');
+  if (nid) reminderNxId = parseInt(nid);
+}
 function saveREMINDERS() { safeSave('ft_reminders', JSON.stringify(REMINDERS)); safeSave('ft_reminderNxId', reminderNxId); }
 
 function getActiveReminders() {
@@ -432,8 +556,8 @@ let TXN = [];
 
 // === DATA VERSION & MIGRATION (v1.0.2) ===
 const FT_DATA_VERSION = 3; // v1 = raw floats, v2 = integer cents, v3 = budget plans in cents
-function getDataVersion() { return parseInt(localStorage.getItem('ft_data_version') || '1'); }
-function setDataVersion(v) { localStorage.setItem('ft_data_version', String(v)); }
+function getDataVersion() { return parseInt(safeGet('ft_data_version') || '1'); }
+function setDataVersion(v) { safeSave('ft_data_version', String(v)); }
 
 // Migrate v1 (float amounts) to v2 (integer cents)
 function migrateToIntegerCents() {
@@ -463,7 +587,7 @@ function migrateToIntegerCents() {
 // Migrate v2 → v3: budget plans to integer cents
 function migrateBudgetsToCents() {
   if (getDataVersion() >= 3) return;
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var changed = false;
   Object.keys(plans).forEach(function(yearKey) {
     var yearPlan = plans[yearKey];
@@ -484,7 +608,7 @@ function migrateBudgetsToCents() {
     }
   });
   if (changed) {
-    localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+    safeSave('ft_budget_plans', JSON.stringify(plans));
   }
   setDataVersion(3);
   console.log('[FinTrack] Migrated budget plans to integer cents (v3).');
@@ -497,6 +621,10 @@ const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
   if (!safeSave(STORAGE_KEY, JSON.stringify(TXN))) return;
   safeSave('ft_nxId', nxId);
+  // Notify other tabs via BroadcastChannel
+  if (typeof _ftChannel !== 'undefined' && _ftChannel) {
+    try { _ftChannel.postMessage({ type: 'data_update', key: STORAGE_KEY }); } catch(e) {}
+  }
 }
 function loadTXN() {
   const raw = safeGet(STORAGE_KEY);
@@ -507,6 +635,17 @@ function loadTXN() {
   // Run migrations after loading
   migrateToIntegerCents();
   migrateBudgetsToCents();
+}
+
+// === MASTER DATA LOADER (called after ftLoadAll populates _ftStore) ===
+function loadAllModuleData() {
+  loadYEARS();
+  loadSCHEMA();
+  loadACCOUNTS();
+  loadInitialDeposit();
+  loadREMINDERS();
+  if (typeof loadGOALS === 'function') loadGOALS();
+  loadTXN();
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
@@ -543,24 +682,29 @@ function computeExpenseCategories(year) {
 
 function yearHasData(year) { return TXN.some(t => new Date(t.d).getFullYear() === year); }
 
-// === MULTI-TAB SYNC (v1.0.2) ===
-// Listen for storage changes from other tabs and reload affected data
-window.addEventListener('storage', function(e) {
-  if (!e.key || !e.key.startsWith('ft_')) return;
-  // Another tab wrote to our data. Reload.
-  if (e.key === STORAGE_KEY) {
-    var raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) { try { TXN = JSON.parse(raw); } catch(err) {} }
-    toast('🔄 Data updated from another tab');
-    if (typeof navigate === 'function') navigate(curPage); // Re-render current page
-  } else if (e.key === 'ft_accounts') {
-    var raw2 = localStorage.getItem('ft_accounts');
-    if (raw2) { try { ACCOUNTS = JSON.parse(raw2); } catch(err) {} }
-  } else if (e.key === 'ft_schema') {
-    var raw3 = localStorage.getItem('ft_schema');
-    if (raw3) { try { SCHEMA = JSON.parse(raw3); } catch(err) {} }
-  }
-});
+// === MULTI-TAB SYNC (v1.0.2 — BroadcastChannel) ===
+// Uses BroadcastChannel for cross-tab sync (works with IndexedDB)
+var _ftChannel = null;
+try { _ftChannel = new BroadcastChannel('fintrack_sync'); } catch(e) {}
+if (_ftChannel) {
+  _ftChannel.onmessage = function(e) {
+    if (!e.data || e.data.type !== 'data_update') return;
+    // Reload the changed key from IndexedDB
+    ftDB.get(e.data.key).then(function(val) {
+      if (val === null) return;
+      _ftStore[e.data.key] = val;
+      if (e.data.key === STORAGE_KEY) {
+        try { TXN = JSON.parse(val); } catch(err) {}
+        toast('🔄 Data updated from another tab');
+        if (typeof navigate === 'function') navigate(curPage);
+      } else if (e.data.key === 'ft_accounts') {
+        try { ACCOUNTS = JSON.parse(val); } catch(err) {}
+      } else if (e.data.key === 'ft_schema') {
+        try { SCHEMA = JSON.parse(val); } catch(err) {}
+      }
+    });
+  };
+}
 
 // === PRIVATE BROWSING WARNING (v1.0.2) ===
 // Show banner if storage unavailable (call from init.js after DOM ready)
@@ -651,16 +795,16 @@ function validateImportData(jsonStr) {
 // === BACKUP REMINDER (v1.0.2) ===
 var BACKUP_INTERVAL = 50; // Remind every 50 transactions
 function checkBackupReminder() {
-  var lastBackup = parseInt(localStorage.getItem('ft_last_backup_txn_count') || '0');
+  var lastBackup = parseInt(safeGet('ft_last_backup_txn_count') || '0');
   var current = TXN.length;
   if (current - lastBackup >= BACKUP_INTERVAL) {
     toast('💾 You have ' + (current - lastBackup) + ' new transactions since last backup. Export in Settings → Data.');
   }
 }
 function markBackupDone() {
-  localStorage.setItem('ft_last_backup_txn_count', String(TXN.length));
-  localStorage.setItem('ft_last_backup_date', new Date().toISOString());
+  safeSave('ft_last_backup_txn_count', String(TXN.length));
+  safeSave('ft_last_backup_date', new Date().toISOString());
 }
 function getLastBackupDate() {
-  return localStorage.getItem('ft_last_backup_date') || null;
+  return safeGet('ft_last_backup_date') || null;
 }
