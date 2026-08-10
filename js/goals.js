@@ -720,7 +720,7 @@ function closeCoverSheet() {
 document.addEventListener('click', function(e) {
   // Handle trigger buttons (Cover alerts on Goals tab and Dashboard)
   const btn = e.target.closest('[data-cover-cat]');
-  if (btn) {
+  if (btn && !btn.id) {
     e.preventDefault();
     e.stopPropagation();
     const cat = btn.dataset.coverCat;
@@ -728,17 +728,6 @@ document.addEventListener('click', function(e) {
     const year = parseInt(btn.dataset.coverYear);
     const month = parseInt(btn.dataset.coverMonth);
     if (cat && over > 0) openCoverOverspending(cat, over, year, month);
-    return;
-  }
-  // Handle confirm button inside the cover sheet
-  const confirmBtn = e.target.closest('#coverConfirmBtn');
-  if (confirmBtn) {
-    e.preventDefault();
-    const from = confirmBtn.dataset.coverFrom;
-    const to = confirmBtn.dataset.coverTo;
-    const year = parseInt(confirmBtn.dataset.coverYear);
-    const month = parseInt(confirmBtn.dataset.coverMonth);
-    if (from && to) executeCoverTransfer(from, to, year, month);
     return;
   }
 });
