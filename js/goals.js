@@ -168,9 +168,10 @@ function renderGoals(c) {
     const overspentCats = [];
     Object.entries(statusMonthPlan.expCats).forEach(([cat, budget]) => {
       if (budget <= 0) return;
-      // Match by category (tx.c). Also sum subcategory transactions that belong to this category.
-      const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
-      if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget });
+      // tx.a is cents, budget is real currency. Convert spent to real.
+      const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
+      const spentReal = spentCents / 100;
+      if (spentReal > budget) overspentCats.push({ cat, budget, spent: spentReal, over: Math.round((spentReal - budget) * 100) / 100 });
     });
     if (overspentCats.length > 0) {
       html += `<div class="cover-alert-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700;color:var(--rose)">⚠️ Overspent Categories</div><div style="font-size:11px;color:var(--text-tertiary)">${MONTH_NAMES[currentMonth]} ${currentYear}</div></div>`;
@@ -178,7 +179,7 @@ function renderGoals(c) {
       overspentCats.forEach((item, idx) => {
         const pct = ((item.spent / item.budget) * 100).toFixed(0);
         const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
-        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(item.spent)} / ${fmt(item.budget)} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(item.over)} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
+        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(Math.round(item.spent * 100))} / ${fmt(Math.round(item.budget * 100))} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(Math.round(item.over * 100))} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'&quot;')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
       });
       html += `</div></div>`;
     }
@@ -314,12 +315,10 @@ function editBudgetMonth(year, monthIdx) {
   // Get categories dynamically from SCHEMA (Settings is the source of truth)
   const incCats = Object.keys(SCHEMA.Income || {});
   const expCats = Object.keys(SCHEMA.Expense || {});
-  // v1.0.2: stored in cents, display in real currency for form
-  const existIncCats = {};
-  Object.entries(existing.incCats || {}).forEach(function(e) { existIncCats[e[0]] = e[1] / 100; });
-  const existExpCats = {};
-  Object.entries(existing.expCats || {}).forEach(function(e) { existExpCats[e[0]] = e[1] / 100; });
-  const existSav = (existing.s || 0) / 100;
+  // Budget plans store values in real currency (not cents)
+  const existIncCats = existing.incCats || {};
+  const existExpCats = existing.expCats || {};
+  const existSav = existing.s || 0;
 
   var h = '<div class="mo show" id="mbudget" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}">';
   h += '<div class="ml" style="max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">';
@@ -356,21 +355,21 @@ function saveBudgetMonth(e, year, monthIdx) {
   var yearKey = String(year);
   if (!plans[yearKey]) plans[yearKey] = {};
 
-  // Collect income categories (user enters real currency, store as cents)
+  // Collect income categories (store as real currency)
   var incCats = {};
   document.querySelectorAll('.bp_inc').forEach(function(el) {
     var val = parseFloat(el.value) || 0;
-    if (val > 0) incCats[el.dataset.cat] = Math.round(val * 100);
+    if (val > 0) incCats[el.dataset.cat] = val;
   });
 
-  // Collect expense categories (user enters real currency, store as cents)
+  // Collect expense categories (store as real currency)
   var expCats = {};
   document.querySelectorAll('.bp_exp').forEach(function(el) {
     var val = parseFloat(el.value) || 0;
-    if (val > 0) expCats[el.dataset.cat] = Math.round(val * 100);
+    if (val > 0) expCats[el.dataset.cat] = val;
   });
 
-  var savAmount = Math.round((parseFloat(document.getElementById('bp_savings').value) || 0) * 100);
+  var savAmount = parseFloat(document.getElementById('bp_savings').value) || 0;
   var totalInc = Object.values(incCats).reduce(function(s, v) { return s + v; }, 0);
   var totalExp = Object.values(expCats).reduce(function(s, v) { return s + v; }, 0);
 
@@ -486,7 +485,7 @@ function showBudgetRowMenu(event, year, monthIdx, hasPlan) {
 function copyBudgetToNext(year, monthIdx) {
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
-  var srcPlan = (plans[yearKey] && plans[yearKey][monthIdx]) || null;
+  var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
 
   // Next month (handles year rollover)
@@ -494,9 +493,10 @@ function copyBudgetToNext(year, monthIdx) {
   var nextYear = year;
   if (nextMonth > 11) { nextMonth = 0; nextYear = year + 1; }
   var nextYearKey = String(nextYear);
+  var nextMonthKey = String(nextMonth);
 
   // Check if destination has data
-  var destPlan = (plans[nextYearKey] && plans[nextYearKey][nextMonth]) || null;
+  var destPlan = (plans[nextYearKey] && (plans[nextYearKey][nextMonthKey] || plans[nextYearKey][nextMonth])) || null;
   var destHasData = destPlan && (Object.keys(destPlan.incCats || {}).length || Object.keys(destPlan.expCats || {}).length || destPlan.s);
 
   if (destHasData) {
@@ -504,7 +504,7 @@ function copyBudgetToNext(year, monthIdx) {
   }
 
   if (!plans[nextYearKey]) plans[nextYearKey] = {};
-  plans[nextYearKey][nextMonth] = JSON.parse(JSON.stringify(srcPlan));
+  plans[nextYearKey][nextMonthKey] = JSON.parse(JSON.stringify(srcPlan));
   safeSave('ft_budget_plans', JSON.stringify(plans));
   toast('✅ Copied to ' + MONTH_NAMES[nextMonth] + ' ' + nextYear);
   if (typeof render === 'function') render();
@@ -514,14 +514,14 @@ function copyBudgetToNext(year, monthIdx) {
 function copyBudgetToAll(year, monthIdx) {
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
-  var srcPlan = (plans[yearKey] && plans[yearKey][monthIdx]) || null;
+  var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
 
   // Count how many months already have data (excluding source)
   var existingCount = 0;
   for (var m = 0; m < 12; m++) {
     if (m === monthIdx) continue;
-    var p = plans[yearKey] && plans[yearKey][m];
+    var p = plans[yearKey] && (plans[yearKey][String(m)] || plans[yearKey][m]);
     if (p && (Object.keys(p.incCats || {}).length || Object.keys(p.expCats || {}).length || p.s)) existingCount++;
   }
 
@@ -531,7 +531,7 @@ function copyBudgetToAll(year, monthIdx) {
 
   if (!plans[yearKey]) plans[yearKey] = {};
   for (var m = 0; m < 12; m++) {
-    plans[yearKey][m] = JSON.parse(JSON.stringify(srcPlan));
+    plans[yearKey][String(m)] = JSON.parse(JSON.stringify(srcPlan));
   }
   safeSave('ft_budget_plans', JSON.stringify(plans));
   toast('✅ Budget applied to all months of ' + year);
@@ -559,7 +559,7 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
 
   // Get actual spending per category this month
   // Transactions: tx.c = category (top-level), tx.s = subcategory
-  // Budget expCats keys match tx.c (category level)
+  // Budget expCats are in REAL CURRENCY. tx.a is in CENTS. Convert tx.a to real for comparison.
   const monthTxns = TXN.filter(tx => {
     const d = new Date(tx.d);
     return d.getFullYear() === year && d.getMonth() === monthIdx && tx.t === 'Expense';
@@ -569,20 +569,20 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   const availableCats = [];
   Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
     if (cat === overspentCat || budget <= 0) return;
-    // Sum all transactions where tx.c matches this budget category (case-insensitive)
-    const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
-    const remaining = budget - spent;
+    // Convert spent from cents to real currency for budget comparison
+    const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
+    const spentReal = spentCents / 100;
+    const remaining = budget - spentReal;
     if (remaining > 0) {
       const catEmoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
-      // remaining is in cents. Convert to real for display and input.
-      availableCats.push({ cat, budget, spent, remaining, remainingReal: remaining / 100, emoji: catEmoji });
+      availableCats.push({ cat, budget, spent: spentReal, remaining, emoji: catEmoji });
     }
   });
 
   if (!availableCats.length) { toast('❌ No categories with available budget to cover from'); return; }
 
-  // overAmount is in cents. Convert to real for display.
-  const overAmountReal = overAmount / 100;
+  // overAmount is in real currency (passed from overspent detection which already converted)
+  const overAmountReal = overAmount;
   const overspentEmoji = SCHEMA.Expense && SCHEMA.Expense[overspentCat] ? (SCHEMA.Expense[overspentCat].emoji || '📦') : '📦';
   const isMobile = window.innerWidth <= 768;
 
@@ -597,32 +597,31 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   }
 
   // Header
-  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${overspentCat} is ${fmt(overAmount)} over budget. Move money from another category.</div></div>`;
+  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${overspentCat} is RM ${overAmountReal.toFixed(2)} over budget. Move money from another category.</div></div>`;
 
   // Overspent amount display
-  h += `<div class="cover-overspent-display"><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Amount to cover</div><div style="font-size:24px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">-${fmt(overAmount)}</div></div>`;
+  h += `<div class="cover-overspent-display"><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Amount to cover</div><div style="font-size:24px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">-RM ${overAmountReal.toFixed(2)}</div></div>`;
 
   // Source category selection
   h += `<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Move from</div>`;
   h += `<div class="cover-options-list" id="coverOptions">`;
   availableCats.forEach((item, idx) => {
-    const maxCoverReal = Math.min(item.remainingReal, overAmountReal);
-    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining-real="${item.remainingReal.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">${fmt(item.remaining)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
+    const maxCoverReal = Math.min(item.remaining, overAmountReal);
+    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining="${item.remaining.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">RM ${item.remaining.toFixed(2)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
   });
   h += `</div>`;
 
-  // Amount input (in real currency, not cents)
-  const firstMaxReal = Math.min(availableCats[0].remainingReal, overAmountReal);
+  // Amount input (in real currency)
+  const firstMaxReal = Math.min(availableCats[0].remaining, overAmountReal);
   const currSymbol = (CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR).symbol;
   h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${firstMaxReal.toFixed(2)}" max="${firstMaxReal.toFixed(2)}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
 
   // Transfer preview
   const firstCat = availableCats[0];
-  const firstPreviewAmt = firstMaxReal;
-  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${fmt(firstCat.remaining)} → ${fmt(Math.round((firstCat.remainingReal - firstPreviewAmt) * 100))} remaining</div></div><div class="cover-preview-amt negative">-${fmt(Math.round(firstPreviewAmt * 100))}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${fmt(overAmount)} → ${overAmountReal <= firstPreviewAmt ? fmt(0) : '-' + fmt(Math.round((overAmountReal - firstPreviewAmt) * 100))} remaining</div></div><div class="cover-preview-amt positive">+${fmt(Math.round(firstPreviewAmt * 100))}</div></div></div>`;
+  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">RM ${firstCat.remaining.toFixed(2)} → RM ${(firstCat.remaining - firstMaxReal).toFixed(2)} remaining</div></div><div class="cover-preview-amt negative">-RM ${firstMaxReal.toFixed(2)}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-RM ${overAmountReal.toFixed(2)} → ${overAmountReal <= firstMaxReal ? 'RM 0.00' : '-RM ' + (overAmountReal - firstMaxReal).toFixed(2)} remaining</div></div><div class="cover-preview-amt positive">+RM ${firstMaxReal.toFixed(2)}</div></div></div>`;
 
   // Action buttons
-  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${fmt(Math.round(firstMaxReal * 100))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
+  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover RM ${firstMaxReal.toFixed(2)}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
 
   if (isMobile) {
     h += `</div></div>`;
@@ -639,8 +638,8 @@ function selectCoverSource(el) {
   document.querySelectorAll('.cover-option-row').forEach(r => r.classList.remove('selected'));
   el.classList.add('selected');
   const cat = el.dataset.cat;
-  const max = parseFloat(el.dataset.max); // in real currency (not cents)
-  const remainingReal = parseFloat(el.dataset.remainingReal);
+  const max = parseFloat(el.dataset.max);
+  const remaining = parseFloat(el.dataset.remaining);
   const amtInput = document.getElementById('coverAmount');
   amtInput.max = max.toFixed(2);
   amtInput.value = max.toFixed(2);
@@ -654,25 +653,22 @@ function selectCoverSource(el) {
     if (rows[0]) {
       rows[0].querySelector('.cover-preview-emoji').textContent = emoji;
       rows[0].querySelector('.cover-preview-name').textContent = cat;
-      rows[0].querySelector('.cover-preview-after').textContent = fmt(Math.round(remainingReal * 100)) + ' → ' + fmt(Math.round((remainingReal - amt) * 100)) + ' remaining';
-      rows[0].querySelector('.cover-preview-amt').textContent = '-' + fmt(Math.round(amt * 100));
+      rows[0].querySelector('.cover-preview-after').textContent = 'RM ' + remaining.toFixed(2) + ' → RM ' + (remaining - amt).toFixed(2) + ' remaining';
+      rows[0].querySelector('.cover-preview-amt').textContent = '-RM ' + amt.toFixed(2);
     }
   }
 
-  // Update confirm button text and onclick
+  // Update confirm button text
   const confirmBtn = document.getElementById('coverConfirmBtn');
   if (confirmBtn) {
     const amt = parseFloat(amtInput.value);
-    confirmBtn.textContent = 'Cover ' + fmt(Math.round(amt * 100));
+    confirmBtn.textContent = 'Cover RM ' + amt.toFixed(2);
   }
 }
 
 function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   const amountReal = parseFloat(document.getElementById('coverAmount').value);
   if (!amountReal || amountReal <= 0) { toast('❌ Invalid amount'); return; }
-
-  // Convert real currency to cents for budget plan modification
-  const amount = Math.round(amountReal * 100);
 
   // Get selected source category
   const selected = document.querySelector('.cover-option-row.selected');
@@ -682,7 +678,6 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   const yearKey = String(year);
   if (!plans[yearKey]) { toast('❌ Budget plan not found'); return; }
   const yearPlans = plans[yearKey];
-  // Month key is always string after JSON parse
   const monthKey = String(monthIdx);
   const plan = yearPlans[monthKey] || yearPlans[monthIdx] || null;
   if (!plan || !plan.expCats) { toast('❌ Budget plan not found for this month'); return; }
@@ -690,13 +685,12 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   if (!plan.expCats[fromCat] && plan.expCats[fromCat] !== 0) { toast('❌ Source category not found in budget'); return; }
   if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found in budget'); return; }
 
-  // Cap transfer at source's actual budget (prevent creating money)
-  const actualAmt = Math.min(amount, plan.expCats[fromCat]);
+  // Budget values are in real currency. Transfer directly.
+  const actualAmt = Math.min(amountReal, plan.expCats[fromCat]);
   if (actualAmt <= 0) { toast('❌ Source has no budget left to transfer'); return; }
 
-  // Modify budget (values are in cents)
-  plan.expCats[fromCat] = Math.round(plan.expCats[fromCat] - actualAmt);
-  plan.expCats[toCat] = Math.round(plan.expCats[toCat] + actualAmt);
+  plan.expCats[fromCat] = Math.round((plan.expCats[fromCat] - actualAmt) * 100) / 100;
+  plan.expCats[toCat] = Math.round((plan.expCats[toCat] + actualAmt) * 100) / 100;
 
   // Recalculate totals
   plan.e = Object.values(plan.expCats).reduce((s, v) => s + v, 0);
@@ -908,7 +902,7 @@ function renderMobileBudgetTab(MD, year) {
   if (statusMonthPlan2 && statusMonthPlan2.expCats) {
     const monthTxns = TXN.filter(tx => { const d = new Date(tx.d); return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense'; });
     const overspentCats = [];
-    Object.entries(statusMonthPlan2.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0); if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget }); });
+    Object.entries(statusMonthPlan2.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0); const spentReal = spentCents / 100; if (spentReal > budget) overspentCats.push({ cat, budget, spent: spentReal, over: Math.round((spentReal - budget) * 100) / 100 }); });
     if (overspentCats.length > 0) {
       html += '<div style="height:1px;background:var(--border);margin:18px 0"></div>';
       html += '<div style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:var(--rose)">⚠️ Overspent</span><span style="font-size:10px;color:var(--text-tertiary)">' + MONTH_NAMES[currentMonth] + ' ' + currentYear + '</span></div>';
@@ -929,7 +923,7 @@ function renderMobileBudgetTab(MD, year) {
   html += '<div style="height:1px;background:var(--border);margin:0 0 18px"></div>';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:13px;font-weight:700;letter-spacing:-0.01em">' + t('goal_budget_planner') + '</span><select class="fsel" style="font-size:10px;padding:4px 20px 4px 8px" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById(\'cnt\'))">' + YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></div>';
 
-  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
@@ -970,7 +964,7 @@ function checkBudgetAlerts() {
   const currentMonth = new Date().getMonth();
   const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
-  const monthPlan = BUDGET_PLANS[yearKey] && BUDGET_PLANS[yearKey][currentMonth];
+  const monthPlan = BUDGET_PLANS[yearKey] && (BUDGET_PLANS[yearKey][String(currentMonth)] || BUDGET_PLANS[yearKey][currentMonth]);
   if (!monthPlan || !monthPlan.expCats) return;
 
   const monthTxns = TXN.filter(tx => {
