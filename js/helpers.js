@@ -332,6 +332,14 @@ const fmtD = n => {
   return cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+// Format real currency value (not cents). Used for budget plan display.
+const fmtR = n => {
+  const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
+  const converted = convertAmount(Math.abs(n));
+  const formatted = cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  return n < 0 ? '-' + formatted : formatted;
+};
+
 function toast(m) {
   const el = document.getElementById('toast');
   el.textContent = m;
