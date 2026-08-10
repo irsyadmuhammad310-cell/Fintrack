@@ -4,7 +4,7 @@ let setSubTab = 'profile';
 const FINTRACK_VERSION = 'V1.0.2';
 
 function renderSettings(c) {
-  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
+  if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
   c.innerHTML = `<div class="stitle">Settings</div><div class="ssub">Manage your preferences</div><div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories & Accounts</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
@@ -44,8 +44,8 @@ function setTab(el, tab) {
 
 // === PROFILE TAB ===
 function renderProfileTab(c) {
-  const desktopMode = localStorage.getItem('ft_desktop_mode') === 'true';
-  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your display name and greeting</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px" onchange="saveProfileSettings()"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px" onchange="saveProfileSettings()"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display mode</div></div></div><div class="trow"><div class="tinf"><div class="tna">Dark Mode</div><div class="tde">Switch between light and dark theme</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;localStorage.setItem('theme',th)"></div></div><div class="trow"><div class="tinf"><div class="tna">Desktop Mode</div><div class="tde">Force desktop layout on mobile</div></div><div class="tsw ${desktopMode ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_desktop_mode',this.classList.contains('on')?'true':'false');toast(this.classList.contains('on')?'🖥 Desktop mode on. Reload to apply.':'📱 Mobile mode restored. Reload to apply.')"></div></div></div>`;
+  const desktopMode = safeGet('ft_desktop_mode') === 'true';
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your display name and greeting</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px" onchange="saveProfileSettings()"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px" onchange="saveProfileSettings()"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display mode</div></div></div><div class="trow"><div class="tinf"><div class="tna">Dark Mode</div><div class="tde">Switch between light and dark theme</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;safeSave('theme',th)"></div></div><div class="trow"><div class="tinf"><div class="tna">Desktop Mode</div><div class="tde">Force desktop layout on mobile</div></div><div class="tsw ${desktopMode ? 'on' : ''}" onclick="this.classList.toggle('on');safeSave('ft_desktop_mode',this.classList.contains('on')?'true':'false');toast(this.classList.contains('on')?'🖥 Desktop mode on. Reload to apply.':'📱 Mobile mode restored. Reload to apply.')"></div></div></div>`;
   lucide.createIcons();
 }
 
@@ -116,7 +116,7 @@ function renderSysSub(sub) {
   const c = document.getElementById('setc');
   let html = `<div style="margin-bottom:12px"><button class="btn bs" style="font-size:11px;padding:5px 10px" onclick="renderSystemTab(document.getElementById('setc'))"><i data-lucide="arrow-left" width="11" height="11"></i> Back</button></div>`;
   if (sub === 'budgetcat') {
-    const catMemSize = Object.keys(JSON.parse(localStorage.getItem('ft_cat_memory') || '{}')).length;
+    const catMemSize = Object.keys(JSON.parse(safeGet('ft_cat_memory') || '{}')).length;
     const storageUsed = new Blob(Object.entries(localStorage).map(([k,v]) => k + v)).size;
     const storageMax = 5 * 1024 * 1024;
     const storagePct = Math.min(100, (storageUsed / storageMax * 100)).toFixed(1);
@@ -172,7 +172,7 @@ function renderLanguageTab(c) {
 // v15.3.1: Switch language and stay on language tab (mobile) or re-render settings (desktop)
 function switchLang(lang) {
   currentLang = lang;
-  localStorage.setItem('ft_lang', lang);
+  safeSave('ft_lang', lang);
   if (lang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (lang === 'ja' || lang === 'ko') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
   else document.body.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
@@ -316,7 +316,7 @@ function saveGeminiKey() {
   const key = document.getElementById('set_gemini_key').value.trim();
   setAIKey(key);
   // Clear cooldown when key changes
-  localStorage.removeItem('ft_ai_cooldown');
+  safeSave('ft_ai_cooldown', '');
   if (typeof aiRateLimitUntil !== 'undefined') aiRateLimitUntil = 0;
   const status = document.getElementById('geminiKeyStatus');
   if (key) {
@@ -551,12 +551,16 @@ async function verifyResetBiometric(resetType) {
 function executeReset(resetType) {
   if (resetType === 'all') {
     if (!confirm('FINAL WARNING: All financial data will be permanently erased. This cannot be undone.')) return;
+    // Clear IndexedDB
+    if (typeof ftDB !== 'undefined') {
+      indexedDB.deleteDatabase('FinTrackDB');
+    }
     localStorage.clear();
     toast('🗑 All data cleared. Reloading...');
     setTimeout(function() { location.reload(); }, 800);
   } else {
-    localStorage.removeItem('ft_txn_data');
-    localStorage.removeItem('ft_nxId');
+    safeSave('ft_txn_data', '[]');
+    safeSave('ft_nxId', '100');
     TXN = []; nxId = 100;
     toast('🗑 Transactions cleared');
     render();
