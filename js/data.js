@@ -579,21 +579,7 @@ function revertAllToRealCurrency() {
     }
   }
   
-  // Fix INITIAL_DEPOSIT
-  if (Math.abs(INITIAL_DEPOSIT) > 50000) {
-    INITIAL_DEPOSIT = INITIAL_DEPOSIT / 100;
-    saveInitialDeposit();
-  }
-  
-  // Fix account balances
-  var accFixed = false;
-  ACCOUNTS.forEach(function(acc) {
-    if (Math.abs(acc.initialBalance) > 50000) {
-      acc.initialBalance = acc.initialBalance / 100;
-      accFixed = true;
-    }
-  });
-  if (accFixed) saveACCOUNTS();
+  // DO NOT touch INITIAL_DEPOSIT or ACCOUNTS. Those are user-set values that should stay as-is.
   
   // Fix budget plans
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
