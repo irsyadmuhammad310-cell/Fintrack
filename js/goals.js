@@ -157,7 +157,9 @@ function renderGoals(c) {
   const currentYear = new Date().getFullYear();
   const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const statusYearKey = String(currentYear);
-  const statusMonthPlan = STATUS_PLANS[statusYearKey] && STATUS_PLANS[statusYearKey][currentMonth];
+  const statusYearPlans = STATUS_PLANS[statusYearKey] || {};
+  // Keys may be numeric or string after JSON parse; try both
+  const statusMonthPlan = statusYearPlans[currentMonth] || statusYearPlans[String(currentMonth)] || null;
   if (statusMonthPlan && statusMonthPlan.expCats) {
     const monthTxns = TXN.filter(tx => {
       const d = new Date(tx.d);
@@ -166,7 +168,8 @@ function renderGoals(c) {
     const overspentCats = [];
     Object.entries(statusMonthPlan.expCats).forEach(([cat, budget]) => {
       if (budget <= 0) return;
-      const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
+      // Match by category (tx.c). Also sum subcategory transactions that belong to this category.
+      const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
       if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget });
     });
     if (overspentCats.length > 0) {
@@ -189,10 +192,10 @@ function renderGoals(c) {
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700">${t('goal_budget_planner')}</div><select class="fsel" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById('cnt'))">${YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('')}</select></div>`;
 
   // Mobile: Swipeable month cards
-  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') {
+  if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') {
     html += `<div style="display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 0 14px;scrollbar-width:none" class="mob-budget-scroll">`;
     MD.forEach((m, idx) => {
-      const plan = yearPlan[idx] || null;
+      const plan = yearPlan[String(idx)] || yearPlan[idx] || null;
       const hasPlan = !!plan;
       const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
       const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
@@ -217,7 +220,7 @@ function renderGoals(c) {
     html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:20px"><table class="bp-table" style="width:100%;border-collapse:collapse;font-size:11px;min-width:0;table-layout:fixed"><thead><tr style="background:var(--bg-primary)"><th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:var(--text-secondary);width:22%">${t('rpt_month')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--emerald);width:22%">${t('dash_income')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--rose);width:22%">${t('dash_expense')}</th><th style="padding:8px 6px;text-align:right;font-size:9px;font-weight:600;color:var(--blue);width:22%">${t('dash_savings')}</th><th style="padding:8px 4px;text-align:center;width:12%"></th></tr></thead><tbody>`;
   MD.forEach((m, idx) => {
     const hasData = m.i > 0 || m.e > 0;
-    const plan = yearPlan[idx] || null;
+    const plan = yearPlan[String(idx)] || yearPlan[idx] || null;
     const hasPlan = !!plan;
     const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
     const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
@@ -303,7 +306,9 @@ function toggleGoalMenu(id) {
 function editBudgetMonth(year, monthIdx) {
   const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
-  const existing = (BUDGET_PLANS[yearKey] && BUDGET_PLANS[yearKey][monthIdx]) || {};
+  const monthKey = String(monthIdx);
+  const yearData = BUDGET_PLANS[yearKey] || {};
+  const existing = yearData[monthKey] || yearData[monthIdx] || {};
   const monthName = MONTH_NAMES[monthIdx];
 
   // Get categories dynamically from SCHEMA (Settings is the source of truth)
@@ -369,7 +374,7 @@ function saveBudgetMonth(e, year, monthIdx) {
   var totalInc = Object.values(incCats).reduce(function(s, v) { return s + v; }, 0);
   var totalExp = Object.values(expCats).reduce(function(s, v) { return s + v; }, 0);
 
-  plans[yearKey][monthIdx] = { incCats: incCats, expCats: expCats, s: savAmount, i: totalInc, e: totalExp };
+  plans[yearKey][String(monthIdx)] = { incCats: incCats, expCats: expCats, s: savAmount, i: totalInc, e: totalExp };
   safeSave('ft_budget_plans', JSON.stringify(plans));
   document.getElementById('mbudget').remove();
   document.body.style.overflow = '';
@@ -382,7 +387,9 @@ function saveBudgetMonth(e, year, monthIdx) {
 function clearBudgetMonth(year, monthIdx) {
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
-  if (plans[yearKey] && plans[yearKey][monthIdx]) {
+  var monthKey = String(monthIdx);
+  if (plans[yearKey] && (plans[yearKey][monthKey] || plans[yearKey][monthIdx])) {
+    delete plans[yearKey][monthKey];
     delete plans[yearKey][monthIdx];
     safeSave('ft_budget_plans', JSON.stringify(plans));
   }
@@ -538,15 +545,21 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   monthIdx = parseInt(monthIdx);
   year = parseInt(year);
   const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
-  // Try year as string (JSON always stores object keys as strings)
   const yearKey = String(year);
-  const yearPlans = PLANS[yearKey] || PLANS[year] || null;
+  const yearPlans = PLANS[yearKey] || null;
   if (!yearPlans) { toast('❌ No budget plans for ' + year); return; }
-  // Brute force: try every possible key format for the month
-  const monthPlan = yearPlans[monthIdx] || yearPlans[String(monthIdx)] || yearPlans[monthIdx.toString().padStart(2, '0')] || (() => { const keys = Object.keys(yearPlans); const match = keys.find(k => parseInt(k) === monthIdx); return match ? yearPlans[match] : null; })();
-  if (!monthPlan || !monthPlan.expCats || Object.keys(monthPlan.expCats).length === 0) { toast('❌ No expense budget set for ' + MONTH_NAMES[monthIdx] + ' ' + year); return; }
+
+  // Month key: saveBudgetMonth stores as numeric, but JSON keys are always strings after parse
+  // So we must check String(monthIdx) as the primary lookup
+  var monthPlan = yearPlans[String(monthIdx)] || yearPlans[monthIdx] || null;
+  if (!monthPlan || !monthPlan.expCats || Object.keys(monthPlan.expCats).length === 0) {
+    toast('❌ No expense budget set for ' + MONTH_NAMES[monthIdx] + ' ' + year);
+    return;
+  }
 
   // Get actual spending per category this month
+  // Transactions: tx.c = category (top-level), tx.s = subcategory
+  // Budget expCats keys match tx.c (category level)
   const monthTxns = TXN.filter(tx => {
     const d = new Date(tx.d);
     return d.getFullYear() === year && d.getMonth() === monthIdx && tx.t === 'Expense';
@@ -556,7 +569,8 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   const availableCats = [];
   Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
     if (cat === overspentCat || budget <= 0) return;
-    const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0);
+    // Sum all transactions where tx.c matches this budget category (case-insensitive)
+    const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
     const remaining = budget - spent;
     if (remaining > 0) {
       const catEmoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
@@ -659,14 +673,12 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
 
   const plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
-  // Try both numeric and string key
-  if (!plans[yearKey] && !plans[year]) { toast('❌ Budget plan not found'); return; }
-  const yearPlans = plans[yearKey] || plans[year];
-  const plan = yearPlans[monthIdx] || yearPlans[String(monthIdx)] || (() => { const keys = Object.keys(yearPlans); const match = keys.find(k => parseInt(k) === monthIdx); return match ? yearPlans[match] : null; })();
+  if (!plans[yearKey]) { toast('❌ Budget plan not found'); return; }
+  const yearPlans = plans[yearKey];
+  // Month key is always string after JSON parse
+  const monthKey = String(monthIdx);
+  const plan = yearPlans[monthKey] || yearPlans[monthIdx] || null;
   if (!plan || !plan.expCats) { toast('❌ Budget plan not found for this month'); return; }
-
-  // Find which key was used so we can save back correctly
-  const monthKey = yearPlans[monthIdx] ? monthIdx : String(monthIdx);
 
   if (!plan.expCats[fromCat] && plan.expCats[fromCat] !== 0) { toast('❌ Source category not found in budget'); return; }
   if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found in budget'); return; }
@@ -675,14 +687,14 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   const actualAmt = Math.min(amount, plan.expCats[fromCat]);
   if (actualAmt <= 0) { toast('❌ Source has no budget left to transfer'); return; }
 
-  // FIX 2: Round to 2 decimals after every operation (prevent floating point drift)
-  plan.expCats[fromCat] = Math.round((plan.expCats[fromCat] - actualAmt) * 100) / 100;
-  plan.expCats[toCat] = Math.round((plan.expCats[toCat] + actualAmt) * 100) / 100;
+  // FIX 2: Round to avoid floating point drift (values are in cents so use integers)
+  plan.expCats[fromCat] = Math.round(plan.expCats[fromCat] - actualAmt);
+  plan.expCats[toCat] = Math.round(plan.expCats[toCat] + actualAmt);
 
   // Recalculate totals
-  plan.e = Math.round(Object.values(plan.expCats).reduce((s, v) => s + v, 0) * 100) / 100;
+  plan.e = Object.values(plan.expCats).reduce((s, v) => s + v, 0);
 
-  // Save back using the correct key
+  // Save back using string key
   plans[yearKey][monthKey] = plan;
   safeSave('ft_budget_plans', JSON.stringify(plans));
   closeCoverSheet();
@@ -895,11 +907,12 @@ function renderMobileBudgetTab(MD, year) {
   const currentYear = new Date().getFullYear();
   const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const statusYearKey = String(currentYear);
-  const statusMonthPlan = STATUS_PLANS[statusYearKey] && STATUS_PLANS[statusYearKey][currentMonth];
-  if (statusMonthPlan && statusMonthPlan.expCats) {
+  const statusYearPlans2 = STATUS_PLANS[statusYearKey] || {};
+  const statusMonthPlan2 = statusYearPlans2[String(currentMonth)] || statusYearPlans2[currentMonth] || null;
+  if (statusMonthPlan2 && statusMonthPlan2.expCats) {
     const monthTxns = TXN.filter(tx => { const d = new Date(tx.d); return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense'; });
     const overspentCats = [];
-    Object.entries(statusMonthPlan.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spent = monthTxns.filter(tx => tx.c === cat).reduce((s, tx) => s + tx.a, 0); if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget }); });
+    Object.entries(statusMonthPlan2.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0); if (spent > budget) overspentCats.push({ cat, budget, spent, over: spent - budget }); });
     if (overspentCats.length > 0) {
       html += '<div style="height:1px;background:var(--border);margin:18px 0"></div>';
       html += '<div style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:var(--rose)">⚠️ Overspent</span><span style="font-size:10px;color:var(--text-tertiary)">' + MONTH_NAMES[currentMonth] + ' ' + currentYear + '</span></div>';
@@ -926,7 +939,7 @@ function renderMobileBudgetTab(MD, year) {
 
   html += '<div style="display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding-bottom:14px;scrollbar-width:none" class="mob-budget-scroll">';
   MD.forEach((m, idx) => {
-    const plan = yearPlan[idx] || null;
+    const plan = yearPlan[String(idx)] || yearPlan[idx] || null;
     const hasPlan = !!plan;
     const planInc = plan ? (plan.incCats ? Object.values(plan.incCats).reduce((s, v) => s + v, 0) : (plan.i || 0)) : 0;
     const planExp = plan ? (plan.expCats ? Object.values(plan.expCats).reduce((s, v) => s + v, 0) : (plan.e || 0)) : 0;
