@@ -316,29 +316,22 @@ function escapeHTML(str) {
   return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#39;');
 }
 
-// v1.0.2: amounts stored as integer cents, divide by 100 for display
+// v1.0.2: All values stored as REAL CURRENCY. No cents conversion.
 const fmt = n => {
-  const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
-  const realVal = n / 100; // cents → real
-  const converted = convertAmount(Math.abs(realVal));
-  const formatted = cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-  return realVal < 0 ? '-' + formatted : formatted;
-};
-
-const fmtD = n => {
-  const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
-  const realVal = n / 100; // cents → real
-  const converted = convertAmount(realVal);
-  return cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
-// Format real currency value (not cents). Used for budget plan display.
-const fmtR = n => {
   const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
   const converted = convertAmount(Math.abs(n));
   const formatted = cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return n < 0 ? '-' + formatted : formatted;
 };
+
+const fmtD = n => {
+  const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
+  const converted = convertAmount(n);
+  return cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+// fmtR is now identical to fmt (kept for compatibility with goals.js references)
+const fmtR = fmt;
 
 function toast(m) {
   const el = document.getElementById('toast');
