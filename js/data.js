@@ -213,9 +213,9 @@ function buildYearOptions(selectedYear) {
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const CATEGORY_BUDGETS = {
-  'Loan': 1884000, 'Gift': 720000, 'Food': 300000,
-  'Transportation': 1062000, 'Entertainment': 432000,
-  'Housing': 480000, 'Insurance & Taxes': 396000
+  'Loan': 18840, 'Gift': 7200, 'Food': 3000,
+  'Transportation': 10620, 'Entertainment': 4320,
+  'Housing': 4800, 'Insurance & Taxes': 3960
 };
 
 // === BUDGET PLANNER HELPERS (master data for all budget) ===
@@ -587,33 +587,63 @@ function migrateToIntegerCents() {
 }
 
 // Migrate v2 → v3: budget plans to integer cents
+// REVERTED: Budget plans now store values in REAL CURRENCY (not cents).
+// fmt() handles the cents→display conversion for transaction amounts,
+// but budget plans are separate from tx.a and stay as real values.
 function migrateBudgetsToCents() {
   if (getDataVersion() >= 3) return;
+  // v1.0.2: We no longer convert budget plans to cents.
+  // Budget values stay as real currency (e.g. 1000 = RM 1000).
+  // Only tx.a uses cents. Budget plans are compared against tx.a via fmt() at display time.
+  setDataVersion(3);
+}
+
+// v1.0.2: Repair any budgets that got accidentally multiplied by the old migration
+function repairDoubleMigratedBudgets() {
+  if (safeGet('ft_budget_repair_done')) return;
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
-  var changed = false;
+  var repaired = false;
   Object.keys(plans).forEach(function(yearKey) {
     var yearPlan = plans[yearKey];
-    for (var m = 0; m < 12; m++) {
-      if (yearPlan[m]) {
-        // Convert expCats values
-        if (yearPlan[m].expCats) {
-          Object.keys(yearPlan[m].expCats).forEach(function(cat) {
-            yearPlan[m].expCats[cat] = Math.round(yearPlan[m].expCats[cat] * 100);
-          });
-          changed = true;
+    Object.keys(yearPlan).forEach(function(monthKey) {
+      var p = yearPlan[monthKey];
+      if (!p) return;
+      // Detect over-inflated values: if any expCat > 100000, it was likely multiplied by 100
+      // Normal budget: 1000 (RM 1000). After accidental ×100: 100000. After double: 10000000.
+      if (p.expCats) {
+        var maxVal = Math.max.apply(null, Object.values(p.expCats).concat([0]));
+        if (maxVal >= 100000) {
+          // Divide by 100 to undo one multiplication
+          Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = Math.round(p.expCats[cat] / 100); });
+          repaired = true;
+          // Check if still too high (double-migrated)
+          var maxAfter = Math.max.apply(null, Object.values(p.expCats).concat([0]));
+          if (maxAfter >= 100000) {
+            Object.keys(p.expCats).forEach(function(cat) { p.expCats[cat] = Math.round(p.expCats[cat] / 100); });
+          }
         }
-        // Convert income (i) and expense total (e) if present
-        if (typeof yearPlan[m].i === 'number') { yearPlan[m].i = Math.round(yearPlan[m].i * 100); changed = true; }
-        if (typeof yearPlan[m].e === 'number') { yearPlan[m].e = Math.round(yearPlan[m].e * 100); changed = true; }
-        if (typeof yearPlan[m].s === 'number') { yearPlan[m].s = Math.round(yearPlan[m].s * 100); changed = true; }
       }
-    }
+      if (p.incCats) {
+        var maxInc = Math.max.apply(null, Object.values(p.incCats).concat([0]));
+        if (maxInc >= 100000) {
+          Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = Math.round(p.incCats[cat] / 100); });
+          repaired = true;
+          var maxIncAfter = Math.max.apply(null, Object.values(p.incCats).concat([0]));
+          if (maxIncAfter >= 100000) {
+            Object.keys(p.incCats).forEach(function(cat) { p.incCats[cat] = Math.round(p.incCats[cat] / 100); });
+          }
+        }
+      }
+      if (typeof p.i === 'number' && p.i >= 100000) { p.i = Math.round(p.i / 100); if (p.i >= 100000) p.i = Math.round(p.i / 100); repaired = true; }
+      if (typeof p.e === 'number' && p.e >= 100000) { p.e = Math.round(p.e / 100); if (p.e >= 100000) p.e = Math.round(p.e / 100); repaired = true; }
+      if (typeof p.s === 'number' && p.s >= 100000) { p.s = Math.round(p.s / 100); if (p.s >= 100000) p.s = Math.round(p.s / 100); repaired = true; }
+    });
   });
-  if (changed) {
+  if (repaired) {
     safeSave('ft_budget_plans', JSON.stringify(plans));
+    console.log('[FinTrack] Repaired inflated budget values.');
   }
-  setDataVersion(3);
-  console.log('[FinTrack] Migrated budget plans to integer cents (v3).');
+  safeSave('ft_budget_repair_done', '1');
 }
 
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
@@ -637,6 +667,7 @@ function loadTXN() {
   // Run migrations after loading
   migrateToIntegerCents();
   migrateBudgetsToCents();
+  repairDoubleMigratedBudgets();
 }
 
 // === MASTER DATA LOADER (called after ftLoadAll populates _ftStore) ===
