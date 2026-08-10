@@ -31,20 +31,20 @@ function budgetStatusIndicator(spent, budget) {
 
 // === HIDE/SHOW AMOUNTS (Eye toggle) ===
 function toggleHideAmounts() {
-  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
-  localStorage.setItem('ft_hide_amounts', hidden ? 'false' : 'true');
+  const hidden = safeGet('ft_hide_amounts') === 'true';
+  safeSave('ft_hide_amounts', hidden ? 'false' : 'true');
   applyHideAmounts();
   // Update ARIA state
   const eyeBtn = document.getElementById('mobEyeBtn');
   if (eyeBtn) {
-    const nowHidden = localStorage.getItem('ft_hide_amounts') === 'true';
+    const nowHidden = safeGet('ft_hide_amounts') === 'true';
     eyeBtn.setAttribute('aria-label', nowHidden ? 'Show amounts' : 'Hide amounts');
     eyeBtn.setAttribute('aria-pressed', nowHidden ? 'true' : 'false');
   }
 }
 
 function applyHideAmounts() {
-  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
+  const hidden = safeGet('ft_hide_amounts') === 'true';
   const blur = hidden ? 'blur(8px)' : 'none';
   // Target all money-displaying elements across all tabs
   const selectors = [
@@ -85,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cnt = document.getElementById('cnt');
   if (cnt) {
     const observer = new MutationObserver(() => {
-      if (localStorage.getItem('ft_hide_amounts') === 'true') {
+      if (safeGet('ft_hide_amounts') === 'true') {
         setTimeout(applyHideAmounts, 50);
       }
     });
@@ -117,12 +117,12 @@ async function hashPIN(pin, salt) {
 }
 
 function getDeviceSalt() {
-  let salt = localStorage.getItem('ft_device_salt');
+  let salt = safeGet('ft_device_salt');
   if (!salt) {
     const arr = new Uint8Array(16);
     crypto.getRandomValues(arr);
     salt = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-    localStorage.setItem('ft_device_salt', salt);
+    safeSave('ft_device_salt', salt);
   }
   return salt;
 }
@@ -132,14 +132,14 @@ function getPINLockRemaining() { return Math.max(0, Math.ceil((_pinLockUntil - D
 
 function getPK() {
   // Legacy: if old plain-text PIN exists, return it (will be migrated on next change)
-  const legacy = localStorage.getItem('ft_pk');
+  const legacy = safeGet('ft_pk');
   if (legacy && legacy.length < 64) return legacy;
   // Default fallback
   return '1234';
 }
 
 function getPKHash() {
-  return localStorage.getItem('ft_pk_hash') || null;
+  return safeGet('ft_pk_hash') || null;
 }
 
 async function verifyPIN(inputPin) {
@@ -176,8 +176,8 @@ async function verifyPIN(inputPin) {
 async function setPINSecure(newPin) {
   const salt = getDeviceSalt();
   const hash = await hashPIN(newPin, salt);
-  localStorage.setItem('ft_pk_hash', hash);
-  localStorage.removeItem('ft_pk');
+  safeSave('ft_pk_hash', hash);
+  safeSave('ft_pk', ''); // Clear legacy
 }
 
 // === RECOVERY CODE (v15.7) ===
@@ -194,12 +194,12 @@ function generateRecoveryCode() {
 async function setupRecoveryCode() {
   const code = generateRecoveryCode();
   const codeHash = await hashPIN(code);
-  localStorage.setItem('ft_recovery_hash', codeHash);
+  safeSave('ft_recovery_hash', codeHash);
   return code;
 }
 
 async function verifyRecoveryCode(inputCode) {
-  const storedHash = localStorage.getItem('ft_recovery_hash');
+  const storedHash = safeGet('ft_recovery_hash');
   if (!storedHash) return false;
   const cleanCode = inputCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   // Try with and without dashes
@@ -211,7 +211,7 @@ async function verifyRecoveryCode(inputCode) {
 }
 
 function hasRecoverySetup() {
-  return !!localStorage.getItem('ft_recovery_hash');
+  return !!safeGet('ft_recovery_hash');
 }
 
 // === SECURITY QUESTIONS (v15.7) ===
@@ -233,11 +233,11 @@ async function saveSecurityAnswers(q1Index, a1, q2Index, a2) {
     q2: q2Index,
     a2: await hashPIN(a2.trim().toLowerCase())
   };
-  localStorage.setItem('ft_security_questions', JSON.stringify(data));
+  safeSave('ft_security_questions', JSON.stringify(data));
 }
 
 async function verifySecurityAnswers(a1, a2) {
-  const stored = localStorage.getItem('ft_security_questions');
+  const stored = safeGet('ft_security_questions');
   if (!stored) return false;
   const data = JSON.parse(stored);
   const hash1 = await hashPIN(a1.trim().toLowerCase());
@@ -246,27 +246,27 @@ async function verifySecurityAnswers(a1, a2) {
 }
 
 function hasSecurityQuestions() {
-  return !!localStorage.getItem('ft_security_questions');
+  return !!safeGet('ft_security_questions');
 }
 
 function getSecurityQuestionIndices() {
-  const stored = localStorage.getItem('ft_security_questions');
+  const stored = safeGet('ft_security_questions');
   if (!stored) return null;
   const data = JSON.parse(stored);
   return { q1: data.q1, q2: data.q2 };
 }
 
 // === APP LOCK (Simple PIN) ===
-var FT_APP_LOCK = localStorage.getItem('ft_app_lock') === 'true';
+var FT_APP_LOCK = safeGet('ft_app_lock') === 'true';
 
 function enableAppLock() {
-  localStorage.setItem('ft_app_lock', 'true');
+  safeSave('ft_app_lock', 'true');
   FT_APP_LOCK = true;
   toast('🔐 App lock enabled');
 }
 
 function disableAppLock() {
-  localStorage.removeItem('ft_app_lock');
+  safeSave('ft_app_lock', 'false');
   FT_APP_LOCK = false;
   toast('🔓 App lock disabled');
 }
@@ -275,8 +275,8 @@ function disableAppLock() {
 var _idleTimer = null;
 var _sessionLocked = false;
 const SESSION_TIMEOUT_KEY = 'ft_session_timeout';
-function getSessionTimeout() { return parseInt(localStorage.getItem(SESSION_TIMEOUT_KEY) || '300000'); }
-function setSessionTimeout(ms) { localStorage.setItem(SESSION_TIMEOUT_KEY, String(ms)); resetIdleTimer(); }
+function getSessionTimeout() { return parseInt(safeGet(SESSION_TIMEOUT_KEY) || '300000'); }
+function setSessionTimeout(ms) { safeSave(SESSION_TIMEOUT_KEY, String(ms)); resetIdleTimer(); }
 function resetIdleTimer() {
   clearTimeout(_idleTimer);
   _sessionLocked = false;
@@ -556,11 +556,11 @@ function resolveHintFromSchema(type, hint) {
 }
 
 function getCatMemory() {
-  return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}');
+  return JSON.parse(safeGet(CAT_MEMORY_KEY) || '{}');
 }
 
 function saveCatMemory(mem) {
-  localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(mem));
+  safeSave(CAT_MEMORY_KEY, JSON.stringify(mem));
 }
 
 function normalizeMerchant(text) {
@@ -696,14 +696,14 @@ function suggestCategory(description) {
 
 // Bootstrap: learn from all existing transactions on first run
 function bootstrapCatMemory() {
-  if (localStorage.getItem('ft_cat_bootstrapped')) return;
+  if (safeGet('ft_cat_bootstrapped')) return;
   TXN.forEach(tx => learnFromTransaction(tx));
-  localStorage.setItem('ft_cat_bootstrapped', '1');
+  safeSave('ft_cat_bootstrapped', '1');
 }
 
 // Clear memory (for Settings toggle)
 function clearCatMemory() {
-  localStorage.removeItem(CAT_MEMORY_KEY);
-  localStorage.removeItem('ft_cat_bootstrapped');
+  safeSave(CAT_MEMORY_KEY, '{}');
+  safeSave('ft_cat_bootstrapped', '');
   toast('🧹 Category memory cleared');
 }
