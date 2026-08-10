@@ -574,12 +574,15 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
     const remaining = budget - spent;
     if (remaining > 0) {
       const catEmoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
-      availableCats.push({ cat, budget, spent, remaining, emoji: catEmoji });
+      // remaining is in cents. Convert to real for display and input.
+      availableCats.push({ cat, budget, spent, remaining, remainingReal: remaining / 100, emoji: catEmoji });
     }
   });
 
   if (!availableCats.length) { toast('❌ No categories with available budget to cover from'); return; }
 
+  // overAmount is in cents. Convert to real for display.
+  const overAmountReal = overAmount / 100;
   const overspentEmoji = SCHEMA.Expense && SCHEMA.Expense[overspentCat] ? (SCHEMA.Expense[overspentCat].emoji || '📦') : '📦';
   const isMobile = window.innerWidth <= 768;
 
@@ -603,19 +606,20 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   h += `<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Move from</div>`;
   h += `<div class="cover-options-list" id="coverOptions">`;
   availableCats.forEach((item, idx) => {
-    const maxCover = Math.min(item.remaining, overAmount);
-    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCover}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">${fmt(item.remaining)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
+    const maxCoverReal = Math.min(item.remainingReal, overAmountReal);
+    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining-real="${item.remainingReal.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">${fmt(item.remaining)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
   });
   h += `</div>`;
 
-  // Amount input
-  const firstMax = Math.min(availableCats[0].remaining, overAmount);
+  // Amount input (in real currency, not cents)
+  const firstMaxReal = Math.min(availableCats[0].remainingReal, overAmountReal);
   const currSymbol = (CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR).symbol;
-  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${Math.min(firstMax, overAmount).toFixed(2)}" max="${firstMax}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
+  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${firstMaxReal.toFixed(2)}" max="${firstMaxReal.toFixed(2)}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
 
   // Transfer preview
   const firstCat = availableCats[0];
-  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${fmt(firstCat.remaining)} → ${fmt(firstCat.remaining - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt negative">-${fmt(Math.min(firstMax, overAmount))}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${fmt(overAmount)} → ${overAmount <= Math.min(firstMax, overAmount) ? fmt(0) : '-' + fmt(overAmount - Math.min(firstMax, overAmount))} remaining</div></div><div class="cover-preview-amt positive">+${fmt(Math.min(firstMax, overAmount))}</div></div></div>`;
+  const firstPreviewAmt = firstMaxReal;
+  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${fmt(firstCat.remaining)} → ${fmt(Math.round((firstCat.remainingReal - firstPreviewAmt) * 100))} remaining</div></div><div class="cover-preview-amt negative">-${fmt(Math.round(firstPreviewAmt * 100))}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${fmt(overAmount)} → ${overAmountReal <= firstPreviewAmt ? fmt(0) : '-' + fmt(Math.round((overAmountReal - firstPreviewAmt) * 100))} remaining</div></div><div class="cover-preview-amt positive">+${fmt(Math.round(firstPreviewAmt * 100))}</div></div></div>`;
 
   // Action buttons
   h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${fmt(Math.min(firstMax, overAmount))}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
@@ -635,10 +639,11 @@ function selectCoverSource(el) {
   document.querySelectorAll('.cover-option-row').forEach(r => r.classList.remove('selected'));
   el.classList.add('selected');
   const cat = el.dataset.cat;
-  const max = parseFloat(el.dataset.max);
+  const max = parseFloat(el.dataset.max); // in real currency (not cents)
+  const remainingReal = parseFloat(el.dataset.remainingReal);
   const amtInput = document.getElementById('coverAmount');
-  amtInput.max = max;
-  if (parseFloat(amtInput.value) > max) amtInput.value = max.toFixed(2);
+  amtInput.max = max.toFixed(2);
+  amtInput.value = max.toFixed(2);
 
   // Update preview source row
   const preview = document.getElementById('coverPreview');
@@ -649,8 +654,8 @@ function selectCoverSource(el) {
     if (rows[0]) {
       rows[0].querySelector('.cover-preview-emoji').textContent = emoji;
       rows[0].querySelector('.cover-preview-name').textContent = cat;
-      rows[0].querySelector('.cover-preview-after').textContent = fmt(max) + ' → ' + fmt(max - amt) + ' remaining';
-      rows[0].querySelector('.cover-preview-amt').textContent = '-' + fmt(amt);
+      rows[0].querySelector('.cover-preview-after').textContent = fmt(Math.round(remainingReal * 100)) + ' → ' + fmt(Math.round((remainingReal - amt) * 100)) + ' remaining';
+      rows[0].querySelector('.cover-preview-amt').textContent = '-' + fmt(Math.round(amt * 100));
     }
   }
 
@@ -658,14 +663,16 @@ function selectCoverSource(el) {
   const confirmBtn = document.getElementById('coverConfirmBtn');
   if (confirmBtn) {
     const amt = parseFloat(amtInput.value);
-    confirmBtn.textContent = 'Cover ' + fmt(amt);
-    confirmBtn.onclick = function() { executeCoverTransfer(cat, confirmBtn.getAttribute('data-cover-to') || '', parseInt(confirmBtn.getAttribute('data-cover-year')), parseInt(confirmBtn.getAttribute('data-cover-month'))); };
+    confirmBtn.textContent = 'Cover ' + fmt(Math.round(amt * 100));
   }
 }
 
 function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
-  const amount = parseFloat(document.getElementById('coverAmount').value);
-  if (!amount || amount <= 0) { toast('❌ Invalid amount'); return; }
+  const amountReal = parseFloat(document.getElementById('coverAmount').value);
+  if (!amountReal || amountReal <= 0) { toast('❌ Invalid amount'); return; }
+
+  // Convert real currency to cents for budget plan modification
+  const amount = Math.round(amountReal * 100);
 
   // Get selected source category
   const selected = document.querySelector('.cover-option-row.selected');
@@ -683,11 +690,11 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   if (!plan.expCats[fromCat] && plan.expCats[fromCat] !== 0) { toast('❌ Source category not found in budget'); return; }
   if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found in budget'); return; }
 
-  // FIX 1: Cap transfer at source's actual budget (prevent creating money)
+  // Cap transfer at source's actual budget (prevent creating money)
   const actualAmt = Math.min(amount, plan.expCats[fromCat]);
   if (actualAmt <= 0) { toast('❌ Source has no budget left to transfer'); return; }
 
-  // FIX 2: Round to avoid floating point drift (values are in cents so use integers)
+  // Modify budget (values are in cents)
   plan.expCats[fromCat] = Math.round(plan.expCats[fromCat] - actualAmt);
   plan.expCats[toCat] = Math.round(plan.expCats[toCat] + actualAmt);
 
