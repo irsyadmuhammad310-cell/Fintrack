@@ -684,7 +684,9 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   }
 
   // 7. DYNAMIC AI INSIGHTS
-  html += buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, periodBudget);
+  if (typeof buildDynamicAIInsights === 'function') {
+    html += buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, periodBudget);
+  }
 
   return html;
 }
