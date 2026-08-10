@@ -303,9 +303,12 @@ function editBudgetMonth(year, monthIdx) {
   // Get categories dynamically from SCHEMA (Settings is the source of truth)
   const incCats = Object.keys(SCHEMA.Income || {});
   const expCats = Object.keys(SCHEMA.Expense || {});
-  const existIncCats = existing.incCats || {};
-  const existExpCats = existing.expCats || {};
-  const existSav = existing.s || 0;
+  // v1.0.2: stored in cents, display in real currency for form
+  const existIncCats = {};
+  Object.entries(existing.incCats || {}).forEach(function(e) { existIncCats[e[0]] = e[1] / 100; });
+  const existExpCats = {};
+  Object.entries(existing.expCats || {}).forEach(function(e) { existExpCats[e[0]] = e[1] / 100; });
+  const existSav = (existing.s || 0) / 100;
 
   var h = '<div class="mo show" id="mbudget" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}">';
   h += '<div class="ml" style="max-height:80vh;overflow-y:auto" onclick="event.stopPropagation()">';
@@ -342,21 +345,21 @@ function saveBudgetMonth(e, year, monthIdx) {
   var yearKey = String(year);
   if (!plans[yearKey]) plans[yearKey] = {};
 
-  // Collect income categories
+  // Collect income categories (user enters real currency, store as cents)
   var incCats = {};
   document.querySelectorAll('.bp_inc').forEach(function(el) {
     var val = parseFloat(el.value) || 0;
-    if (val > 0) incCats[el.dataset.cat] = val;
+    if (val > 0) incCats[el.dataset.cat] = Math.round(val * 100);
   });
 
-  // Collect expense categories
+  // Collect expense categories (user enters real currency, store as cents)
   var expCats = {};
   document.querySelectorAll('.bp_exp').forEach(function(el) {
     var val = parseFloat(el.value) || 0;
-    if (val > 0) expCats[el.dataset.cat] = val;
+    if (val > 0) expCats[el.dataset.cat] = Math.round(val * 100);
   });
 
-  var savAmount = parseFloat(document.getElementById('bp_savings').value) || 0;
+  var savAmount = Math.round((parseFloat(document.getElementById('bp_savings').value) || 0) * 100);
   var totalInc = Object.values(incCats).reduce(function(s, v) { return s + v; }, 0);
   var totalExp = Object.values(expCats).reduce(function(s, v) { return s + v; }, 0);
 
@@ -900,7 +903,7 @@ function renderMobileBudgetTab(MD, year) {
         html += '<div style="background:var(--bg-card);border:1px solid oklch(0.3 0.05 15);border-radius:12px;padding:14px;margin-bottom:8px">';
         html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:16px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:oklch(0.22 0.04 15);border-radius:8px">' + catEmoji + '</div><div><div style="font-size:12px;font-weight:600">' + item.cat + '</div><div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\'">' + fmt(item.spent) + ' / ' + fmt(item.budget) + ' (' + pctOver + '%)</div></div></div><div style="font-size:12px;font-weight:700;color:var(--rose);font-feature-settings:\'tnum\'">-' + fmt(item.over) + '</div></div>';
         html += '<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:100%;background:var(--rose);border-radius:2px"></div></div>';
-        html += '<button class="btn bp cover-btn" data-cover-cat="' + item.cat.replace(/"/g, '&quot;') + '" data-cover-over="' + item.over + '" data-cover-year="' + currentYear + '" data-cover-month="' + currentMonth + '" style="font-size:11px;padding:7px 14px"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover from another category</button>';
+        html += '<button class="btn bp cover-btn" data-cover-cat="' + item.cat.replace(/"/g, '"') + '" data-cover-over="' + item.over + '" data-cover-year="' + currentYear + '" data-cover-month="' + currentMonth + '" style="font-size:11px;padding:7px 14px"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover from another category</button>';
         html += '</div>';
       });
       html += '</div>';
