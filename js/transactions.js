@@ -249,6 +249,8 @@ function saveTxn(e) {
   // Learn from this transaction for auto-categorization
   if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
   saveTXN(); tryClose();
+  // Sync goals immediately after save
+  if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   // v15.3.0: Refresh current view (stays on current tab)
   render();
   // v15.5: Check budget alerts after saving transaction
@@ -377,6 +379,8 @@ function doDelConfirm(id) {
 
 function execDel() {
   TXN = TXN.filter(tx => tx.id !== pendAct.id); saveTXN();
+  // Sync goals immediately after delete
+  if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   document.getElementById('mdel').remove(); document.body.style.overflow = '';
   toast(t('txn_deleted'));
   // v15.3.0: Refresh current view (stays on current tab)
