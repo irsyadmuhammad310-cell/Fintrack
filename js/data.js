@@ -222,7 +222,8 @@ const CATEGORY_BUDGETS = {
 function getBudgetPlan(year, monthIdx) {
   var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
-  if (plans[yearKey] && plans[yearKey][monthIdx]) return plans[yearKey][monthIdx];
+  var monthKey = String(monthIdx);
+  if (plans[yearKey] && (plans[yearKey][monthKey] || plans[yearKey][monthIdx])) return plans[yearKey][monthKey] || plans[yearKey][monthIdx];
   return null;
 }
 
@@ -233,8 +234,8 @@ function getYearlyBudgetTotal(year) {
   var hasAnyPlan = false;
   if (plans[yearKey]) {
     for (var m = 0; m < 12; m++) {
-      if (plans[yearKey][m]) {
-        var p = plans[yearKey][m];
+      var p = plans[yearKey][String(m)] || plans[yearKey][m];
+      if (p) {
         var expTotal = p.expCats ? Object.values(p.expCats).reduce(function(s, v) { return s + v; }, 0) : (p.e || 0);
         if (expTotal > 0) { total += expTotal; hasAnyPlan = true; }
       }
@@ -259,8 +260,9 @@ function getCategoryBudget(year, category) {
   var total = 0;
   if (plans[yearKey]) {
     for (var m = 0; m < 12; m++) {
-      if (plans[yearKey][m] && plans[yearKey][m].expCats && plans[yearKey][m].expCats[category]) {
-        total += plans[yearKey][m].expCats[category];
+      var p = plans[yearKey][String(m)] || plans[yearKey][m];
+      if (p && p.expCats && p.expCats[category]) {
+        total += p.expCats[category];
       }
     }
   }
