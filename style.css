@@ -241,6 +241,29 @@ tr:hover td { background: var(--bg-primary); }
 .tb.e { background: var(--rose-light); color: var(--rose); }
 .tb.s { background: var(--blue-light); color: var(--blue); }
 
+/* Colorblind-safe transaction type badges (v1.0.2) — shape + color + text */
+.txn-type-badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; font-size: 0.6rem; font-weight: 800; color: #fff; flex-shrink: 0; }
+.txn-type-income { background: var(--emerald); border-radius: 50%; }
+.txn-type-expense { background: var(--rose); border-radius: 3px; }
+.txn-type-savings { background: var(--blue); border-radius: 50%; transform: rotate(45deg); }
+.txn-type-savings span { transform: rotate(-45deg); }
+
+/* Colorblind-safe budget status indicators (v1.0.2) */
+.budget-status { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px; }
+.budget-over { background: var(--rose-light); color: var(--rose); }
+.budget-warn { background: var(--gold-light); color: var(--gold); }
+.budget-ok { background: var(--emerald-light); color: var(--emerald); }
+
+/* Focus-visible for keyboard navigation (v1.0.2) */
+.tsw:focus-visible, .ibtn:focus-visible, .btn:focus-visible, .ni:focus-visible, .bnav-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ARIA-enhanced toggle keyboard support (v1.0.2) */
+.tsw[role="switch"] { cursor: pointer; }
+.tsw[role="switch"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Action Buttons */
 .ab { display: flex; gap: 4px; justify-content: center; }
 .abtn { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-card); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-tertiary); font-size: 12px; transition: all 150ms var(--ease-out); }
@@ -262,6 +285,12 @@ tr:hover td { background: var(--bg-primary); }
 .mo.show { display: flex; opacity: 1; }
 .ml { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; width: 90%; max-width: 500px; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-lg); transform: scale(.95); opacity: 0; transition: all 300ms var(--ease-out); padding: 24px; }
 .mo.show .ml { transform: scale(1); opacity: 1; }
+
+/* v1.0.2: Fix keyboard covering modal save button on mobile */
+@media (max-width: 900px) {
+  .ml { max-height: 80vh; overflow-y: auto; margin-bottom: env(safe-area-inset-bottom, 0); }
+  .ma { position: sticky; bottom: 0; background: var(--bg-card); padding: 14px 0 0; margin: 12px -24px -24px; padding: 14px 24px 24px; border-top: 1px solid var(--border); z-index: 2; }
+}
 
 .mh { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
 .mti { font-size: 16px; font-weight: 700; }
