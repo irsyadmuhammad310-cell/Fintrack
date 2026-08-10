@@ -6,7 +6,7 @@ function renderTransactions(c) {
   txnMonthSel = selMonth;
 
   // v15.8.1: Mobile gets simplified card-free list (unless desktop mode forced)
-  if (window.innerWidth <= 900 && localStorage.getItem('ft_desktop_mode') !== 'true') {
+  if (window.innerWidth <= 900 && safeGet('ft_desktop_mode') !== 'true') {
     renderMobileTransactions(c);
     return;
   }
@@ -266,7 +266,7 @@ let _currentSuggestion = null;
 function debounceCatSuggest() {
   if (_catSuggestTimer) clearTimeout(_catSuggestTimer);
   // Respect settings toggle
-  if (localStorage.getItem('ft_autocat_off') === 'true') return;
+  if (safeGet('ft_autocat_off') === 'true') return;
   _catSuggestTimer = setTimeout(() => {
     const desc = document.getElementById('f_dt')?.value;
     if (!desc || desc.length < 2) { hideCatSuggestion(); return; }
