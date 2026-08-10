@@ -331,10 +331,14 @@ function renderMobileInsights(c, year, month) {
   var periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : getYearlyBudgetTotal(year);
   var budgetUsed = periodBudget > 0 ? Math.min(100, (te / periodBudget * 100)).toFixed(0) : 0;
 
-  var html = '<div class="mob-insights">';
-  html += buildMobileInsightsTab(MD, year, mf, ti, te, ts, nw, net, budgetUsed, periodBudget);
-  html += '</div>';
-
-  c.innerHTML = html;
-  if (typeof lucide !== 'undefined') lucide.createIcons();
+  try {
+    var html = '<div class="mob-insights">';
+    html += buildMobileInsightsTab(MD, year, mf, ti, te, ts, nw, net, budgetUsed, periodBudget);
+    html += '</div>';
+    c.innerHTML = html;
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+  } catch(e) {
+    console.error('[FinTrack] Insights render error:', e);
+    c.innerHTML = '<div style="padding:40px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Insights unavailable</div><div style="font-size:12px;color:var(--text-tertiary)">' + e.message + '</div></div>';
+  }
 }
