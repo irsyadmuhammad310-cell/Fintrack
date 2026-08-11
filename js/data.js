@@ -1,8 +1,130 @@
-// === DATA & PERSISTENCE (v15.8.1) ===
+// === DATA & PERSISTENCE (V1.0.2 — IndexedDB Engine) ===
+
+// === INDEXEDDB STORAGE ENGINE ===
+var _ftStore = {};
+var _ftDBReady = false;
+var _ftDB = null;
+
+// Keys that ALSO stay in localStorage (for pre-boot sync access)
+const FT_LS_KEEP = ['ft_app_lock','ft_pk_hash','ft_pk','ft_device_salt','ft_bio_cred','ft_recovery_hash','ft_security_questions','theme','ft_onboarded','ft_security_setup_done','ft_username','ft_user_title','ft_lang','ft_currency','ft_hide_amounts'];
+
+var ftDB = {
+  DB_NAME: 'FinTrackDB',
+  DB_VERSION: 1,
+  STORE: 'kv',
+  open: function() {
+    return new Promise(function(resolve, reject) {
+      if (_ftDB) { resolve(_ftDB); return; }
+      var req = indexedDB.open(ftDB.DB_NAME, ftDB.DB_VERSION);
+      req.onupgradeneeded = function(e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains(ftDB.STORE)) {
+          db.createObjectStore(ftDB.STORE, { keyPath: 'k' });
+        }
+      };
+      req.onsuccess = function(e) { _ftDB = e.target.result; _ftDBReady = true; resolve(_ftDB); };
+      req.onerror = function(e) { console.error('[FinTrack] IDB open failed:', e); reject(e); };
+    });
+  },
+  get: function(key) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readonly');
+        var req = tx.objectStore(ftDB.STORE).get(key);
+        req.onsuccess = function() { resolve(req.result ? req.result.v : null); };
+        req.onerror = function() { reject(req.error); };
+      });
+    });
+  },
+  set: function(key, value) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readwrite');
+        tx.objectStore(ftDB.STORE).put({ k: key, v: value });
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  },
+  delete: function(key) {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readwrite');
+        tx.objectStore(ftDB.STORE).delete(key);
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  },
+  getAll: function() {
+    return ftDB.open().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(ftDB.STORE, 'readonly');
+        var req = tx.objectStore(ftDB.STORE).getAll();
+        req.onsuccess = function() { resolve(req.result || []); };
+        req.onerror = function() { reject(req.error); };
+      });
+    });
+  }
+};
+
+// === SYNC READ/WRITE API ===
+function safeGet(key) {
+  if (_ftStore.hasOwnProperty(key)) return _ftStore[key];
+  // Fallback to localStorage (always available, even before IDB loads)
+  try { return localStorage.getItem(key); } catch(e) { return null; }
+}
+
+function safeSave(key, value) {
+  var val = typeof value === 'string' ? value : JSON.stringify(value);
+  _ftStore[key] = val;
+  // Always write to localStorage too (dual-write, no data loss)
+  try { localStorage.setItem(key, val); } catch(e) {
+    if (e.name === 'QuotaExceededError' || e.code === 22) {
+      toast('🚨 Storage full! Export your data now.');
+    }
+  }
+  // Persist to IndexedDB (fire-and-forget)
+  if (_ftDBReady) {
+    ftDB.set(key, val).catch(function(e) {
+      console.error('[FinTrack] IDB write failed:', key, e);
+    });
+  }
+  return true;
+}
+
+// === BOOT LOADER ===
+async function ftLoadAll() {
+  try {
+    await ftDB.open();
+    var entries = await ftDB.getAll();
+    entries.forEach(function(entry) {
+      _ftStore[entry.k] = entry.v;
+    });
+    // Backfill: if localStorage has keys that IDB doesn't, copy them in
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!_ftStore.hasOwnProperty(k)) {
+        _ftStore[k] = localStorage.getItem(k);
+        ftDB.set(k, localStorage.getItem(k)).catch(function(){});
+      }
+    }
+    _ftDBReady = true;
+    console.log('[FinTrack] IDB loaded. ' + entries.length + ' keys.');
+  } catch(e) {
+    console.warn('[FinTrack] IDB failed, using localStorage only.', e);
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      _ftStore[k] = localStorage.getItem(k);
+    }
+  }
+}
+
 // === GLOBAL YEAR MANAGEMENT (v11.5) ===
 const DEFAULT_YEARS = [2024, 2025, 2026, 2027, 2028];
-let YEARS = JSON.parse(localStorage.getItem('ft_years') || 'null') || [...DEFAULT_YEARS];
-function saveYEARS() { localStorage.setItem('ft_years', JSON.stringify(YEARS)); }
+let YEARS = [...DEFAULT_YEARS];
+function loadYEARS() { var raw = safeGet('ft_years'); if (raw) { try { YEARS = JSON.parse(raw); } catch(e) {} } }
+function saveYEARS() { safeSave('ft_years', JSON.stringify(YEARS)); }
 function addYear(year) {
   year = parseInt(year);
   if (isNaN(year) || year < 1900 || year > 2100) return false;
@@ -42,14 +164,14 @@ const CATEGORY_BUDGETS = {
 
 // === BUDGET PLANNER HELPERS (master data for all budget) ===
 function getBudgetPlan(year, monthIdx) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   if (plans[yearKey] && plans[yearKey][monthIdx]) return plans[yearKey][monthIdx];
   return null;
 }
 
 function getYearlyBudgetTotal(year) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var total = 0;
   var hasAnyPlan = false;
@@ -71,11 +193,12 @@ function getMonthlyBudget(year, monthIdx) {
     var expTotal = plan.expCats ? Object.values(plan.expCats).reduce(function(s, v) { return s + v; }, 0) : (plan.e || 0);
     if (expTotal > 0) return expTotal;
   }
-  return getYearlyBudgetTotal(year) / 12;
+  var yearly = getYearlyBudgetTotal(year);
+  return yearly > 0 ? yearly / 12 : 0;
 }
 
 function getCategoryBudget(year, category) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var total = 0;
   if (plans[yearKey]) {
@@ -93,8 +216,9 @@ const DEFAULT_SCHEMA = {
   Expense: {},
   Savings: {}
 };
-let SCHEMA = JSON.parse(localStorage.getItem('ft_schema') || 'null') || JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
-function saveSCHEMA() { localStorage.setItem('ft_schema', JSON.stringify(SCHEMA)); }
+let SCHEMA = JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
+function loadSCHEMA() { var raw = safeGet('ft_schema'); if (raw) { try { SCHEMA = JSON.parse(raw); } catch(e) {} } }
+function saveSCHEMA() { safeSave('ft_schema', JSON.stringify(SCHEMA)); }
 
 // === ACCOUNTS SYSTEM (v10.3) ===
 const ACCOUNT_TYPES = {
@@ -102,9 +226,15 @@ const ACCOUNT_TYPES = {
   liability: ['Credit Card Debt', 'Personal Loan', 'Mortgage', 'Vehicle Loan', 'Other Debt']
 };
 const DEFAULT_ACCOUNTS = [];
-let ACCOUNTS = JSON.parse(localStorage.getItem('ft_accounts') || 'null') || JSON.parse(JSON.stringify(DEFAULT_ACCOUNTS));
-let accNxId = parseInt(localStorage.getItem('ft_accNxId') || '10');
-function saveACCOUNTS() { localStorage.setItem('ft_accounts', JSON.stringify(ACCOUNTS)); localStorage.setItem('ft_accNxId', accNxId); }
+let ACCOUNTS = [];
+let accNxId = 10;
+function loadACCOUNTS() {
+  var raw = safeGet('ft_accounts');
+  if (raw) { try { ACCOUNTS = JSON.parse(raw); } catch(e) {} }
+  var nid = safeGet('ft_accNxId');
+  if (nid) accNxId = parseInt(nid);
+}
+function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); safeSave('ft_accNxId', accNxId); }
 
 function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
@@ -141,8 +271,9 @@ function getNetWorth() {
 }
 
 // === OPENING BALANCE & CARRY-FORWARD (v11.2) ===
-let INITIAL_DEPOSIT = parseFloat(localStorage.getItem('ft_initial_deposit') || '0');
-function saveInitialDeposit() { localStorage.setItem('ft_initial_deposit', INITIAL_DEPOSIT); }
+let INITIAL_DEPOSIT = 0;
+function loadInitialDeposit() { var raw = safeGet('ft_initial_deposit'); if (raw) INITIAL_DEPOSIT = parseFloat(raw) || 0; }
+function saveInitialDeposit() { safeSave('ft_initial_deposit', INITIAL_DEPOSIT); }
 
 // Carry-forward balance: Opening Balance + cumulative (Income - Expense - Savings) up to selected period
 function getCarryForwardBalance(year, month) {
@@ -247,9 +378,15 @@ function computeExpenseCategoriesByPeriod(year, month) {
 }
 
 // === REMINDERS SYSTEM (v10.5) ===
-let REMINDERS = JSON.parse(localStorage.getItem('ft_reminders') || '[]');
-let reminderNxId = parseInt(localStorage.getItem('ft_reminderNxId') || '1');
-function saveREMINDERS() { localStorage.setItem('ft_reminders', JSON.stringify(REMINDERS)); localStorage.setItem('ft_reminderNxId', reminderNxId); }
+let REMINDERS = [];
+let reminderNxId = 1;
+function loadREMINDERS() {
+  var raw = safeGet('ft_reminders');
+  if (raw) { try { REMINDERS = JSON.parse(raw); } catch(e) {} }
+  var nid = safeGet('ft_reminderNxId');
+  if (nid) reminderNxId = parseInt(nid);
+}
+function saveREMINDERS() { safeSave('ft_reminders', JSON.stringify(REMINDERS)); safeSave('ft_reminderNxId', reminderNxId); }
 
 function getActiveReminders() {
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -366,23 +503,27 @@ let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(TXN));
-    localStorage.setItem('ft_nxId', nxId);
-  } catch (e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22) {
-      toast('🚨 Storage full! Transaction NOT saved. Export your data and clear old records.');
-    } else {
-      toast('❌ Save failed: ' + (e.message || 'Unknown error'));
-    }
-  }
+  safeSave(STORAGE_KEY, JSON.stringify(TXN));
+  safeSave('ft_nxId', nxId);
 }
 function loadTXN() {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = safeGet(STORAGE_KEY);
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
-  const sid = localStorage.getItem('ft_nxId');
+  const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
+}
+
+// === MASTER DATA LOADER (called after ftLoadAll) ===
+function loadAllModuleData() {
+  loadYEARS();
+  loadSCHEMA();
+  loadACCOUNTS();
+  loadInitialDeposit();
+  loadREMINDERS();
+  if (typeof loadGOALS === 'function') loadGOALS();
+  if (typeof loadINV === 'function') loadINV();
+  loadTXN();
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
@@ -401,10 +542,16 @@ function getBANKS() {
 
 // === COMPUTED DATA (derived from TXN) ===
 // NOTE: tx.a is already in MYR (base currency, converted at save time). No further conversion needed.
+
+// Transfer detection: exclude from income/expense totals
+function isTransfer(tx) {
+  return tx.t === 'Transfer' || (tx.c === 'Balance Adjustment');
+}
+
 function computeMonthlyData(year) {
   const months = [];
   for (let m = 0; m < 12; m++) {
-    const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m; });
+    const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m && !isTransfer(t); });
     months.push({ m: MONTH_NAMES[m], i: mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0), e: mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0), s: mTxns.filter(t => t.t === 'Savings').reduce((s, t) => s + t.a, 0) });
   }
   return months;
@@ -412,9 +559,21 @@ function computeMonthlyData(year) {
 
 function computeExpenseCategories(year) {
   const cats = {};
-  TXN.filter(t => { const d = new Date(t.d); return t.t === 'Expense' && d.getFullYear() === year; }).forEach(t => { if (!cats[t.c]) cats[t.c] = 0; cats[t.c] += t.a; });
+  TXN.filter(t => { const d = new Date(t.d); return t.t === 'Expense' && !isTransfer(t) && d.getFullYear() === year; }).forEach(t => { if (!cats[t.c]) cats[t.c] = 0; cats[t.c] += t.a; });
   return Object.entries(cats).map(([n, a]) => ({ n, a: Math.round(a * 100) / 100, b: getCategoryBudget(year, n) })).sort((a, b) => b.a - a.a);
 }
 
 function yearHasData(year) { return TXN.some(t => new Date(t.d).getFullYear() === year); }
 
+// === BACKUP REMINDER (#6) ===
+var BACKUP_INTERVAL = 50;
+function checkBackupReminder() {
+  var lastCount = parseInt(safeGet('ft_last_backup_txn_count') || '0');
+  if (TXN.length - lastCount >= BACKUP_INTERVAL) {
+    toast('💾 ' + (TXN.length - lastCount) + ' new transactions since last backup. Export in Settings.');
+  }
+}
+function markBackupDone() {
+  safeSave('ft_last_backup_txn_count', String(TXN.length));
+  safeSave('ft_last_backup_date', new Date().toISOString());
+}
