@@ -1,50 +1,14 @@
 // === HELPERS & UI UTILITIES (v15.8.1) ===
 
-// === ACCESSIBILITY HELPERS (v1.0.2) ===
-// Generate accessible toggle HTML with role="switch" and keyboard support
-function a11yToggle(id, isOn, label, onClickFn) {
-  return `<div class="setting-tog ${isOn ? 'on' : ''}" 
-    role="switch" 
-    aria-checked="${isOn}" 
-    aria-label="${label}" 
-    tabindex="0"
-    onclick="${onClickFn}"
-    onkeydown="if(event.key===' '||event.key==='Enter'){event.preventDefault();${onClickFn}}"></div>`;
-}
-
-// Generate colorblind-safe transaction type indicator (shape + color + ARIA)
-function txnTypeIndicator(type) {
-  if (type === 'Income') return '<span class="txn-type-badge txn-type-income" aria-label="Income" title="Income">▲</span>';
-  if (type === 'Expense') return '<span class="txn-type-badge txn-type-expense" aria-label="Expense" title="Expense">▼</span>';
-  if (type === 'Savings') return '<span class="txn-type-badge txn-type-savings" aria-label="Savings" title="Savings">◆</span>';
-  return '';
-}
-
-// Generate accessible budget status indicator (shape + color for colorblind)
-function budgetStatusIndicator(spent, budget) {
-  if (budget <= 0) return '<span class="budget-status" aria-label="No budget set" title="No budget">—</span>';
-  const pct = (spent / budget) * 100;
-  if (pct >= 100) return '<span class="budget-status budget-over" aria-label="Over budget" title="Over budget">■ Over</span>';
-  if (pct >= 80) return '<span class="budget-status budget-warn" aria-label="Near budget limit" title="Near limit">▲ ' + Math.round(pct) + '%</span>';
-  return '<span class="budget-status budget-ok" aria-label="On track" title="On track">● ' + Math.round(pct) + '%</span>';
-}
-
 // === HIDE/SHOW AMOUNTS (Eye toggle) ===
 function toggleHideAmounts() {
-  const hidden = safeGet('ft_hide_amounts') === 'true';
-  safeSave('ft_hide_amounts', hidden ? 'false' : 'true');
+  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
+  localStorage.setItem('ft_hide_amounts', hidden ? 'false' : 'true');
   applyHideAmounts();
-  // Update ARIA state
-  const eyeBtn = document.getElementById('mobEyeBtn');
-  if (eyeBtn) {
-    const nowHidden = safeGet('ft_hide_amounts') === 'true';
-    eyeBtn.setAttribute('aria-label', nowHidden ? 'Show amounts' : 'Hide amounts');
-    eyeBtn.setAttribute('aria-pressed', nowHidden ? 'true' : 'false');
-  }
 }
 
 function applyHideAmounts() {
-  const hidden = safeGet('ft_hide_amounts') === 'true';
+  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
   const blur = hidden ? 'blur(8px)' : 'none';
   // Target all money-displaying elements across all tabs
   const selectors = [
@@ -85,7 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cnt = document.getElementById('cnt');
   if (cnt) {
     const observer = new MutationObserver(() => {
-      if (safeGet('ft_hide_amounts') === 'true') {
+      if (localStorage.getItem('ft_hide_amounts') === 'true') {
         setTimeout(applyHideAmounts, 50);
       }
     });
@@ -95,89 +59,41 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(applyHideAmounts, 200);
 });
 
-// === PIN SECURITY (v1.0.2 — PBKDF2 + per-device salt + lockout) ===
-var _pinAttempts = 0;
-var _pinLockUntil = 0;
-const PIN_MAX_ATTEMPTS = 5;
-const PIN_LOCKOUT_BASE_MS = 30000;
-
-async function hashPIN(pin, salt) {
-  if (!salt) {
-    // Legacy mode: SHA-256 with static salt (backward compat)
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pin + 'fintrack_salt_2026');
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  // New mode: PBKDF2 with per-device salt
+// === PIN SECURITY (v15.7 — SHA-256 hashed) ===
+async function hashPIN(pin) {
   const encoder = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(pin), 'PBKDF2', false, ['deriveBits']);
-  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: encoder.encode(salt), iterations: 100000, hash: 'SHA-256' }, keyMaterial, 256);
-  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, '0')).join('');
+  const data = encoder.encode(pin + 'fintrack_salt_2026');
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-
-function getDeviceSalt() {
-  let salt = safeGet('ft_device_salt');
-  if (!salt) {
-    const arr = new Uint8Array(16);
-    crypto.getRandomValues(arr);
-    salt = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-    safeSave('ft_device_salt', salt);
-  }
-  return salt;
-}
-
-function isPINLocked() { return _pinLockUntil > Date.now(); }
-function getPINLockRemaining() { return Math.max(0, Math.ceil((_pinLockUntil - Date.now()) / 1000)); }
 
 function getPK() {
   // Legacy: if old plain-text PIN exists, return it (will be migrated on next change)
-  const legacy = safeGet('ft_pk');
+  const legacy = localStorage.getItem('ft_pk');
   if (legacy && legacy.length < 64) return legacy;
   // Default fallback
   return '1234';
 }
 
 function getPKHash() {
-  return safeGet('ft_pk_hash') || null;
+  return localStorage.getItem('ft_pk_hash') || null;
 }
 
 async function verifyPIN(inputPin) {
-  if (isPINLocked()) {
-    toast('🔒 Too many attempts. Try again in ' + getPINLockRemaining() + 's');
-    return false;
-  }
   const storedHash = getPKHash();
-  let verified = false;
   if (storedHash) {
-    // Try PBKDF2 first
-    const salt = getDeviceSalt();
-    const newHash = await hashPIN(inputPin, salt);
-    if (newHash === storedHash) { verified = true; }
-    else {
-      // Fallback: legacy SHA-256 (auto-migrate on success)
-      const legacyHash = await hashPIN(inputPin);
-      if (legacyHash === storedHash) { verified = true; await setPINSecure(inputPin); }
-    }
-  } else {
-    verified = (inputPin === getPK());
-    if (verified) await setPINSecure(inputPin);
+    const inputHash = await hashPIN(inputPin);
+    return inputHash === storedHash;
   }
-  if (verified) { _pinAttempts = 0; _pinLockUntil = 0; if (typeof resetIdleTimer === 'function') resetIdleTimer(); return true; }
-  _pinAttempts++;
-  if (_pinAttempts >= PIN_MAX_ATTEMPTS) {
-    const mult = Math.pow(2, Math.floor(_pinAttempts / PIN_MAX_ATTEMPTS) - 1);
-    _pinLockUntil = Date.now() + (PIN_LOCKOUT_BASE_MS * mult);
-    toast('🔒 Locked for ' + (PIN_LOCKOUT_BASE_MS * mult / 1000) + 's');
-  }
-  return false;
+  // Legacy plain-text fallback
+  return inputPin === getPK();
 }
 
 async function setPINSecure(newPin) {
-  const salt = getDeviceSalt();
-  const hash = await hashPIN(newPin, salt);
-  safeSave('ft_pk_hash', hash);
-  safeSave('ft_pk', ''); // Clear legacy
+  const hash = await hashPIN(newPin);
+  localStorage.setItem('ft_pk_hash', hash);
+  localStorage.removeItem('ft_pk'); // Remove legacy plain-text
 }
 
 // === RECOVERY CODE (v15.7) ===
@@ -194,12 +110,12 @@ function generateRecoveryCode() {
 async function setupRecoveryCode() {
   const code = generateRecoveryCode();
   const codeHash = await hashPIN(code);
-  safeSave('ft_recovery_hash', codeHash);
+  localStorage.setItem('ft_recovery_hash', codeHash);
   return code;
 }
 
 async function verifyRecoveryCode(inputCode) {
-  const storedHash = safeGet('ft_recovery_hash');
+  const storedHash = localStorage.getItem('ft_recovery_hash');
   if (!storedHash) return false;
   const cleanCode = inputCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   // Try with and without dashes
@@ -211,7 +127,7 @@ async function verifyRecoveryCode(inputCode) {
 }
 
 function hasRecoverySetup() {
-  return !!safeGet('ft_recovery_hash');
+  return !!localStorage.getItem('ft_recovery_hash');
 }
 
 // === SECURITY QUESTIONS (v15.7) ===
@@ -233,11 +149,11 @@ async function saveSecurityAnswers(q1Index, a1, q2Index, a2) {
     q2: q2Index,
     a2: await hashPIN(a2.trim().toLowerCase())
   };
-  safeSave('ft_security_questions', JSON.stringify(data));
+  localStorage.setItem('ft_security_questions', JSON.stringify(data));
 }
 
 async function verifySecurityAnswers(a1, a2) {
-  const stored = safeGet('ft_security_questions');
+  const stored = localStorage.getItem('ft_security_questions');
   if (!stored) return false;
   const data = JSON.parse(stored);
   const hash1 = await hashPIN(a1.trim().toLowerCase());
@@ -246,77 +162,33 @@ async function verifySecurityAnswers(a1, a2) {
 }
 
 function hasSecurityQuestions() {
-  return !!safeGet('ft_security_questions');
+  return !!localStorage.getItem('ft_security_questions');
 }
 
 function getSecurityQuestionIndices() {
-  const stored = safeGet('ft_security_questions');
+  const stored = localStorage.getItem('ft_security_questions');
   if (!stored) return null;
   const data = JSON.parse(stored);
   return { q1: data.q1, q2: data.q2 };
 }
 
 // === APP LOCK (Simple PIN) ===
-var FT_APP_LOCK = safeGet('ft_app_lock') === 'true';
+var FT_APP_LOCK = localStorage.getItem('ft_app_lock') === 'true';
 
 function enableAppLock() {
-  safeSave('ft_app_lock', 'true');
+  localStorage.setItem('ft_app_lock', 'true');
   FT_APP_LOCK = true;
   toast('🔐 App lock enabled');
 }
 
 function disableAppLock() {
-  safeSave('ft_app_lock', 'false');
+  localStorage.removeItem('ft_app_lock');
   FT_APP_LOCK = false;
   toast('🔓 App lock disabled');
 }
 
-// === SESSION TIMEOUT (v1.0.2) ===
-var _idleTimer = null;
-var _sessionLocked = false;
-const SESSION_TIMEOUT_KEY = 'ft_session_timeout';
-function getSessionTimeout() { return parseInt(safeGet(SESSION_TIMEOUT_KEY) || '300000'); }
-function setSessionTimeout(ms) { safeSave(SESSION_TIMEOUT_KEY, String(ms)); resetIdleTimer(); }
-function resetIdleTimer() {
-  clearTimeout(_idleTimer);
-  _sessionLocked = false;
-  var timeout = getSessionTimeout();
-  if (timeout <= 0 || !FT_APP_LOCK) return;
-  _idleTimer = setTimeout(lockSession, timeout);
-}
-function lockSession() {
-  if (!FT_APP_LOCK) return;
-  _sessionLocked = true;
-  var el = document.getElementById('ftLockScreen');
-  if (el) el.remove();
-  var lock = document.createElement('div');
-  lock.id = 'ftLockScreen';
-  lock.style.cssText = 'position:fixed;inset:0;z-index:99998;background:var(--bg-primary);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px';
-  lock.innerHTML = '<div style="font-size:32px">🔒</div><div style="font-size:14px;font-weight:700">Session Locked</div><div style="font-size:12px;color:var(--text-secondary)">Enter PIN to continue</div><input type="password" id="ftLockPIN" maxlength="6" placeholder="PIN" style="width:120px;padding:10px;text-align:center;font-size:18px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-family:var(--font);letter-spacing:4px" onkeydown="if(event.key===\'Enter\')unlockSession()"><button onclick="unlockSession()" style="padding:8px 20px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer">Unlock</button>';
-  document.body.appendChild(lock);
-  setTimeout(function() { var i = document.getElementById('ftLockPIN'); if (i) i.focus(); }, 100);
-}
-async function unlockSession() {
-  var pin = document.getElementById('ftLockPIN')?.value;
-  if (!pin) return;
-  var ok = await verifyPIN(pin);
-  if (ok) { document.getElementById('ftLockScreen')?.remove(); _sessionLocked = false; resetIdleTimer(); }
-  else { var i = document.getElementById('ftLockPIN'); if (i) { i.value = ''; i.style.borderColor = 'var(--rose)'; setTimeout(function() { i.style.borderColor = ''; }, 1000); } }
-}
-function initIdleTracking() {
-  ['click', 'keydown', 'touchstart', 'mousemove'].forEach(function(evt) {
-    document.addEventListener(evt, resetIdleTimer, { passive: true });
-  });
-  resetIdleTimer();
-}
 
-// === XSS SANITIZATION (v1.0.2) ===
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, '&#39;');
-}
 
-// v1.0.2: All values stored as REAL CURRENCY. No cents conversion.
 const fmt = n => {
   const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
   const converted = convertAmount(Math.abs(n));
@@ -557,11 +429,11 @@ function resolveHintFromSchema(type, hint) {
 }
 
 function getCatMemory() {
-  return JSON.parse(safeGet(CAT_MEMORY_KEY) || '{}');
+  return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}');
 }
 
 function saveCatMemory(mem) {
-  safeSave(CAT_MEMORY_KEY, JSON.stringify(mem));
+  localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(mem));
 }
 
 function normalizeMerchant(text) {
@@ -697,14 +569,14 @@ function suggestCategory(description) {
 
 // Bootstrap: learn from all existing transactions on first run
 function bootstrapCatMemory() {
-  if (safeGet('ft_cat_bootstrapped')) return;
+  if (localStorage.getItem('ft_cat_bootstrapped')) return;
   TXN.forEach(tx => learnFromTransaction(tx));
-  safeSave('ft_cat_bootstrapped', '1');
+  localStorage.setItem('ft_cat_bootstrapped', '1');
 }
 
 // Clear memory (for Settings toggle)
 function clearCatMemory() {
-  safeSave(CAT_MEMORY_KEY, '{}');
-  safeSave('ft_cat_bootstrapped', '');
+  localStorage.setItem(CAT_MEMORY_KEY, '{}');
+  localStorage.removeItem('ft_cat_bootstrapped');
   toast('🧹 Category memory cleared');
 }
