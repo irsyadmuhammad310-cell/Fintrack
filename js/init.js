@@ -15,30 +15,82 @@ function getGreeting() {
   const name = getUserName() || '';
   const title = getUserTitle();
   const displayName = title && name ? `${title} ${name}` : title ? title : name ? name : '';
+  const lang = safeGet('ft_lang') || 'en';
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-  // Time-based greetings
+  const greetings = {
+    en: {
+      night: ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,', "Can't sleep?", 'Working late,', 'Midnight hustle,', 'The quiet hours,', 'Burning candles,', 'Nocturnal mode,'],
+      morning: ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,', 'New day, new wins,', 'Early bird,', 'Bright and early,', 'Morning sunshine,', "Let's get it,", 'Wakey wakey,', 'Dawn patrol,'],
+      afternoon: ['Good afternoon,', 'Afternoon,', 'Hey,', "What's good,", 'Midday check-in,', "How's the day,", 'Back at it,', 'Afternoon vibes,', 'Hey champ,', "What's cooking,", 'Halfway there,', 'Keep pushing,'],
+      evening: ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,', 'Winding down?', 'End of day review,', 'Evening check-in,', 'Almost done,', 'Sunset vibes,', "Day's wrapping up,", 'Home stretch,', 'Relax mode,'],
+      latenight: ['Good evening,', 'Night shift?', 'Back again,', 'Hey,', 'Still grinding?', 'One more look?', 'Before bed?', 'Night check,', 'Burning midnight oil,', 'Last peek,']
+    },
+    ms: {
+      night: ['Masih terjaga?', 'Kerja malam,', 'Tak boleh tidur?', 'Rajin betul,', 'Malam yang senyap,', 'Night owl mode,', 'Hustle lewat malam,', 'Burning midnight oil,', 'Tak ngantuk lagi?', 'Malam produktif,'],
+      morning: ['Selamat pagi,', 'Pagi,', 'Assalamualaikum,', 'Semangat pagi,', 'Pagi yang cerah,', 'Bismillah,', 'Hari baru,', 'Jom hustle,', 'Fresh morning,', 'Pagi2 dah rajin,', 'Bangun awal ni,', 'Subuh productivity,'],
+      afternoon: ['Selamat petang,', 'Petang,', 'Hey,', 'Apa khabar,', 'Tengah hari check-in,', 'Macam mana hari ni,', 'Semangat lagi,', 'Petang produktif,', 'Keep going,', 'Halfway there,', 'Jangan give up,', 'Teruskan,'],
+      evening: ['Selamat malam,', 'Malam,', 'Eh dah malam,', 'Balik kerja?', 'Rehat jap,', 'Review harian,', 'Alhamdulillah,', 'Malam yang tenang,', 'Winding down,', 'Hari hampir tamat,', 'Penat tak?', 'Good job hari ni,'],
+      latenight: ['Selamat malam,', 'Tak tidur lagi?', 'Kerja lagi?', 'Night owl ni,', 'Last check,', 'Sebelum tidur?', 'Rajinnya,', 'Hustle tak berhenti,', 'Mata masih celik,', 'Satu lagi peek,']
+    },
+    id: {
+      night: ['Masih bangun?', 'Begadang,', 'Kerja malam,', 'Belum tidur?', 'Rajin banget,', 'Malam yang tenang,', 'Night mode,', 'Lembur ya,', 'Masih semangat,', 'Nocturnal mode,'],
+      morning: ['Selamat pagi,', 'Pagi,', 'Semangat pagi,', 'Pagi yang indah,', 'Bismillah,', 'Hari baru,', 'Yuk mulai,', 'Pagi cerah,', 'Bangun pagi rejeki,', 'Fresh pagi,', 'Selamat beraktivitas,', 'Ayo produktif,'],
+      afternoon: ['Selamat siang,', 'Siang,', 'Hai,', 'Apa kabar,', 'Siang produktif,', 'Gimana harinya,', 'Semangat terus,', 'Midday hustle,', 'Keep going,', 'Lanjut terus,', 'Setengah jalan,', 'Gas terus,'],
+      evening: ['Selamat malam,', 'Malam,', 'Hai,', 'Sudah malam,', 'Pulang kerja?', 'Waktunya review,', 'Alhamdulillah,', 'Malam tenang,', 'Winding down,', 'Hari hampir selesai,', 'Capek ya?', 'Istirahat dulu,'],
+      latenight: ['Selamat malam,', 'Belum tidur?', 'Kerja lagi?', 'Night owl,', 'Cek terakhir,', 'Sebelum tidur?', 'Rajin ya,', 'Late night grind,', 'Masih on?', 'Satu lagi,']
+    },
+    zh: {
+      night: ['还没睡？', '夜猫子模式，', '深夜奋斗，', '熬夜中，', '安静的夜晚，', '午夜冲刺，', '晚上好，', '加油，', '夜深了，', '还在忙？'],
+      morning: ['早上好，', '早安，', '新的一天，', '阳光明媚，', '早起的鸟儿，', '精神抖擞，', '美好的早晨，', '开始新的一天，', '今天加油，', '早安打工人，', '元气满满，', '新的开始，'],
+      afternoon: ['下午好，', '午安，', '你好，', '下午了，', '今天怎么样，', '继续加油，', '下午茶时间，', '半天过去了，', '保持节奏，', '午后时光，', '加油干，', '继续前进，'],
+      evening: ['晚上好，', '晚安，', '辛苦了，', '回来了，', '一天快结束了，', '放松一下，', '晚间回顾，', '今天辛苦了，', '日落时分，', '准备休息了？', '收工了，', '晚上愉快，'],
+      latenight: ['晚上好，', '还在忙？', '又回来了，', '夜深了，', '最后看一眼？', '睡前检查，', '辛苦了，', '夜间模式，', '快去睡吧，', '最后一次，']
+    },
+    ja: {
+      night: ['まだ起きてる？', '夜更かし中，', '深夜の頑張り，', '眠れない？', '静かな夜，', '真夜中のハッスル，', 'お疲れ様，', '夜型モード，', 'もう寝よう，', '深夜作業，'],
+      morning: ['おはようございます，', 'おはよう，', '新しい一日，', '爽やかな朝，', '今日も頑張ろう，', '朝活中，', '素敵な朝，', 'いい天気，', '早起きは三文の徳，', 'さあ始めよう，', '元気出して，', '朝のルーティン，'],
+      afternoon: ['こんにちは，', '午後，', 'やあ，', '調子どう？', '午後も頑張ろう，', 'お昼のチェック，', '折り返し地点，', '午後のひととき，', 'ペース維持，', '順調？', 'あと半分，', '頑張って，'],
+      evening: ['こんばんは，', '夜，', 'おかえり，', 'お疲れ様，', '一日の終わり，', 'リラックスタイム，', '振り返りの時間，', '今日もお疲れ，', '日没の頃，', 'もう少し，', 'ゆっくりして，', '今日も良い日，'],
+      latenight: ['こんばんは，', 'まだ頑張ってる？', 'また来たね，', '夜更けに，', '最後のチェック？', '寝る前に？', 'お疲れ様，', '深夜モード，', 'そろそろ寝よう，', 'ラストチェック，']
+    },
+    ko: {
+      night: ['아직 안 자?', '야근 중,', '밤늦게까지,', '잠이 안 와?', '조용한 밤,', '한밤중 허슬,', '수고해,', '야행성 모드,', '아직 일해?', '밤새 작업,'],
+      morning: ['좋은 아침,', '안녕,', '새로운 하루,', '상쾌한 아침,', '오늘도 화이팅,', '일찍 일어났네,', '좋은 하루 보내,', '아침 햇살,', '힘내자,', '시작하자,', '활기찬 아침,', '오늘의 시작,'],
+      afternoon: ['안녕하세요,', '오후,', '점심 먹었어?', '오늘 어때,', '오후도 화이팅,', '반 지났다,', '계속 가자,', '오후 시간,', '잘하고 있어,', '페이스 유지,', '파이팅,', '거의 다 왔어,'],
+      evening: ['좋은 저녁,', '저녁,', '돌아왔네,', '수고했어,', '하루 마무리,', '쉬는 시간,', '오늘 리뷰,', '퇴근 후,', '해질녘,', '거의 다 왔어,', '오늘도 고생,', '편히 쉬어,'],
+      latenight: ['좋은 저녁,', '아직 일해?', '또 왔네,', '밤이야,', '마지막 체크?', '자기 전에?', '수고해,', '늦은 밤 모드,', '곧 자야지,', '마지막으로,']
+    },
+    ru: {
+      night: ['Ещё не спишь?', 'Работаешь допоздна,', 'Ночная смена,', 'Не спится?', 'Тихая ночь,', 'Полуночный хастл,', 'Добрый вечер,', 'Ночной режим,', 'Бессонница?', 'Последний взгляд,'],
+      morning: ['Доброе утро,', 'Утро,', 'С добрым утром,', 'Новый день,', 'Бодрое утро,', 'Раннее утро,', 'Отличное утро,', 'Начнём,', 'Солнечное утро,', 'Поехали,', 'Свежее утро,', 'Пора начинать,'],
+      afternoon: ['Добрый день,', 'День,', 'Привет,', 'Как дела,', 'Полдень,', 'Продолжаем,', 'Дневной чек,', 'Половина дня,', 'Держим темп,', 'Всё идёт,', 'Вперёд,', 'Не сдаёмся,'],
+      evening: ['Добрый вечер,', 'Вечер,', 'С возвращением,', 'Как день прошёл,', 'Конец дня,', 'Время отдыха,', 'Вечерний обзор,', 'Сегодня молодец,', 'Закат,', 'Почти всё,', 'Отдыхай,', 'Хороший день,'],
+      latenight: ['Добрый вечер,', 'Ещё работаешь?', 'Снова здесь,', 'Ночь,', 'Последний взгляд?', 'Перед сном?', 'Молодец,', 'Поздний вечер,', 'Пора спать,', 'Финальный чек,']
+    }
+  };
+
+  const welcomes = {
+    en: ["Let's check your numbers.", 'Your finances await.', 'Ready to crush it.', 'Money moves time.', "Let's see where you stand.", 'Time to level up.', 'Your dashboard is ready.', "Numbers don't lie.", "Let's make progress.", 'Stack check time.', ''],
+    ms: ['Jom tengok duit.', 'Kewangan menanti.', 'Jom hustle.', 'Masa semak kewangan.', 'Dashboard siap.', 'Level up time.', 'Semak kedudukan.', 'Nombor tak tipu.', 'Jom progress.', ''],
+    id: ['Yuk cek keuangan.', 'Keuangan menunggu.', 'Siap hustle.', 'Waktunya cek.', 'Dashboard siap.', 'Level up.', 'Lihat posisi kamu.', 'Angka tidak bohong.', 'Yuk maju.', ''],
+    zh: ['看看你的数据。', '财务等着你。', '准备好了。', '该看看钱了。', '仪表盘就绪。', '升级时间。', '数字不会说谎。', '继续进步。', ''],
+    ja: ['数字を確認しよう。', '家計が待ってる。', '準備OK。', 'お金の時間。', 'ダッシュボード準備完了。', 'レベルアップ。', '数字は嘘つかない。', '進捗を見よう。', ''],
+    ko: ['숫자를 확인하자.', '재정이 기다려.', '준비 완료.', '돈 관리 시간.', '대시보드 준비됨.', '레벨업 시간.', '숫자는 거짓말 안 해.', '진행 상황 보자.', ''],
+    ru: ['Проверим цифры.', 'Финансы ждут.', 'Готов к делу.', 'Время денег.', 'Дашборд готов.', 'Уровень вверх.', 'Цифры не врут.', 'Двигаемся дальше.', '']
+  };
+
+  const langGreets = greetings[lang] || greetings.en;
   let timeGreets;
-  if (h < 6) timeGreets = ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,'];
-  else if (h < 12) timeGreets = ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,'];
-  else if (h < 17) timeGreets = ['Good afternoon,', 'Afternoon,', 'Hey,', 'What\'s good,'];
-  else if (h < 21) timeGreets = ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,'];
-  else timeGreets = ['Good evening,', 'Night shift?', 'Back again,', 'Hey,'];
+  if (h < 6) timeGreets = langGreets.night;
+  else if (h < 12) timeGreets = langGreets.morning;
+  else if (h < 17) timeGreets = langGreets.afternoon;
+  else if (h < 21) timeGreets = langGreets.evening;
+  else timeGreets = langGreets.latenight;
 
-  // Welcome back variations
-  const welcomes = [
-    'Let\'s check your numbers.',
-    'Your finances await.',
-    'Ready to crush it.',
-    'Money moves time.',
-    'Let\'s see where you stand.',
-    'Time to level up.',
-    'Your dashboard is ready.',
-    ''
-  ];
-
+  const langWelcomes = welcomes[lang] || welcomes.en;
   const timeGreet = pick(timeGreets);
-  const welcome = pick(welcomes);
+  const welcome = pick(langWelcomes);
 
   if (displayName) {
     return `${timeGreet} ${displayName}. ${welcome}`.trim();
@@ -442,11 +494,40 @@ function initApp() {
   }
   // Show onboarding for first-time users, greeting toast for returning users
   if (!safeGet('ft_onboarded')) { showOnboarding(); }
+  else if (!safeGet('ft_quickstart_done') && safeGet('ft_onboarded')) {
+    // Show quick-start navigation tips after first onboarding
+    setTimeout(() => showQuickStartTips(), 800);
+  }
   else if (!safeGet('ft_security_setup_done') && !getPKHash()) {
-    // Prompt security setup if user hasn't set up PIN yet (returning users from pre-v15.7)
     setTimeout(() => showRecoveryReminder(), 1000);
   }
   else { setTimeout(() => toast(getGreeting()), 500); }
+}
+
+// === QUICK-START NAVIGATION TIPS (for new users after onboarding) ===
+function showQuickStartTips() {
+  var html = '<div class="mo show" id="mQuickStart" onclick="if(event.target===this)dismissQuickStart()"><div class="ml" style="max-width:380px;padding:20px" onclick="event.stopPropagation()">';
+  html += '<div style="text-align:center;margin-bottom:16px"><div style="font-size:32px;margin-bottom:8px">🗺️</div><div style="font-size:16px;font-weight:700">Quick Navigation Guide</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">Here\'s where everything lives</div></div>';
+  html += '<div style="display:flex;flex-direction:column;gap:10px">';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">🏠</span><div><div style="font-size:12px;font-weight:600">Home</div><div style="font-size:10px;color:var(--text-tertiary)">Your financial snapshot at a glance</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">📝</span><div><div style="font-size:12px;font-weight:600">Transactions</div><div style="font-size:10px;color:var(--text-tertiary)">Log income, expenses, savings here</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">🎯</span><div><div style="font-size:12px;font-weight:600">Goals</div><div style="font-size:10px;color:var(--text-tertiary)">Set budgets + savings targets</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">📊</span><div><div style="font-size:12px;font-weight:600">Insights</div><div style="font-size:10px;color:var(--text-tertiary)">Health score, trends, AI advice</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">⚙️</span><div><div style="font-size:12px;font-weight:600">Settings</div><div style="font-size:10px;color:var(--text-tertiary)">Accounts, categories, security, backup</div></div></div>';
+  html += '</div>';
+  html += '<div style="margin-top:14px;padding:10px 12px;background:var(--accent-light);border-radius:8px;text-align:center"><div style="font-size:11px;font-weight:600;color:var(--accent)">💡 Start by adding your first transaction!</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Tap the purple + button at the bottom right</div></div>';
+  html += '<button class="btn bp" style="width:100%;margin-top:14px;justify-content:center" onclick="dismissQuickStart()">Got it, let\'s go!</button>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  document.body.style.overflow = 'hidden';
+}
+
+function dismissQuickStart() {
+  safeSave('ft_quickstart_done', '1');
+  var el = document.getElementById('mQuickStart');
+  if (el) el.remove();
+  document.body.style.overflow = '';
+  toast(getGreeting());
 }
 
 // === FIRST-RUN ONBOARDING (with name + title input) ===
