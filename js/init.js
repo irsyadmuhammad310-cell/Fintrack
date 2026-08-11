@@ -1,105 +1,57 @@
-// === INIT (FinTrack Premium V1.0.2 Modular Boot) ===
+// === INIT (FinTrack Premium V1.0.0 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
 document.getElementById('yf').innerHTML = buildYearOptions(CURRENT_YEAR);
 
 // === USER NAME & GREETING ===
-function getUserName() { return safeGet('ft_username') || ''; }
-function getUserTitle() { return safeGet('ft_user_title') || ''; }
-function setUserName(name) { safeSave('ft_username', name); updateUserDisplay(); }
-function setUserTitle(title) { safeSave('ft_user_title', title); }
+function getUserName() { return localStorage.getItem('ft_username') || ''; }
+function getUserTitle() { return localStorage.getItem('ft_user_title') || ''; }
+function setUserName(name) { localStorage.setItem('ft_username', name); updateUserDisplay(); }
+function setUserTitle(title) { localStorage.setItem('ft_user_title', title); }
 
 function getGreeting() {
   const h = new Date().getHours();
   const name = getUserName() || '';
   const title = getUserTitle();
   const displayName = title && name ? `${title} ${name}` : title ? title : name ? name : '';
-  const lang = typeof currentLang !== 'undefined' ? currentLang : 'en';
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-  // === 100+ MULTILINGUAL TIME-BASED GREETINGS ===
-  const greetings = {
-    en: {
-      night: ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,', "Can't sleep?", 'Working late,', 'Midnight hustle,', 'The quiet hours,'],
-      morning: ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,', 'New day, new wins,', 'Early bird gets the worm,', 'Bright and early,', 'Morning sunshine,', "Let's get it,"],
-      afternoon: ['Good afternoon,', 'Afternoon,', 'Hey,', "What's good,", 'Midday check-in,', "How's the day going,", 'Back at it,', 'Afternoon vibes,', 'Hey champ,', "What's cooking,"],
-      evening: ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,', 'Winding down?', 'End of day review,', 'Evening check-in,', 'Almost done for today,', 'Sunset vibes,', "Day's wrapping up,"],
-      latenight: ['Good evening,', 'Night shift?', 'Back again,', 'Hey,', 'Still grinding?', 'One more look?', 'Before bed?', 'Night check,']
-    },
-    ms: {
-      night: ['Masih terjaga?', 'Kerja malam,', 'Tak boleh tidur?', 'Rajin betul,', 'Malam yang senyap,', 'Hustle lewat malam,', 'Night owl mode,', 'Burning midnight oil,'],
-      morning: ['Selamat pagi,', 'Pagi,', 'Assalamualaikum,', 'Semangat pagi,', 'Pagi yang cerah,', 'Bismillah,', 'Hari baru,', 'Jom hustle,', 'Fresh morning,', 'Pagi2 dah rajin,'],
-      afternoon: ['Selamat petang,', 'Petang,', 'Hey,', 'Apa khabar,', 'Tengah hari check-in,', 'Macam mana hari ni,', 'Semangat lagi,', 'Petang produktif,', 'Keep going,', 'Halfway there,'],
-      evening: ['Selamat malam,', 'Malam,', 'Eh dah malam,', 'Balik kerja?', 'Rehat jap,', 'Review harian,', 'Alhamdulillah,', 'Malam yang tenang,', 'Winding down,', 'Hari hampir tamat,'],
-      latenight: ['Selamat malam,', 'Tak tidur lagi?', 'Kerja lagi?', 'Night owl ni,', 'Last check,', 'Sebelum tidur?', 'Rajinnya,', 'Hustle tak berhenti,']
-    },
-    id: {
-      night: ['Masih bangun?', 'Begadang,', 'Kerja malam,', 'Belum tidur?', 'Rajin banget,', 'Malam yang tenang,', 'Night mode,', 'Burning the midnight oil,'],
-      morning: ['Selamat pagi,', 'Pagi,', 'Semangat pagi,', 'Pagi yang indah,', 'Bismillah,', 'Hari baru,', 'Yuk mulai,', 'Pagi cerah,', 'Bangun pagi rejeki,', 'Fresh pagi,'],
-      afternoon: ['Selamat siang,', 'Siang,', 'Hai,', 'Apa kabar,', 'Siang produktif,', 'Gimana harinya,', 'Semangat terus,', 'Midday hustle,', 'Keep going,', 'Lanjut terus,'],
-      evening: ['Selamat malam,', 'Malam,', 'Hai,', 'Sudah malam,', 'Pulang kerja?', 'Waktunya review,', 'Alhamdulillah,', 'Malam tenang,', 'Winding down,', 'Hari hampir selesai,'],
-      latenight: ['Selamat malam,', 'Belum tidur?', 'Kerja lagi?', 'Night owl,', 'Cek terakhir,', 'Sebelum tidur?', 'Rajin ya,', 'Late night grind,']
-    },
-    zh: {
-      night: ['还没睡？', '夜猫子模式，', '深夜奋斗，', '熬夜中，', '安静的夜晚，', '午夜冲刺，', '晚上好，', '加油，'],
-      morning: ['早上好，', '早安，', '新的一天，', '阳光明媚，', '早起的鸟儿，', '精神抖擞，', '美好的早晨，', '开始新的一天，', '今天加油，', '早安打工人，'],
-      afternoon: ['下午好，', '午安，', '你好，', '下午了，', '今天怎么样，', '继续加油，', '下午茶时间，', '半天过去了，', '保持节奏，', '午后时光，'],
-      evening: ['晚上好，', '晚安，', '辛苦了，', '回来了，', '一天快结束了，', '放松一下，', '晚间回顾，', '今天辛苦了，', '日落时分，', '准备休息了？'],
-      latenight: ['晚上好，', '还在忙？', '又回来了，', '夜深了，', '最后看一眼？', '睡前检查，', '辛苦了，', '夜间模式，']
-    },
-    ja: {
-      night: ['まだ起きてる？', '夜更かし中，', '深夜の頑張り，', '眠れない？', '静かな夜，', '真夜中のハッスル，', 'お疲れ様，', '夜型モード，'],
-      morning: ['おはようございます，', 'おはよう，', '新しい一日，', '爽やかな朝，', '今日も頑張ろう，', '朝活中，', '素敵な朝，', 'いい天気，', '早起きは三文の徳，', 'さあ始めよう，'],
-      afternoon: ['こんにちは，', '午後，', 'やあ，', '調子どう？', '午後も頑張ろう，', 'お昼のチェック，', '折り返し地点，', '午後のひととき，', 'ペース維持，', '順調？'],
-      evening: ['こんばんは，', '夜，', 'おかえり，', 'お疲れ様，', '一日の終わり，', 'リラックスタイム，', '振り返りの時間，', '今日もお疲れ，', '日没の頃，', 'もう少し，'],
-      latenight: ['こんばんは，', 'まだ頑張ってる？', 'また来たね，', '夜更けに，', '最後のチェック？', '寝る前に？', 'お疲れ様，', '深夜モード，']
-    },
-    ko: {
-      night: ['아직 안 자?', '야근 중,', '밤늦게까지,', '잠이 안 와?', '조용한 밤,', '한밤중 허슬,', '수고해,', '야행성 모드,'],
-      morning: ['좋은 아침,', '안녕,', '새로운 하루,', '상쾌한 아침,', '오늘도 화이팅,', '일찍 일어났네,', '좋은 하루 보내,', '아침 햇살,', '힘내자,', '시작하자,'],
-      afternoon: ['안녕하세요,', '오후,', '점심 먹었어?', '오늘 어때,', '오후도 화이팅,', '반 지났다,', '계속 가자,', '오후 시간,', '잘하고 있어,', '페이스 유지,'],
-      evening: ['좋은 저녁,', '저녁,', '돌아왔네,', '수고했어,', '하루 마무리,', '쉬는 시간,', '오늘 리뷰,', '퇴근 후,', '해질녘,', '거의 다 왔어,'],
-      latenight: ['좋은 저녁,', '아직 일해?', '또 왔네,', '밤이야,', '마지막 체크?', '자기 전에?', '수고해,', '늦은 밤 모드,']
-    },
-    ru: {
-      night: ['Ещё не спишь?', 'Работаешь допоздна,', 'Ночная смена,', 'Не спится?', 'Тихая ночь,', 'Полуночный хастл,', 'Добрый вечер,', 'Ночной режим,'],
-      morning: ['Доброе утро,', 'Утро,', 'С добрым утром,', 'Новый день,', 'Бодрое утро,', 'Раннее утро,', 'Отличное утро,', 'Начнём,', 'Солнечное утро,', 'Поехали,'],
-      afternoon: ['Добрый день,', 'День,', 'Привет,', 'Как дела,', 'Полдень,', 'Продолжаем,', 'Дневной чек,', 'Половина дня,', 'Держим темп,', 'Всё идёт,'],
-      evening: ['Добрый вечер,', 'Вечер,', 'С возвращением,', 'Как день прошёл,', 'Конец дня,', 'Время отдыха,', 'Вечерний обзор,', 'Сегодня молодец,', 'Закат,', 'Почти всё,'],
-      latenight: ['Добрый вечер,', 'Ещё работаешь?', 'Снова здесь,', 'Ночь,', 'Последний взгляд?', 'Перед сном?', 'Молодец,', 'Поздний вечер,']
-    }
-  };
-
-  // Welcome back variations (language-aware)
-  const welcomes = {
-    en: ["Let's check your numbers.", 'Your finances await.', 'Ready to crush it.', 'Money moves time.', "Let's see where you stand.", 'Time to level up.', 'Your dashboard is ready.', "Numbers don't lie.", "Let's make progress.", 'Financial clarity incoming.', 'Stack check time.', "Let's review.", ''],
-    ms: ['Jom tengok duit.', 'Kewangan menanti.', 'Jom hustle.', 'Masa semak kewangan.', 'Dashboard siap.', 'Level up time.', 'Semak kedudukan.', 'Nombor tak tipu.', 'Jom progress.', 'Clarity kewangan.', ''],
-    id: ['Yuk cek keuangan.', 'Keuangan menunggu.', 'Siap hustle.', 'Waktunya cek.', 'Dashboard siap.', 'Level up.', 'Lihat posisi kamu.', 'Angka tidak bohong.', 'Yuk maju.', ''],
-    zh: ['看看你的数据。', '财务等着你。', '准备好了。', '该看看钱了。', '仪表盘就绪。', '升级时间。', '看看现在的位置。', '数字不会说谎。', '继续进步。', ''],
-    ja: ['数字を確認しよう。', '家計が待ってる。', '準備OK。', 'お金の時間。', 'ダッシュボード準備完了。', 'レベルアップ。', '今の状況を確認。', '数字は嘘つかない。', '進捗を見よう。', ''],
-    ko: ['숫자를 확인하자.', '재정이 기다려.', '준비 완료.', '돈 관리 시간.', '대시보드 준비됨.', '레벨업 시간.', '현재 위치 확인.', '숫자는 거짓말 안 해.', '진행 상황 보자.', ''],
-    ru: ['Проверим цифры.', 'Финансы ждут.', 'Готов к делу.', 'Время денег.', 'Дашборд готов.', 'Уровень вверх.', 'Посмотрим позицию.', 'Цифры не врут.', 'Двигаемся дальше.', '']
-  };
-
-  // Select by time of day
-  const langGreets = greetings[lang] || greetings.en;
+  // Time-based greetings
   let timeGreets;
-  if (h < 6) timeGreets = langGreets.night;
-  else if (h < 12) timeGreets = langGreets.morning;
-  else if (h < 17) timeGreets = langGreets.afternoon;
-  else if (h < 21) timeGreets = langGreets.evening;
-  else timeGreets = langGreets.latenight;
+  if (h < 6) timeGreets = ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,'];
+  else if (h < 12) timeGreets = ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,'];
+  else if (h < 17) timeGreets = ['Good afternoon,', 'Afternoon,', 'Hey,', 'What\'s good,'];
+  else if (h < 21) timeGreets = ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,'];
+  else timeGreets = ['Good evening,', 'Night shift?', 'Back again,', 'Hey,'];
 
-  const langWelcomes = welcomes[lang] || welcomes.en;
+  // Welcome back variations
+  const welcomes = [
+    'Let\'s check your numbers.',
+    'Your finances await.',
+    'Ready to crush it.',
+    'Money moves time.',
+    'Let\'s see where you stand.',
+    'Time to level up.',
+    'Your dashboard is ready.',
+    ''
+  ];
+
   const timeGreet = pick(timeGreets);
-  const welcome = pick(langWelcomes);
+  const welcome = pick(welcomes);
 
   if (displayName) {
     return `${timeGreet} ${displayName}. ${welcome}`.trim();
   }
   return `${timeGreet.replace(',', '.')} ${welcome}`.trim();
 }
+
+
+
+
+
+
+
 
 function getUserInitials() {
   const name = getUserName();
@@ -135,16 +87,8 @@ function init() {
     }
     return;
   }
-  // Load IndexedDB → in-memory cache → then boot the app
-  ftLoadAll().then(function() {
-    loadAllModuleData();
-    initApp();
-  }).catch(function(e) {
-    console.error('[FinTrack] Boot failed:', e);
-    // Emergency fallback: try loading from whatever is in _ftStore
-    loadAllModuleData();
-    initApp();
-  });
+  loadTXN();
+  initApp();
 }
 
 async function initWithPasskey(passkey) {
@@ -186,8 +130,7 @@ async function ftTryBiometric() {
   var success = await ftBiometricAuth();
   if (success) {
     ftIsUnlocked = true;
-    await ftLoadAll();
-    loadAllModuleData();
+    loadTXN();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -304,8 +247,7 @@ async function ftDoUnlock() {
   var valid = await verifyPIN(passkey);
   if (valid) {
     ftIsUnlocked = true;
-    await ftLoadAll();
-    loadAllModuleData();
+    loadTXN();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -414,8 +356,7 @@ async function saveNewPINAfterRecovery() {
   var unlockEl = document.getElementById('ftUnlock');
   if (unlockEl) unlockEl.remove();
   ftIsUnlocked = true;
-  await ftLoadAll();
-  loadAllModuleData();
+  loadTXN();
   initApp();
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = '';
@@ -429,14 +370,14 @@ function showFirstTimeSecuritySetup() {
 }
 
 function initApp() {
-  const st = safeGet('theme');
+  const st = localStorage.getItem('theme');
   if (st) {
     document.documentElement.dataset.theme = st;
     if (st === 'dark') document.getElementById('thico').dataset.lucide = 'moon';
   }
   // Load language + currency preferences
-  currentLang = safeGet('ft_lang') || 'en';
-  displayCurrency = safeGet('ft_currency') || 'MYR';
+  currentLang = localStorage.getItem('ft_lang') || 'en';
+  displayCurrency = localStorage.getItem('ft_currency') || 'MYR';
   // Apply CJK font if needed
   if (currentLang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (currentLang === 'ja') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
@@ -458,10 +399,6 @@ function initApp() {
   fetchExchangeRates();
   // Update notification badge
   updateNotifBadge();
-  // v1.0.2: Initialize session idle tracking
-  if (typeof initIdleTracking === 'function') initIdleTracking();
-  // v1.0.2: Show private browsing warning if storage unavailable
-  if (typeof showPrivateBrowsingWarning === 'function') showPrivateBrowsingWarning();
   // v15.5: Check budget alerts on app load
   if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
@@ -490,8 +427,8 @@ function initApp() {
     });
   }
   // Show onboarding for first-time users, greeting toast for returning users
-  if (!safeGet('ft_onboarded')) { showOnboarding(); }
-  else if (!safeGet('ft_security_setup_done') && !getPKHash()) {
+  if (!localStorage.getItem('ft_onboarded')) { showOnboarding(); }
+  else if (!localStorage.getItem('ft_security_setup_done') && !getPKHash()) {
     // Prompt security setup if user hasn't set up PIN yet (returning users from pre-v15.7)
     setTimeout(() => showRecoveryReminder(), 1000);
   }
