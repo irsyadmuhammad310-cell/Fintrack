@@ -587,12 +587,21 @@ function executeReset(resetType) {
 }
 
 // === EXPORT/IMPORT ===
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+}
+
 function exportJSON() {
   const data = { version: 'fintrack-' + FINTRACK_VERSION, exportedAt: new Date().toISOString(), transactions: TXN, schema: SCHEMA, accounts: ACCOUNTS, goals: GOALS, settings: { currency: displayCurrency, language: currentLang, theme: document.documentElement.dataset.theme } };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `fintrack-backup-${new Date().toISOString().split('T')[0]}.json`;
-  a.click(); URL.revokeObjectURL(url);
+  triggerDownload(blob, `fintrack-backup-${new Date().toISOString().split('T')[0]}.json`);
   toast('📥 JSON exported');
 }
 
@@ -604,9 +613,7 @@ function exportCSV() {
   });
   const csv = [headers.join(','), ...rows].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `fintrack-transactions-${new Date().toISOString().split('T')[0]}.csv`;
-  a.click(); URL.revokeObjectURL(url);
+  triggerDownload(blob, `fintrack-transactions-${new Date().toISOString().split('T')[0]}.csv`);
   toast('📥 CSV exported');
 }
 
@@ -630,9 +637,7 @@ function exportExcel() {
   });
   xml += '</Table></Worksheet></Workbook>';
   const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = `fintrack-transactions-${new Date().toISOString().split('T')[0]}.xls`;
-  a.click(); URL.revokeObjectURL(url);
+  triggerDownload(blob, `fintrack-transactions-${new Date().toISOString().split('T')[0]}.xls`);
   toast('📥 Excel exported');
 }
 
