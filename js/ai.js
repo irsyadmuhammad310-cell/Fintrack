@@ -1,4 +1,5 @@
-// === FLOATING AI ASSISTANT (v15.4 — Gemini Integration) ===
+// === FLOATING AI ASSISTANT (v15.8.1 — Gemini Integration) ===
+let aiRateLimitUntil = parseInt(safeGet('ft_ai_cooldown') || '0');
 (function() {
   const fab = document.createElement('div');
   fab.id = 'aiFab';
@@ -37,8 +38,10 @@ function toggleAIChat() {
 }
 
 // === GEMINI API CONFIG ===
-function getAIKey() { return localStorage.getItem('ft_gemini_key') || ''; }
-function setAIKey(key) { localStorage.setItem('ft_gemini_key', key.trim()); }
+function getAIKey() { return safeGet('ft_gemini_key') || ''; }
+function setAIKey(key) { safeSave('ft_gemini_key', key.trim()); }
+function getGroqKey() { return safeGet('ft_groq_key') || ''; }
+function setGroqKey(key) { safeSave('ft_groq_key', key.trim()); }
 
 function buildFinancialContext() {
   try {
@@ -147,11 +150,18 @@ async function callGemini(userMsg) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        const errMsg = err?.error?.message || '';
+        const errStatus = err?.error?.status || '';
         console.warn('Gemini API error (' + model + '):', res.status, err);
-        if (res.status === 400 && err?.error?.message?.includes('not found')) continue; // try next model
+        if (res.status === 400 && errMsg.includes('not found')) continue; // try next model
         if (res.status === 404) continue; // model not available, try next
-        if (res.status === 400 || res.status === 403) return '__INVALID_KEY__';
-        if (res.status === 429) return '__RATE_LIMIT__';
+        if (res.status === 400 || res.status === 403) return { code: '__INVALID_KEY__', detail: errMsg };
+        if (res.status === 429) {
+          // Try Groq fallback before returning rate limit
+          const groqResult = await callGroq(userMsg);
+          if (groqResult) return groqResult;
+          return { code: '__RATE_LIMIT__', detail: errMsg, status: errStatus };
+        }
         continue; // try next model
       }
 
@@ -173,6 +183,64 @@ async function callGemini(userMsg) {
     }
   }
   
+  // All Gemini models failed: try Groq as last resort
+  const groqFallback = await callGroq(userMsg);
+  if (groqFallback) return groqFallback;
+
+  return null;
+}
+
+// === GROQ FALLBACK API ===
+async function callGroq(userMsg) {
+  const key = getGroqKey();
+  if (!key) return null;
+
+  const context = buildFinancialContext();
+  
+  const recentHistory = aiChatHistory.slice(-6);
+  const messages = [
+    { role: 'system', content: AI_SYSTEM_PROMPT + '\n\n' + context }
+  ];
+  recentHistory.forEach(h => {
+    messages.push({ role: h.role === 'user' ? 'user' : 'assistant', content: h.text });
+  });
+  messages.push({ role: 'user', content: userMsg });
+
+  const groqModels = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
+
+  for (const model of groqModels) {
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + key
+        },
+        body: JSON.stringify({
+          model: model,
+          messages: messages,
+          temperature: 0.75,
+          max_tokens: 1200
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.warn('Groq API error (' + model + '):', res.status, err);
+        if (res.status === 429) continue; // try next model
+        if (res.status === 401) return null; // bad key, don't retry
+        continue;
+      }
+
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content;
+      if (text) return text;
+      continue;
+    } catch (e) {
+      console.warn('Groq fetch error (' + model + '):', e);
+      continue;
+    }
+  }
   return null;
 }
 
@@ -204,6 +272,16 @@ async function sendAI() {
     return;
   }
 
+  // Check cooldown timer
+  if (Date.now() < aiRateLimitUntil) {
+    const minsLeft = Math.ceil((aiRateLimitUntil - Date.now()) / 60000);
+    const el = document.getElementById(typingId);
+    if (el) el.remove();
+    box.innerHTML += `<div class="aim ast"><div class="aiav">🤖</div><div class="aib"><b>⏳ Rate limit cooldown active.</b><br><br>Gemini API quota was exceeded. Please wait <b>${minsLeft} minute${minsLeft > 1 ? 's' : ''}</b> before trying again.<br><br>This resets automatically. If it persists for hours, generate a new API key from a fresh project at <b>aistudio.google.com</b>.</div></div>`;
+    box.scrollTop = box.scrollHeight;
+    return;
+  }
+
   // Call Gemini API
   try {
     response = await callGemini(msg);
@@ -211,10 +289,16 @@ async function sendAI() {
     const el = document.getElementById(typingId);
     if (el) el.remove();
 
-    if (response === '__INVALID_KEY__') {
-      response = `<b>API key error.</b> Your Gemini key seems invalid or expired. Go to <b>Settings → General → AI Assistant</b> to update it. Get a new key at aistudio.google.com.`;
-    } else if (response === '__RATE_LIMIT__') {
-      response = `<b>Rate limit reached.</b> You've hit the free tier limit. Wait a minute and try again, or check your quota at aistudio.google.com.`;
+    if (response && response.code === '__INVALID_KEY__') {
+      response = `<b>❌ API key error.</b><br><br><b>Reason:</b> ${response.detail || 'Key invalid or expired'}<br><br>Go to <b>Settings → General → AI Assistant</b> to update it. Get a new key at <b>aistudio.google.com</b>.`;
+    } else if (response && response.code === '__RATE_LIMIT__') {
+      // Set cooldown: 5 minutes for RPM, 60 minutes for RPD
+      const isDaily = response.detail.includes('per day') || response.detail.includes('RATE_LIMIT_EXCEEDED') || response.detail.includes('quota');
+      const cooldownMs = isDaily ? 60 * 60 * 1000 : 5 * 60 * 1000;
+      aiRateLimitUntil = Date.now() + cooldownMs;
+      safeSave('ft_ai_cooldown', String(aiRateLimitUntil));
+      const waitMins = Math.ceil(cooldownMs / 60000);
+      response = `<b>⚠️ Rate limit exceeded.</b><br><br><b>Error:</b> ${response.detail || 'Too many requests'}<br><br><b>Cooldown:</b> ${waitMins} minutes (auto-resumes at ${new Date(aiRateLimitUntil).toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit'})})<br><br><b>Fix options:</b><br>• Wait for cooldown to pass<br>• Generate a new key from a different Google Cloud project<br>• Enable billing at <b>console.cloud.google.com</b> for higher limits<br><br><i>Free tier: 15 RPM / 1,500 RPD. Resets at 3 PM MYT (midnight Pacific).</i>`;
     } else if (response === '__BLOCKED__') {
       response = `<b>Content blocked.</b> The AI couldn't respond to that query due to safety filters. Try rephrasing your question.`;
     } else if (!response) {
