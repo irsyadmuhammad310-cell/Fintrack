@@ -141,7 +141,20 @@ function renderGoals(c) {
   } else {
     pInc = MD[+mf].i; pExp = MD[+mf].e; pSav = MD[+mf].s;
   }
-  const incPct = pInc > 0 && budgetTotalForProgress > 0 ? Math.min((pInc / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
+  // Income budget: from incCats in budget plan
+  const incBudgetForProgress = (() => {
+    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var yk = String(year);
+    if (mf === 'total') {
+      var total = 0;
+      if (plans[yk]) { for (var m = 0; m < 12; m++) { var p = plans[yk][m] || plans[yk][String(m)]; if (p && p.i) total += p.i; } }
+      return total;
+    } else {
+      var p = plans[yk] && (plans[yk][+mf] || plans[yk][String(+mf)]);
+      return p && p.i ? p.i : 0;
+    }
+  })();
+  const incPct = incBudgetForProgress > 0 ? Math.min((pInc / incBudgetForProgress * 100), 100).toFixed(0) : 0;
   const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const savBudget = (() => {
@@ -891,7 +904,20 @@ function renderMobileBudgetTab(MD, year) {
   html += '</div>';
 
   // Progress bars
-  const incPct = monthlyBudget > 0 ? Math.min((pInc / monthlyBudget * 100), 100).toFixed(0) : 0;
+  // Income budget: sum of incCats from budget plan
+  const mobIncBudget = (() => {
+    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var yk = String(year);
+    if (mf === 'total') {
+      var total = 0;
+      if (plans[yk]) { for (var m = 0; m < 12; m++) { var p = plans[yk][m] || plans[yk][String(m)]; if (p && p.i) total += p.i; } }
+      return total;
+    } else {
+      var p = plans[yk] && (plans[yk][+mf] || plans[yk][String(+mf)]);
+      return p && p.i ? p.i : 0;
+    }
+  })();
+  const incPct = mobIncBudget > 0 ? Math.min((pInc / mobIncBudget * 100), 100).toFixed(0) : 0;
   const expPct = monthlyBudget > 0 ? Math.min((pExp / monthlyBudget * 100), 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const mobSavBudget = (() => {
@@ -911,7 +937,7 @@ function renderMobileBudgetTab(MD, year) {
 
   html += '<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:-0.01em">' + periodLabel + '</div>';
   // Income
-  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_income') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + incPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + incPct + '%;background:var(--emerald);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pInc) + ' earned</span><span>' + fmt(monthlyBudget) + ' planned</span></div></div>';
+  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_income') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + incPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + incPct + '%;background:var(--emerald);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pInc) + ' earned</span><span>' + fmt(mobIncBudget) + ' planned</span></div></div>';
   // Expense
   html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_expense') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';font-feature-settings:\'tnum\'">' + expPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + expPct + '%;background:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pExp) + ' spent</span><span>' + fmt(monthlyBudget) + ' budgeted</span></div></div>';
   // Savings rate
