@@ -143,7 +143,20 @@ function renderGoals(c) {
   }
   const incPct = pInc > 0 && budgetTotalForProgress > 0 ? Math.min((pInc / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
   const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
-  const savPct = pInc > 0 ? Math.min((pSav / pInc * 100), 100).toFixed(0) : 0;
+  // Savings budget progress: actual savings vs planned savings target
+  const savBudget = (() => {
+    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var yk = String(year);
+    if (mf === 'total') {
+      var total = 0;
+      if (plans[yk]) { for (var m = 0; m < 12; m++) { var p = plans[yk][m] || plans[yk][String(m)]; if (p && p.s) total += p.s; } }
+      return total;
+    } else {
+      var p = plans[yk] && (plans[yk][+mf] || plans[yk][String(+mf)]);
+      return p && p.s ? p.s : 0;
+    }
+  })();
+  const savPct = savBudget > 0 ? Math.min((pSav / savBudget * 100), 100).toFixed(0) : 0;
 
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:10px">${t('goal_budget_progress')}</div>`;
   html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">`;
@@ -880,7 +893,20 @@ function renderMobileBudgetTab(MD, year) {
   // Progress bars
   const incPct = monthlyBudget > 0 ? Math.min((pInc / monthlyBudget * 100), 100).toFixed(0) : 0;
   const expPct = monthlyBudget > 0 ? Math.min((pExp / monthlyBudget * 100), 100).toFixed(0) : 0;
-  const savPct = pInc > 0 ? Math.min((pSav / pInc * 100), 100).toFixed(0) : 0;
+  // Savings budget progress: actual savings vs planned savings target
+  const mobSavBudget = (() => {
+    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var yk = String(year);
+    if (mf === 'total') {
+      var total = 0;
+      if (plans[yk]) { for (var m = 0; m < 12; m++) { var p = plans[yk][m] || plans[yk][String(m)]; if (p && p.s) total += p.s; } }
+      return total;
+    } else {
+      var p = plans[yk] && (plans[yk][+mf] || plans[yk][String(+mf)]);
+      return p && p.s ? p.s : 0;
+    }
+  })();
+  const savPct = mobSavBudget > 0 ? Math.min((pSav / mobSavBudget * 100), 100).toFixed(0) : 0;
   const periodLabel = mf === 'total' ? year + ' Progress' : MONTH_NAMES[+mf] + ' Progress';
 
   html += '<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:-0.01em">' + periodLabel + '</div>';
