@@ -5,10 +5,10 @@ document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 document.getElementById('yf').innerHTML = buildYearOptions(CURRENT_YEAR);
 
 // === USER NAME & GREETING ===
-function getUserName() { return localStorage.getItem('ft_username') || ''; }
-function getUserTitle() { return localStorage.getItem('ft_user_title') || ''; }
-function setUserName(name) { localStorage.setItem('ft_username', name); updateUserDisplay(); }
-function setUserTitle(title) { localStorage.setItem('ft_user_title', title); }
+function getUserName() { return safeGet('ft_username') || ''; }
+function getUserTitle() { return safeGet('ft_user_title') || ''; }
+function setUserName(name) { safeSave('ft_username', name); updateUserDisplay(); }
+function setUserTitle(title) { safeSave('ft_user_title', title); }
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -78,7 +78,7 @@ function updateUserDisplay() {
 }
 
 function init() {
-  // Check if app lock is enabled (simple PIN, no encryption)
+  // Check if app lock is enabled
   if (FT_APP_LOCK) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() { showUnlockScreen(); });
@@ -87,8 +87,15 @@ function init() {
     }
     return;
   }
-  loadTXN();
-  initApp();
+  // Load IndexedDB → populate _ftStore → then boot
+  ftLoadAll().then(function() {
+    loadAllModuleData();
+    initApp();
+  }).catch(function(e) {
+    console.error('[FinTrack] Boot failed:', e);
+    loadAllModuleData();
+    initApp();
+  });
 }
 
 async function initWithPasskey(passkey) {
@@ -130,7 +137,8 @@ async function ftTryBiometric() {
   var success = await ftBiometricAuth();
   if (success) {
     ftIsUnlocked = true;
-    loadTXN();
+    await ftLoadAll();
+    loadAllModuleData();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -247,7 +255,8 @@ async function ftDoUnlock() {
   var valid = await verifyPIN(passkey);
   if (valid) {
     ftIsUnlocked = true;
-    loadTXN();
+    await ftLoadAll();
+    loadAllModuleData();
     initApp();
     var unlockEl = document.getElementById('ftUnlock');
     if (unlockEl) unlockEl.remove();
@@ -356,7 +365,8 @@ async function saveNewPINAfterRecovery() {
   var unlockEl = document.getElementById('ftUnlock');
   if (unlockEl) unlockEl.remove();
   ftIsUnlocked = true;
-  loadTXN();
+  await ftLoadAll();
+  loadAllModuleData();
   initApp();
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = '';
@@ -370,14 +380,14 @@ function showFirstTimeSecuritySetup() {
 }
 
 function initApp() {
-  const st = localStorage.getItem('theme');
+  const st = safeGet('theme');
   if (st) {
     document.documentElement.dataset.theme = st;
     if (st === 'dark') document.getElementById('thico').dataset.lucide = 'moon';
   }
   // Load language + currency preferences
-  currentLang = localStorage.getItem('ft_lang') || 'en';
-  displayCurrency = localStorage.getItem('ft_currency') || 'MYR';
+  currentLang = safeGet('ft_lang') || 'en';
+  displayCurrency = safeGet('ft_currency') || 'MYR';
   // Apply CJK font if needed
   if (currentLang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (currentLang === 'ja') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
@@ -399,6 +409,10 @@ function initApp() {
   fetchExchangeRates();
   // Update notification badge
   updateNotifBadge();
+  // Session idle tracking (#7)
+  if (typeof initIdleTracking === 'function') initIdleTracking();
+  // Backup reminder (#6)
+  if (typeof checkBackupReminder === 'function') setTimeout(() => checkBackupReminder(), 2000);
   // v15.5: Check budget alerts on app load
   if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
@@ -427,8 +441,8 @@ function initApp() {
     });
   }
   // Show onboarding for first-time users, greeting toast for returning users
-  if (!localStorage.getItem('ft_onboarded')) { showOnboarding(); }
-  else if (!localStorage.getItem('ft_security_setup_done') && !getPKHash()) {
+  if (!safeGet('ft_onboarded')) { showOnboarding(); }
+  else if (!safeGet('ft_security_setup_done') && !getPKHash()) {
     // Prompt security setup if user hasn't set up PIN yet (returning users from pre-v15.7)
     setTimeout(() => showRecoveryReminder(), 1000);
   }
