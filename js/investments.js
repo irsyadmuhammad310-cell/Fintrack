@@ -12,16 +12,28 @@ const DEFAULT_ACTIVITIES = [];
 
 const DEFAULT_WATCHLIST = [];
 
-let INVESTMENTS = JSON.parse(localStorage.getItem(INV_STORAGE) || 'null') || JSON.parse(JSON.stringify(DEFAULT_INVESTMENTS));
-let INV_ACTIVITIES = JSON.parse(localStorage.getItem(INV_ACT_STORAGE) || 'null') || JSON.parse(JSON.stringify(DEFAULT_ACTIVITIES));
-let INV_WATCHLIST = JSON.parse(localStorage.getItem(INV_WL_STORAGE) || 'null') || JSON.parse(JSON.stringify(DEFAULT_WATCHLIST));
-let invNxId = parseInt(localStorage.getItem('ft_invNxId') || '20');
-let invActNxId = parseInt(localStorage.getItem('ft_invActNxId') || '20');
-let invWlNxId = parseInt(localStorage.getItem('ft_invWlNxId') || '10');
+let INVESTMENTS = [];
+let INV_ACTIVITIES = [];
+let INV_WATCHLIST = [];
+let invNxId = 20;
+let invActNxId = 20;
+let invWlNxId = 10;
 
-function saveINV() { localStorage.setItem(INV_STORAGE, JSON.stringify(INVESTMENTS)); localStorage.setItem('ft_invNxId', invNxId); }
-function saveINV_ACT() { localStorage.setItem(INV_ACT_STORAGE, JSON.stringify(INV_ACTIVITIES)); localStorage.setItem('ft_invActNxId', invActNxId); }
-function saveINV_WL() { localStorage.setItem(INV_WL_STORAGE, JSON.stringify(INV_WATCHLIST)); localStorage.setItem('ft_invWlNxId', invWlNxId); }
+function loadINV() {
+  var raw = safeGet(INV_STORAGE);
+  if (raw) { try { INVESTMENTS = JSON.parse(raw); } catch(e) {} }
+  var raw2 = safeGet(INV_ACT_STORAGE);
+  if (raw2) { try { INV_ACTIVITIES = JSON.parse(raw2); } catch(e) {} }
+  var raw3 = safeGet(INV_WL_STORAGE);
+  if (raw3) { try { INV_WATCHLIST = JSON.parse(raw3); } catch(e) {} }
+  var n1 = safeGet('ft_invNxId'); if (n1) invNxId = parseInt(n1);
+  var n2 = safeGet('ft_invActNxId'); if (n2) invActNxId = parseInt(n2);
+  var n3 = safeGet('ft_invWlNxId'); if (n3) invWlNxId = parseInt(n3);
+}
+
+function saveINV() { safeSave(INV_STORAGE, JSON.stringify(INVESTMENTS)); safeSave('ft_invNxId', invNxId); }
+function saveINV_ACT() { safeSave(INV_ACT_STORAGE, JSON.stringify(INV_ACTIVITIES)); safeSave('ft_invActNxId', invActNxId); }
+function saveINV_WL() { safeSave(INV_WL_STORAGE, JSON.stringify(INV_WATCHLIST)); safeSave('ft_invWlNxId', invWlNxId); }
 
 // === TXN SYNC: Savings transactions are the master for costBasis ===
 var _invSyncLock = false;
@@ -92,7 +104,7 @@ function getInvestmentsByPerformance() {
 }
 
 function getPortfolioSnapshots() {
-  const snaps = JSON.parse(localStorage.getItem(INV_SNAP_STORAGE) || '[]');
+  const snaps = JSON.parse(safeGet(INV_SNAP_STORAGE) || '[]');
   if (snaps.length === 0) {
     const today = new Date();
     const generated = [];
