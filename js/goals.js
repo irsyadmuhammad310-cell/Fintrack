@@ -5,16 +5,22 @@ let goalBudgetYear = null;
 let goalFilter = 'all'; // all, active, completed
 let goalSort = 'progress'; // progress, name, due, amount
 
-// Goal data (persisted in localStorage)
+// Goal data (persisted via safeGet/safeSave)
 const DEFAULT_GOALS = [];
-let GOALS = JSON.parse(localStorage.getItem('ft_goals') || 'null') || JSON.parse(JSON.stringify(DEFAULT_GOALS));
-let goalNxId = parseInt(localStorage.getItem('ft_goalNxId') || '10');
-function saveGOALS() { localStorage.setItem('ft_goals', JSON.stringify(GOALS)); localStorage.setItem('ft_goalNxId', goalNxId); }
+let GOALS = [];
+let goalNxId = 10;
+function loadGOALS() {
+  var raw = safeGet('ft_goals');
+  if (raw) { try { GOALS = JSON.parse(raw); } catch(e) {} }
+  var nid = safeGet('ft_goalNxId');
+  if (nid) goalNxId = parseInt(nid);
+}
+function saveGOALS() { safeSave('ft_goals', JSON.stringify(GOALS)); safeSave('ft_goalNxId', goalNxId); }
 
 let mobileGoalSubTab = 'goals'; // goals | budget
 
 function renderGoals(c) {
-  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') { renderMobileGoals(c); return; }
+  if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileGoals(c); return; }
   if (!goalBudgetYear) goalBudgetYear = getSelectedYear();
   const year = goalBudgetYear;
   const MD = computeMonthlyData(year);
@@ -414,17 +420,17 @@ function syncGoalsWithSavings() {
 
 // === GOAL MILESTONES (v15.4 — Actually functional) ===
 function checkGoalMilestones(goal, oldAmount, newAmount) {
-  if (localStorage.getItem('ft_milestone_alerts') === 'off') return;
+  if (safeGet('ft_milestone_alerts') === 'off') return;
   if (goal.t <= 0) return;
   const milestones = [100];
   const oldPct = (oldAmount / goal.t) * 100;
   const newPct = (newAmount / goal.t) * 100;
-  const achieved = JSON.parse(localStorage.getItem('ft_milestones_' + goal.id) || '[]');
+  const achieved = JSON.parse(safeGet('ft_milestones_' + goal.id) || '[]');
 
   milestones.forEach(m => {
     if (newPct >= m && oldPct < m && !achieved.includes(m)) {
       achieved.push(m);
-      localStorage.setItem('ft_milestones_' + goal.id, JSON.stringify(achieved));
+      safeSave('ft_milestones_' + goal.id, JSON.stringify(achieved));
       const emoji = '🎉';
       const msg = `${emoji} Goal "${goal.n}" completed! You reached ${fmt(goal.t)}!`;
       toast(msg);
@@ -889,7 +895,7 @@ function renderMobileBudgetTab(MD, year) {
   // Overspent categories
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const STATUS_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const statusYearKey = String(currentYear);
   const statusYearPlans2 = STATUS_PLANS[statusYearKey] || {};
   const statusMonthPlan2 = statusYearPlans2[String(currentMonth)] || statusYearPlans2[currentMonth] || null;
@@ -953,10 +959,10 @@ function renderMobileBudgetTab(MD, year) {
 
 // === BUDGET ALERTS (v15.4 — Actually functional) ===
 function checkBudgetAlerts() {
-  if (localStorage.getItem('ft_budget_alerts') === 'off') return;
+  if (safeGet('ft_budget_alerts') === 'off') return;
   const year = getSelectedYear();
   const currentMonth = new Date().getMonth();
-  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const monthPlan = BUDGET_PLANS[yearKey] && (BUDGET_PLANS[yearKey][String(currentMonth)] || BUDGET_PLANS[yearKey][currentMonth]);
   if (!monthPlan || !monthPlan.expCats) return;
