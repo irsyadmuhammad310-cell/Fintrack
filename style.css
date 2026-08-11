@@ -710,13 +710,13 @@ tr:hover td { background: var(--bg-primary); }
   .abtn { width: 34px; height: 34px; font-size: 13px; }
   .seg { margin-bottom: 8px; }
   .seg button { padding: 7px 11px; font-size: 10px; }
-  .ml { padding: 18px; border-radius: 14px; max-height: 90vh; width: 94%; }
+  .ml { padding: 18px; border-radius: 14px; max-height: 90vh; width: 94%; overflow-y: auto; scroll-padding-bottom: 80px; }
   .mh { margin-bottom: 14px; }
   .mti { font-size: 15px; }
   .fi { padding: 11px 12px; font-size: 14px; border-radius: 8px; }
   .fl { font-size: 11px; margin-bottom: 5px; }
   .fg { margin-bottom: 12px; }
-  .ma { flex-direction: column; gap: 8px; }
+  .ma { flex-direction: column; gap: 8px; position: sticky; bottom: 0; background: var(--bg-card); padding: 12px 0 4px; }
   .ma .btn { width: 100%; justify-content: center; }
   .toast { bottom: 16px; right: 12px; left: 12px; text-align: center; font-size: 12px; padding: 12px 16px; }
   table { font-size: 11px; min-width: 440px; }
