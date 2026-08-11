@@ -1,10 +1,10 @@
-// === SETTINGS (FinTrack Premium V1.0.2) ===
+// === SETTINGS (FinTrack Premium V1.0.0) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'V1.0.2';
+const FINTRACK_VERSION = 'V1.0.0';
 
 function renderSettings(c) {
-  if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
+  if (window.innerWidth <= 768 && localStorage.getItem('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
   c.innerHTML = `<div class="stitle">Settings</div><div class="ssub">Manage your preferences</div><div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories & Accounts</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
@@ -44,7 +44,7 @@ function setTab(el, tab) {
 
 // === PROFILE TAB ===
 function renderProfileTab(c) {
-  const desktopMode = safeGet('ft_desktop_mode') === 'true';
+  const desktopMode = localStorage.getItem('ft_desktop_mode') === 'true';
   c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your display name and greeting</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px" onchange="saveProfileSettings()"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px" onchange="saveProfileSettings()"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display mode</div></div></div><div class="trow"><div class="tinf"><div class="tna">Dark Mode</div><div class="tde">Switch between light and dark theme</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;safeSave('theme',th)"></div></div><div class="trow"><div class="tinf"><div class="tna">Desktop Mode</div><div class="tde">Force desktop layout on mobile</div></div><div class="tsw ${desktopMode ? 'on' : ''}" onclick="this.classList.toggle('on');safeSave('ft_desktop_mode',this.classList.contains('on')?'true':'false');toast(this.classList.contains('on')?'🖥 Desktop mode on. Reload to apply.':'📱 Mobile mode restored. Reload to apply.')"></div></div></div>`;
   lucide.createIcons();
 }
@@ -116,10 +116,10 @@ function renderSysSub(sub) {
   const c = document.getElementById('setc');
   let html = `<div style="margin-bottom:12px"><button class="btn bs" style="font-size:11px;padding:5px 10px" onclick="renderSystemTab(document.getElementById('setc'))"><i data-lucide="arrow-left" width="11" height="11"></i> Back</button></div>`;
   if (sub === 'budgetcat') {
-    const catMemSize = Object.keys(JSON.parse(safeGet('ft_cat_memory') || '{}')).length;
+    const catMemSize = Object.keys(JSON.parse(localStorage.getItem('ft_cat_memory') || '{}')).length;
     // Use StorageManager API for real IndexedDB usage (async render)
     const storageCard = 'storageCard_' + Date.now();
-    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Budget Categorization</div><div class="trow"><div class="tinf"><div class="tna">Smart Suggestions</div><div class="tde">Auto-suggest categories when typing</div></div><div class="tsw ${safeGet('ft_autocat_off') !== 'true' ? 'on' : ''}" onclick="this.classList.toggle('on');safeSave('ft_autocat_off',this.classList.contains('on')?'false':'true')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px"><div><div style="font-size:11px;font-weight:500">Category Memory</div><div style="font-size:10px;color:var(--text-tertiary)">${catMemSize} patterns learned</div></div><button class="btn bs" style="font-size:10px;padding:5px 12px;color:var(--rose);border-color:var(--rose)" onclick="if(confirm('Clear all patterns?')){if(typeof clearCatMemory==='function')clearCatMemory();renderSysSub('budgetcat')}">Clear</button></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="hard-drive" width="15" height="15"></i></div><div id="${storageCard}"><div style="font-size:13px;font-weight:600">Storage (IndexedDB)</div><div style="font-size:10px;color:var(--text-tertiary)">Calculating...</div></div></div><div id="${storageCard}_bar" style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:0%;background:var(--emerald);border-radius:3px;transition:width 300ms"></div></div></div>`;
+    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Budget Categorization</div><div class="trow"><div class="tinf"><div class="tna">Smart Suggestions</div><div class="tde">Auto-suggest categories when typing</div></div><div class="tsw ${localStorage.getItem('ft_autocat_off') !== 'true' ? 'on' : ''}" onclick="this.classList.toggle('on');localStorage.setItem('ft_autocat_off',this.classList.contains('on')?'false':'true')"></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding:10px 14px;background:var(--bg-primary);border-radius:8px"><div><div style="font-size:11px;font-weight:500">Category Memory</div><div style="font-size:10px;color:var(--text-tertiary)">${catMemSize} patterns learned</div></div><button class="btn bs" style="font-size:10px;padding:5px 12px;color:var(--rose);border-color:var(--rose)" onclick="if(confirm('Clear all patterns?')){if(typeof clearCatMemory==='function')clearCatMemory();renderSysSub('budgetcat')}">Clear</button></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><div style="width:32px;height:32px;border-radius:8px;background:var(--blue-light);color:var(--blue);display:flex;align-items:center;justify-content:center"><i data-lucide="hard-drive" width="15" height="15"></i></div><div id="${storageCard}"><div style="font-size:13px;font-weight:600">Storage</div><div style="font-size:10px;color:var(--text-tertiary)">Calculating...</div></div></div><div id="${storageCard}_bar" style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:0%;background:var(--emerald);border-radius:3px;transition:width 300ms"></div></div></div>`;
     // Async: update storage display after render
     setTimeout(function() {
       if (navigator.storage && navigator.storage.estimate) {
@@ -131,13 +131,13 @@ function renderSysSub(sub) {
           var pct = quota > 0 ? Math.min(100, (used / quota * 100)).toFixed(1) : 0;
           var color = pct > 80 ? 'var(--rose)' : pct > 60 ? 'var(--amber)' : 'var(--emerald)';
           var el = document.getElementById(storageCard);
-          if (el) el.innerHTML = '<div style="font-size:13px;font-weight:600">Storage (IndexedDB)</div><div style="font-size:10px;color:var(--text-tertiary)">' + usedMB + ' MB of ~' + quotaMB + ' MB (' + pct + '%)</div>';
+          if (el) el.innerHTML = '<div style="font-size:13px;font-weight:600">Storage</div><div style="font-size:10px;color:var(--text-tertiary)">' + usedMB + ' MB of ~' + quotaMB + ' MB (' + pct + '%)</div>';
           var bar = document.getElementById(storageCard + '_bar');
           if (bar) bar.innerHTML = '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:3px;transition:width 300ms"></div>';
         });
       } else {
         var el = document.getElementById(storageCard);
-        if (el) el.innerHTML = '<div style="font-size:13px;font-weight:600">Storage (IndexedDB)</div><div style="font-size:10px;color:var(--text-tertiary)">Unlimited (StorageManager not available)</div>';
+        if (el) el.innerHTML = '<div style="font-size:13px;font-weight:600">Storage</div><div style="font-size:10px;color:var(--text-tertiary)">Unlimited (StorageManager not available)</div>';
       }
     }, 100);
   } else if (sub === 'years') {
@@ -190,7 +190,7 @@ function renderLanguageTab(c) {
 // v15.3.1: Switch language and stay on language tab (mobile) or re-render settings (desktop)
 function switchLang(lang) {
   currentLang = lang;
-  safeSave('ft_lang', lang);
+  localStorage.setItem('ft_lang', lang);
   if (lang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (lang === 'ja' || lang === 'ko') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
   else document.body.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif";
@@ -569,16 +569,12 @@ async function verifyResetBiometric(resetType) {
 function executeReset(resetType) {
   if (resetType === 'all') {
     if (!confirm('FINAL WARNING: All financial data will be permanently erased. This cannot be undone.')) return;
-    // Clear IndexedDB
-    if (typeof ftDB !== 'undefined') {
-      indexedDB.deleteDatabase('FinTrackDB');
-    }
     localStorage.clear();
     toast('🗑 All data cleared. Reloading...');
     setTimeout(function() { location.reload(); }, 800);
   } else {
-    safeSave('ft_txn_data', '[]');
-    safeSave('ft_nxId', '100');
+    localStorage.setItem('ft_txn_data', '[]');
+    localStorage.setItem('ft_nxId', '100');
     TXN = []; nxId = 100;
     toast('🗑 Transactions cleared');
     render();
@@ -822,4 +818,3 @@ function deleteReminder(id) {
 // === NOTIFICATION BELL — functions in helpers.js ===
 // updateNotifBadge, toggleNotifPanel, completeReminder, dismissReminder
 // are all defined in helpers.js (loaded before settings.js)div class="nsec">System</div><div class="sni" onclick="checkForUpdates()"><i data-lucide="refresh-cw" width="14" height="14"></i>Check for Updates</div><
-done
