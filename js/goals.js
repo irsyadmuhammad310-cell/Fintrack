@@ -318,7 +318,7 @@ function toggleGoalMenu(id) {
 
 // === BUDGET PLANNER CRUD (with category breakdown) ===
 function editBudgetMonth(year, monthIdx) {
-  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const monthKey = String(monthIdx);
   const yearData = BUDGET_PLANS[yearKey] || {};
@@ -364,7 +364,7 @@ function editBudgetMonth(year, monthIdx) {
 
 function saveBudgetMonth(e, year, monthIdx) {
   e.preventDefault();
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   if (!plans[yearKey]) plans[yearKey] = {};
 
@@ -387,7 +387,7 @@ function saveBudgetMonth(e, year, monthIdx) {
   var totalExp = Object.values(expCats).reduce(function(s, v) { return s + v; }, 0);
 
   plans[yearKey][String(monthIdx)] = { incCats: incCats, expCats: expCats, s: savAmount, i: totalInc, e: totalExp };
-  localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  safeSave('ft_budget_plans', JSON.stringify(plans));
   document.getElementById('mbudget').remove();
   document.body.style.overflow = '';
   toast('✅ Budget saved for ' + MONTH_NAMES[monthIdx] + ' ' + year);
@@ -915,7 +915,7 @@ function renderMobileBudgetTab(MD, year) {
   // Expense
   html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_expense') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';font-feature-settings:\'tnum\'">' + expPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + expPct + '%;background:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pExp) + ' spent</span><span>' + fmt(monthlyBudget) + ' budgeted</span></div></div>';
   // Savings rate
-  html += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('an_savings_rate') + '</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:\'tnum\'">' + savPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + savPct + '%;background:var(--blue);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pSav) + ' saved</span><span>' + fmt(pInc) + ' income</span></div></div>';
+  html += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('an_savings_rate') + '</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:\'tnum\'">' + savPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + savPct + '%;background:var(--blue);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pSav) + ' saved</span><span>' + fmt(mobSavBudget) + ' target</span></div></div>';
   html += '</div>';
 
   // Overspent categories
