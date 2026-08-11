@@ -108,8 +108,39 @@ function renderGenSub(sub) {
 // === SYSTEM TAB (clickable sub-items) ===
 function renderSystemTab(c) {
   try {
-  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div></div>`;
+  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div><div class="mob-set-item" onclick="restoreFromIDB()"><span class="mob-set-icon">🔧</span><span class="mob-set-label">Restore from IndexedDB</span><span class="mob-set-val">&#8250;</span></div></div>`;
   } catch(e) { c.innerHTML = '<div style="padding:20px;color:var(--rose);font-size:12px">Error: ' + e.message + '</div>'; }
+}
+
+// === RESTORE FROM INDEXEDDB ===
+async function restoreFromIDB() {
+  try {
+    var db = await new Promise(function(resolve) {
+      var req = indexedDB.open('FinTrackDB', 1);
+      req.onupgradeneeded = function(e) { e.target.result.createObjectStore('kv', { keyPath: 'k' }); };
+      req.onsuccess = function(e) { resolve(e.target.result); };
+      req.onerror = function() { resolve(null); };
+    });
+    if (!db) { toast('❌ IndexedDB not available'); return; }
+    var tx = db.transaction('kv', 'readonly');
+    var all = await new Promise(function(resolve) {
+      var req = tx.objectStore('kv').getAll();
+      req.onsuccess = function() { resolve(req.result || []); };
+      req.onerror = function() { resolve([]); };
+    });
+    if (all.length === 0) { toast('⚠️ IndexedDB is empty. No data to restore.'); return; }
+    var restored = 0;
+    all.forEach(function(entry) {
+      if (entry.k !== '_ft_migrated') {
+        localStorage.setItem(entry.k, entry.v);
+        restored++;
+      }
+    });
+    toast('✅ Restored ' + restored + ' keys! Reloading...');
+    setTimeout(function() { location.reload(); }, 1000);
+  } catch(e) {
+    toast('❌ Restore failed: ' + e.message);
+  }
 }
 
 function renderSysSub(sub) {
