@@ -1,14 +1,46 @@
 // === HELPERS & UI UTILITIES (v15.8.1) ===
 
+// === XSS SANITIZATION (#8) ===
+function escapeHTML(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// === SESSION TIMEOUT (#7) ===
+var _idleTimer = null;
+var _sessionLocked = false;
+function getSessionTimeout() { return parseInt(safeGet('ft_session_timeout') || '300000'); }
+function setSessionTimeout(ms) { safeSave('ft_session_timeout', String(ms)); resetIdleTimer(); }
+function resetIdleTimer() {
+  clearTimeout(_idleTimer);
+  _sessionLocked = false;
+  var timeout = getSessionTimeout();
+  if (timeout <= 0 || !FT_APP_LOCK) return;
+  _idleTimer = setTimeout(lockSession, timeout);
+}
+function lockSession() {
+  if (!FT_APP_LOCK) return;
+  _sessionLocked = true;
+  showUnlockScreen();
+}
+function initIdleTracking() {
+  ['click', 'keydown', 'touchstart', 'mousemove'].forEach(function(evt) {
+    document.addEventListener(evt, resetIdleTimer, { passive: true });
+  });
+  resetIdleTimer();
+}
+
 // === HIDE/SHOW AMOUNTS (Eye toggle) ===
 function toggleHideAmounts() {
-  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
-  localStorage.setItem('ft_hide_amounts', hidden ? 'false' : 'true');
+  const hidden = safeGet('ft_hide_amounts') === 'true';
+  safeSave('ft_hide_amounts', hidden ? 'false' : 'true');
   applyHideAmounts();
 }
 
 function applyHideAmounts() {
-  const hidden = localStorage.getItem('ft_hide_amounts') === 'true';
+  const hidden = safeGet('ft_hide_amounts') === 'true';
   const blur = hidden ? 'blur(8px)' : 'none';
   // Target all money-displaying elements across all tabs
   const selectors = [
@@ -49,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cnt = document.getElementById('cnt');
   if (cnt) {
     const observer = new MutationObserver(() => {
-      if (localStorage.getItem('ft_hide_amounts') === 'true') {
+      if (safeGet('ft_hide_amounts') === 'true') {
         setTimeout(applyHideAmounts, 50);
       }
     });
@@ -70,14 +102,14 @@ async function hashPIN(pin) {
 
 function getPK() {
   // Legacy: if old plain-text PIN exists, return it (will be migrated on next change)
-  const legacy = localStorage.getItem('ft_pk');
+  const legacy = safeGet('ft_pk');
   if (legacy && legacy.length < 64) return legacy;
   // Default fallback
   return '1234';
 }
 
 function getPKHash() {
-  return localStorage.getItem('ft_pk_hash') || null;
+  return safeGet('ft_pk_hash') || null;
 }
 
 async function verifyPIN(inputPin) {
@@ -92,7 +124,7 @@ async function verifyPIN(inputPin) {
 
 async function setPINSecure(newPin) {
   const hash = await hashPIN(newPin);
-  localStorage.setItem('ft_pk_hash', hash);
+  safeSave('ft_pk_hash', hash);
   localStorage.removeItem('ft_pk'); // Remove legacy plain-text
 }
 
@@ -110,12 +142,12 @@ function generateRecoveryCode() {
 async function setupRecoveryCode() {
   const code = generateRecoveryCode();
   const codeHash = await hashPIN(code);
-  localStorage.setItem('ft_recovery_hash', codeHash);
+  safeSave('ft_recovery_hash', codeHash);
   return code;
 }
 
 async function verifyRecoveryCode(inputCode) {
-  const storedHash = localStorage.getItem('ft_recovery_hash');
+  const storedHash = safeGet('ft_recovery_hash');
   if (!storedHash) return false;
   const cleanCode = inputCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
   // Try with and without dashes
@@ -127,7 +159,7 @@ async function verifyRecoveryCode(inputCode) {
 }
 
 function hasRecoverySetup() {
-  return !!localStorage.getItem('ft_recovery_hash');
+  return !!safeGet('ft_recovery_hash');
 }
 
 // === SECURITY QUESTIONS (v15.7) ===
@@ -149,11 +181,11 @@ async function saveSecurityAnswers(q1Index, a1, q2Index, a2) {
     q2: q2Index,
     a2: await hashPIN(a2.trim().toLowerCase())
   };
-  localStorage.setItem('ft_security_questions', JSON.stringify(data));
+  safeSave('ft_security_questions', JSON.stringify(data));
 }
 
 async function verifySecurityAnswers(a1, a2) {
-  const stored = localStorage.getItem('ft_security_questions');
+  const stored = safeGet('ft_security_questions');
   if (!stored) return false;
   const data = JSON.parse(stored);
   const hash1 = await hashPIN(a1.trim().toLowerCase());
@@ -162,27 +194,27 @@ async function verifySecurityAnswers(a1, a2) {
 }
 
 function hasSecurityQuestions() {
-  return !!localStorage.getItem('ft_security_questions');
+  return !!safeGet('ft_security_questions');
 }
 
 function getSecurityQuestionIndices() {
-  const stored = localStorage.getItem('ft_security_questions');
+  const stored = safeGet('ft_security_questions');
   if (!stored) return null;
   const data = JSON.parse(stored);
   return { q1: data.q1, q2: data.q2 };
 }
 
 // === APP LOCK (Simple PIN) ===
-var FT_APP_LOCK = localStorage.getItem('ft_app_lock') === 'true';
+var FT_APP_LOCK = safeGet('ft_app_lock') === 'true';
 
 function enableAppLock() {
-  localStorage.setItem('ft_app_lock', 'true');
+  safeSave('ft_app_lock', 'true');
   FT_APP_LOCK = true;
   toast('🔐 App lock enabled');
 }
 
 function disableAppLock() {
-  localStorage.removeItem('ft_app_lock');
+  safeSave('ft_app_lock', 'false');
   FT_APP_LOCK = false;
   toast('🔓 App lock disabled');
 }
@@ -217,7 +249,7 @@ function toggleTheme() {
   h.dataset.theme = d ? 'light' : 'dark';
   document.getElementById('thico').dataset.lucide = d ? 'sun' : 'moon';
   lucide.createIcons();
-  localStorage.setItem('theme', h.dataset.theme);
+  safeSave('theme', h.dataset.theme);
   navigate(curPage);
   toast(d ? t('misc_light') : t('misc_dark'));
 }
@@ -429,11 +461,11 @@ function resolveHintFromSchema(type, hint) {
 }
 
 function getCatMemory() {
-  return JSON.parse(localStorage.getItem(CAT_MEMORY_KEY) || '{}');
+  return JSON.parse(safeGet(CAT_MEMORY_KEY) || '{}');
 }
 
 function saveCatMemory(mem) {
-  localStorage.setItem(CAT_MEMORY_KEY, JSON.stringify(mem));
+  safeSave(CAT_MEMORY_KEY, JSON.stringify(mem));
 }
 
 function normalizeMerchant(text) {
@@ -569,14 +601,14 @@ function suggestCategory(description) {
 
 // Bootstrap: learn from all existing transactions on first run
 function bootstrapCatMemory() {
-  if (localStorage.getItem('ft_cat_bootstrapped')) return;
+  if (safeGet('ft_cat_bootstrapped')) return;
   TXN.forEach(tx => learnFromTransaction(tx));
-  localStorage.setItem('ft_cat_bootstrapped', '1');
+  safeSave('ft_cat_bootstrapped', '1');
 }
 
 // Clear memory (for Settings toggle)
 function clearCatMemory() {
-  localStorage.setItem(CAT_MEMORY_KEY, '{}');
-  localStorage.removeItem('ft_cat_bootstrapped');
+  safeSave(CAT_MEMORY_KEY, '{}');
+  safeSave('ft_cat_bootstrapped', '');
   toast('🧹 Category memory cleared');
 }
