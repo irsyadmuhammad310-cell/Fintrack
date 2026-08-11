@@ -3,7 +3,7 @@ function renderDashboard(c) {
   const year = getSelectedYear();
 
   // v15.8.1: Mobile gets stripped-down dashboard (unless user forced desktop view)
-  const forceDesktop = safeGet('ft_desktop_mode') === 'true';
+  const forceDesktop = localStorage.getItem('ft_desktop_mode') === 'true';
   if (window.innerWidth <= 900 && !forceDesktop) {
     renderMobileDashboard(c, year);
     return;
@@ -238,7 +238,7 @@ function getDashboardOverspentCats() {
     const mf = mfEl ? mfEl.value : 'total';
     const year = getSelectedYear();
 
-    const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
 
     // Determine target month for transaction checking
     let targetMonth, targetYear;
@@ -366,7 +366,7 @@ function computeCashFlowForecast() {
 
   // v15.8.2: Monthly income = actual income for the selected month (primary source)
   // Fallback to budget plan income if actual is 0
-  const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
   const yearKey = String(targetYear);
   const monthPlan = PLANS[yearKey] && (PLANS[yearKey][String(targetMonth)] || PLANS[yearKey][targetMonth]);
 
@@ -520,7 +520,7 @@ function renderMobileDashboard(c, year) {
   // Budget categories progress (top 4)
   const expCats = computeExpenseCategoriesByPeriod(year, mf);
   const topCats = expCats.slice(0, 4);
-  const PLANS_MOB = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const PLANS_MOB = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
   const mobYearKey = String(year);
   const mobMonthPlan = mf !== 'total' && PLANS_MOB[mobYearKey] ? PLANS_MOB[mobYearKey][+mf] : null;
   const budgetBarsHtml = topCats.map(cat => {
