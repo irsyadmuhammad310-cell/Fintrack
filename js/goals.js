@@ -154,8 +154,8 @@ function renderGoals(c) {
       return p && p.i ? p.i : 0;
     }
   })();
-  const incPct = incBudgetForProgress > 0 ? Math.min((pInc / incBudgetForProgress * 100), 100).toFixed(0) : 0;
-  const expPct = budgetTotalForProgress > 0 ? Math.min((pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100), 100).toFixed(0) : 0;
+  const incPct = incBudgetForProgress > 0 ? (pInc / incBudgetForProgress * 100).toFixed(0) : 0;
+  const expPct = budgetTotalForProgress > 0 ? (pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const savBudget = (() => {
     var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
@@ -169,13 +169,13 @@ function renderGoals(c) {
       return p && p.s ? p.s : 0;
     }
   })();
-  const savPct = savBudget > 0 ? Math.min((pSav / savBudget * 100), 100).toFixed(0) : 0;
+  const savPct = savBudget > 0 ? (pSav / savBudget * 100).toFixed(0) : 0;
 
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:10px">${t('goal_budget_progress')}</div>`;
   html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px">`;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('dash_income')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${incPct}%;background:var(--emerald);border-radius:3px"></div></div><div style="font-size:11px;font-weight:700">${incPct}%</div></div>`;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('dash_expense')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${expPct}%;background:var(--rose);border-radius:3px"></div></div><div style="font-size:11px;font-weight:700">${expPct}%</div></div>`;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('an_savings_rate')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${savPct}%;background:var(--blue);border-radius:3px"></div></div><div style="font-size:11px;font-weight:700">${savPct}%</div></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('dash_income')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(incPct,100)}%;background:var(--emerald);border-radius:3px"></div></div><div style="font-size:11px;font-weight:700">${incPct}%</div></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('dash_expense')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(expPct,100)}%;background:${expPct > 100 ? 'var(--rose)' : 'var(--amber)'};border-radius:3px"></div></div><div style="font-size:11px;font-weight:700;color:${expPct > 100 ? 'var(--rose)' : ''}">${expPct}%</div></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:10px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">${t('an_savings_rate')}</div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(savPct,100)}%;background:var(--blue);border-radius:3px"></div></div><div style="font-size:11px;font-weight:700">${savPct}%</div></div>`;
   html += `</div>`;
 
   // === BUDGET STATUS: Overspent Categories (Cover Overspending Flow) ===
@@ -917,8 +917,8 @@ function renderMobileBudgetTab(MD, year) {
       return p && p.i ? p.i : 0;
     }
   })();
-  const incPct = mobIncBudget > 0 ? Math.min((pInc / mobIncBudget * 100), 100).toFixed(0) : 0;
-  const expPct = monthlyBudget > 0 ? Math.min((pExp / monthlyBudget * 100), 100).toFixed(0) : 0;
+  const incPct = mobIncBudget > 0 ? (pInc / mobIncBudget * 100).toFixed(0) : 0;
+  const expPct = monthlyBudget > 0 ? (pExp / monthlyBudget * 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const mobSavBudget = (() => {
     var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
@@ -932,16 +932,16 @@ function renderMobileBudgetTab(MD, year) {
       return p && p.s ? p.s : 0;
     }
   })();
-  const savPct = mobSavBudget > 0 ? Math.min((pSav / mobSavBudget * 100), 100).toFixed(0) : 0;
+  const savPct = mobSavBudget > 0 ? (pSav / mobSavBudget * 100).toFixed(0) : 0;
   const periodLabel = mf === 'total' ? year + ' Progress' : MONTH_NAMES[+mf] + ' Progress';
 
   html += '<div style="margin-bottom:20px"><div style="font-size:13px;font-weight:700;margin-bottom:12px;letter-spacing:-0.01em">' + periodLabel + '</div>';
   // Income
-  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_income') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + incPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + incPct + '%;background:var(--emerald);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pInc) + ' earned</span><span>' + fmt(mobIncBudget) + ' planned</span></div></div>';
+  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_income') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:\'tnum\'">' + incPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + Math.min(incPct, 100) + '%;background:var(--emerald);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pInc) + ' earned</span><span>' + fmt(mobIncBudget) + ' planned</span></div></div>';
   // Expense
-  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_expense') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';font-feature-settings:\'tnum\'">' + expPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + expPct + '%;background:' + (expPct > 90 ? 'var(--rose)' : 'var(--amber)') + ';border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pExp) + ' spent</span><span>' + fmt(monthlyBudget) + ' budgeted</span></div></div>';
-  // Savings rate
-  html += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('an_savings_rate') + '</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:\'tnum\'">' + savPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + savPct + '%;background:var(--blue);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pSav) + ' saved</span><span>' + fmt(mobSavBudget) + ' target</span></div></div>';
+  html += '<div style="margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('dash_expense') + ' vs Budget</span><span style="font-size:11px;font-weight:700;color:' + (expPct > 100 ? 'var(--rose)' : expPct > 90 ? 'var(--amber)' : 'var(--text-primary)') + ';font-feature-settings:\'tnum\'">' + expPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + Math.min(expPct, 100) + '%;background:' + (expPct > 100 ? 'var(--rose)' : 'var(--amber)') + ';border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pExp) + ' spent</span><span>' + fmt(monthlyBudget) + ' budgeted</span></div></div>';
+  // Savings
+  html += '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;font-weight:600;color:var(--text-secondary)">' + t('an_savings_rate') + '</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:\'tnum\'">' + savPct + '%</span></div><div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + Math.min(savPct, 100) + '%;background:var(--blue);border-radius:3px;transition:width 600ms cubic-bezier(0.22,1,0.36,1)"></div></div><div style="display:flex;justify-content:space-between;font-size:9px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:3px"><span>' + fmt(pSav) + ' saved</span><span>' + fmt(mobSavBudget) + ' target</span></div></div>';
   html += '</div>';
 
   // Overspent categories
