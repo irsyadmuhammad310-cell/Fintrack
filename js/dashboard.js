@@ -806,6 +806,7 @@ function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, per
 
   // Budget warnings
   const overspent = getDashboardOverspentCats();
+  const budgetUsed = periodBudget > 0 ? (te / periodBudget * 100).toFixed(0) : 0;
   if (overspent.length) {
     insights.push({ icon: '⚠️', text: `<b>${overspent.length} categor${overspent.length > 1 ? 'ies' : 'y'}</b> over budget. Total overspend: ${fmt(overspent.reduce((s, o) => s + o.over, 0))}.` });
   } else if (+budgetUsed <= 70 && periodBudget > 0) {
