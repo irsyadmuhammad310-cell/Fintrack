@@ -108,39 +108,8 @@ function renderGenSub(sub) {
 // === SYSTEM TAB (clickable sub-items) ===
 function renderSystemTab(c) {
   try {
-  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div><div class="mob-set-item" onclick="restoreFromIDB()"><span class="mob-set-icon">🔧</span><span class="mob-set-label">Restore from IndexedDB</span><span class="mob-set-val">&#8250;</span></div></div>`;
+  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('backup')"><span class="mob-set-icon">💾</span><span class="mob-set-label">Backup & Restore</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div></div>`;
   } catch(e) { c.innerHTML = '<div style="padding:20px;color:var(--rose);font-size:12px">Error: ' + e.message + '</div>'; }
-}
-
-// === RESTORE FROM INDEXEDDB ===
-async function restoreFromIDB() {
-  try {
-    var db = await new Promise(function(resolve) {
-      var req = indexedDB.open('FinTrackDB', 1);
-      req.onupgradeneeded = function(e) { e.target.result.createObjectStore('kv', { keyPath: 'k' }); };
-      req.onsuccess = function(e) { resolve(e.target.result); };
-      req.onerror = function() { resolve(null); };
-    });
-    if (!db) { toast('❌ IndexedDB not available'); return; }
-    var tx = db.transaction('kv', 'readonly');
-    var all = await new Promise(function(resolve) {
-      var req = tx.objectStore('kv').getAll();
-      req.onsuccess = function() { resolve(req.result || []); };
-      req.onerror = function() { resolve([]); };
-    });
-    if (all.length === 0) { toast('⚠️ IndexedDB is empty. No data to restore.'); return; }
-    var restored = 0;
-    all.forEach(function(entry) {
-      if (entry.k !== '_ft_migrated') {
-        localStorage.setItem(entry.k, entry.v);
-        restored++;
-      }
-    });
-    toast('✅ Restored ' + restored + ' keys! Reloading...');
-    setTimeout(function() { location.reload(); }, 1000);
-  } catch(e) {
-    toast('❌ Restore failed: ' + e.message);
-  }
 }
 
 function renderSysSub(sub) {
@@ -175,6 +144,11 @@ function renderSysSub(sub) {
     html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Year Management</div><div style="display:flex;gap:8px;margin-bottom:14px"><input class="fi" type="number" id="addYearInput" placeholder="e.g. 2041" style="max-width:120px;font-size:12px" min="1900" max="2100"><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="handleAddYear()">+ Add</button></div><div style="display:flex;flex-wrap:wrap;gap:6px">`;
     YEARS.forEach(y => { const hasData = yearHasData(y); const isCurrent = y === CURRENT_YEAR; html += `<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1px solid ${isCurrent ? 'var(--accent)' : 'var(--border)'};border-radius:7px;background:${isCurrent ? 'var(--accent-light)' : 'var(--bg-primary)'};font-size:12px;font-weight:${isCurrent ? '600' : '500'}"><span>${y}</span>${hasData ? '<span style="font-size:8px;color:var(--emerald);font-weight:600;margin-left:2px">DATA</span>' : ''}<button style="border:none;background:none;color:${hasData ? 'var(--border)' : 'var(--rose)'};cursor:${hasData ? 'not-allowed' : 'pointer'};font-size:12px;padding:0 2px;opacity:${hasData ? '0.3' : '1'}" onclick="${hasData ? '' : 'handleRemoveYear(' + y + ')'}">✕</button></div>`; });
     html += `</div><div style="margin-top:12px;font-size:10px;color:var(--text-tertiary)">Years with data cannot be removed.</div></div>`;
+  } else if (sub === 'backup') {
+    const lastBackup = safeGet('ft_last_backup_date');
+    const lastLabel = lastBackup ? new Date(lastBackup).toLocaleString() : 'Never';
+    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="download" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Export Data</div><div style="font-size:10px;color:var(--text-tertiary)">Last backup: ${lastLabel}</div></div></div><div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn bp" style="font-size:11px;padding:8px 14px" onclick="exportJSON();markBackupDone()"><i data-lucide="file-json" width="13" height="13"></i> JSON</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="exportCSV();markBackupDone()"><i data-lucide="file-text" width="13" height="13"></i> CSV</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="exportExcel();markBackupDone()"><i data-lucide="table" width="13" height="13"></i> Excel</button></div></div>`;
+    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="upload" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Import Data</div><div style="font-size:10px;color:var(--text-tertiary)">Restore from backup file</div></div></div><div style="display:flex;flex-direction:column;gap:8px"><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-json" width="13" height="13"></i> Import JSON<input type="file" accept=".json" style="display:none" onchange="importJSON(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-text" width="13" height="13"></i> Import CSV<input type="file" accept=".csv" style="display:none" onchange="importCSV(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="table" width="13" height="13"></i> Import Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="importExcel(this)"></label></div><div style="margin-top:10px;font-size:10px;color:var(--text-tertiary)">JSON: full backup (transactions + accounts + goals + settings). CSV/Excel: transactions only.</div></div>`;
   }
   c.innerHTML = html; lucide.createIcons();
 }
