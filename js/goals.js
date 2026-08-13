@@ -122,7 +122,7 @@ function renderGoals(c) {
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + linkedCats.join(', ') : t('goal_manual')}</div></div>`;
       html += `</div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--text-tertiary);font-style:italic">${t('goal_no_notes')}</div>`;
-      html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${g.id})">${t('goal_edit')}</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${g.id})">${t('goal_delete')}</button></div>`;
+      html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${g.id})">${t('goal_edit')}</button><button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${g.id})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${g.id})">${t('goal_delete')}</button></div>`;
       html += `</div>`;
     }
     html += `</div>`;
@@ -194,10 +194,9 @@ function renderGoals(c) {
     const overspentCats = [];
     Object.entries(statusMonthPlan.expCats).forEach(([cat, budget]) => {
       if (budget <= 0) return;
-      // tx.a is cents, budget is real currency. Convert spent to real.
-      const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
-      const spentReal = spentCents / 100;
-      if (spentReal > budget) overspentCats.push({ cat, budget, spent: spentReal, over: Math.round((spentReal - budget) * 100) / 100 });
+      // tx.a is real currency (not cents). Compare directly to budget.
+      const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
+      if (spent > budget) overspentCats.push({ cat, budget, spent, over: Math.round((spent - budget) * 100) / 100 });
     });
     if (overspentCats.length > 0) {
       html += `<div class="cover-alert-section"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:14px;font-weight:700;color:var(--rose)">⚠️ Overspent Categories</div><div style="font-size:11px;color:var(--text-tertiary)">${MONTH_NAMES[currentMonth]} ${currentYear}</div></div>`;
@@ -205,7 +204,7 @@ function renderGoals(c) {
       overspentCats.forEach((item, idx) => {
         const pct = ((item.spent / item.budget) * 100).toFixed(0);
         const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
-        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(Math.round(item.spent * 100))} / ${fmt(Math.round(item.budget * 100))} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(Math.round(item.over * 100))} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
+        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(item.spent)} / ${fmt(item.budget)} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(item.over)} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
       });
       html += `</div></div>`;
     }
@@ -272,7 +271,9 @@ function openGoalModal(editG) {
   const savCats = Object.keys(SCHEMA.Savings || {});
   const linkedArr = isEdit && editG.linkedCats ? editG.linkedCats : (isEdit && editG.linkedCat ? [editG.linkedCat] : []);
   const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + cat + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + cat + '</label>').join('');
-  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">Current Saved</label><input class="fi" type="number" step="0.01" id="g_current" value="${isEdit ? editG.c : '0'}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Savings Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
+  const currentVal = isEdit ? (linkedArr.length && editG.base !== undefined ? editG.base : editG.c) : '0';
+  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${currentVal}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Savings Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
@@ -280,7 +281,18 @@ function openGoalModal(editG) {
 function saveGoal(e, editId) {
   e.preventDefault();
   const linkedCats = Array.from(document.querySelectorAll('.g_linked_chk:checked')).map(el => el.value);
-  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: parseFloat(document.getElementById('g_current').value) || 0, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '' };
+  const isLinked = linkedCats.length > 0;
+  const currentVal = parseFloat(document.getElementById('g_current').value) || 0;
+  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '' };
+  // For linked goals, "Current Saved" field = base (initial untracked balance).
+  // Sync will set g.c = base + sum(savings txns) on next render.
+  if (isLinked) {
+    data.base = currentVal;
+    const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && linkedCats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
+    data.c = currentVal + totalFromTxn;
+  } else {
+    data.base = 0;
+  }
   if (editId) {
     const idx = GOALS.findIndex(g => g.id === editId);
     if (idx >= 0) GOALS[idx] = { ...GOALS[idx], ...data };
@@ -299,11 +311,23 @@ function saveGoal(e, editId) {
 function addMoneyToGoal(id) {
   const g = GOALS.find(x => x.id === id);
   if (!g) return;
-  const amt = prompt('Add amount to "' + g.n + '":\nCurrent: ' + fmt(g.c) + ' / ' + fmt(g.t));
+  const cats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
+  const isLinked = cats.length > 0;
+  const label = isLinked
+    ? 'Add initial/untracked balance to "' + g.n + '":\n(This won\'t be overwritten by sync)\nCurrent base: ' + fmt(g.base || 0)
+    : 'Add amount to "' + g.n + '":\nCurrent: ' + fmt(g.c) + ' / ' + fmt(g.t);
+  const amt = prompt(label);
   if (!amt) return;
   const val = parseFloat(amt);
   if (isNaN(val) || val <= 0) { toast('❌ Invalid amount'); return; }
-  g.c += val;
+  if (isLinked) {
+    g.base = (g.base || 0) + val;
+    // Recalculate g.c with updated base + transaction total
+    const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && cats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
+    g.c = g.base + totalFromTxn;
+  } else {
+    g.c += val;
+  }
   saveGOALS();
   toast('✅ Added ' + fmt(val));
   renderGoals(document.getElementById('cnt'));
@@ -433,12 +457,13 @@ function syncGoalsWithSavings() {
     const cats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
     if (!cats.length) return;
     const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && cats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
-    if (g.c !== totalFromTxn) {
+    // g.base = initial/untracked balance set by user (money already in account before tracking)
+    const newC = (g.base || 0) + totalFromTxn;
+    if (g.c !== newC) {
       const oldC = g.c;
-      g.c = totalFromTxn;
+      g.c = newC;
       changed = true;
-      // v15.4: Check milestones
-      checkGoalMilestones(g, oldC, totalFromTxn);
+      checkGoalMilestones(g, oldC, newC);
     }
   });
   if (changed) saveGOALS();
@@ -585,23 +610,22 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
 
   // Get actual spending per category this month
   // Transactions: tx.c = category (top-level), tx.s = subcategory
-  // Budget expCats are in REAL CURRENCY. tx.a is in CENTS. Convert tx.a to real for comparison.
+  // tx.a is real currency. Compare directly to budget.
   const monthTxns = TXN.filter(tx => {
     const d = new Date(tx.d);
     return d.getFullYear() === year && d.getMonth() === monthIdx && tx.t === 'Expense';
   });
 
-  // Find categories with available budget to pull from
+  // Find categories with available budget to pull from (only show categories with REMAINING budget)
   const availableCats = [];
   Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
     if (cat === overspentCat || budget <= 0) return;
-    // Convert spent from cents to real currency for budget comparison
-    const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
-    const spentReal = spentCents / 100;
-    const remaining = budget - spentReal;
+    const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0);
+    const remaining = budget - spent;
+    // Only show categories that still have remaining budget (fully utilized = hidden)
     if (remaining > 0) {
       const catEmoji = SCHEMA.Expense && SCHEMA.Expense[cat] ? (SCHEMA.Expense[cat].emoji || '📦') : '📦';
-      availableCats.push({ cat, budget, spent: spentReal, remaining, emoji: catEmoji });
+      availableCats.push({ cat, budget, spent, remaining, emoji: catEmoji });
     }
   });
 
@@ -954,7 +978,7 @@ function renderMobileBudgetTab(MD, year) {
   if (statusMonthPlan2 && statusMonthPlan2.expCats) {
     const monthTxns = TXN.filter(tx => { const d = new Date(tx.d); return d.getFullYear() === currentYear && d.getMonth() === currentMonth && tx.t === 'Expense'; });
     const overspentCats = [];
-    Object.entries(statusMonthPlan2.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spentCents = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0); const spentReal = spentCents / 100; if (spentReal > budget) overspentCats.push({ cat, budget, spent: spentReal, over: Math.round((spentReal - budget) * 100) / 100 }); });
+    Object.entries(statusMonthPlan2.expCats).forEach(([cat, budget]) => { if (budget <= 0) return; const spent = monthTxns.filter(tx => tx.c === cat || (tx.c && tx.c.toLowerCase() === cat.toLowerCase())).reduce((s, tx) => s + tx.a, 0); if (spent > budget) overspentCats.push({ cat, budget, spent, over: Math.round((spent - budget) * 100) / 100 }); });
     if (overspentCats.length > 0) {
       html += '<div style="height:1px;background:var(--border);margin:18px 0"></div>';
       html += '<div style="margin-bottom:18px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:var(--rose)">⚠️ Overspent</span><span style="font-size:10px;color:var(--text-tertiary)">' + MONTH_NAMES[currentMonth] + ' ' + currentYear + '</span></div>';
