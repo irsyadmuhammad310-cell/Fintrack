@@ -63,11 +63,12 @@ function navigate(page) {
   document.getElementById('pt').textContent = t(titleKeys[page]) || page;
   document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
 
-  // Set default month filter per tab
+  // Set default month filter per tab (only on first visit, preserve user's selection after)
   const mf = document.getElementById('mf');
   if (mf) {
-    if (page === 'transactions') {
+    if (page === 'transactions' && !txnInitialized) {
       mf.value = String(new Date().getMonth());
+      txnInitialized = true;
     } else if (page === 'dashboard' || page === 'analytics') {
       mf.value = 'total';
     }
