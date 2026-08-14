@@ -588,14 +588,39 @@ function executeReset(resetType) {
 
 // === EXPORT/IMPORT ===
 function triggerDownload(blob, filename) {
+  // Method 1: Try Web Share API (works in mobile PWA)
+  if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename)] })) {
+    const file = new File([blob], filename, { type: blob.type });
+    navigator.share({ files: [file], title: filename }).catch(function() {
+      // User cancelled share, fall through to method 2
+      fallbackDownload(blob, filename);
+    });
+    return;
+  }
+  fallbackDownload(blob, filename);
+}
+
+function fallbackDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
+  // Method 2: Standard anchor download
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  // Method 3: If anchor click doesn't trigger (PWA standalone), open in new tab
+  setTimeout(function() {
+    document.body.removeChild(a);
+    // Check if download likely failed (still on same page, no download started)
+    // On iOS PWA, window.navigator.standalone is true
+    if (window.navigator.standalone || window.matchMedia('(display-mode: standalone)').matches) {
+      // Open blob in new tab so user can long-press to save
+      window.open(url, '_blank');
+    } else {
+      URL.revokeObjectURL(url);
+    }
+  }, 1000);
 }
 
 function exportJSON() {
