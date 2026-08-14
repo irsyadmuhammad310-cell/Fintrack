@@ -321,12 +321,44 @@ async function ftDoUnlock() {
   }
 }
 
+// Emergency PIN reset: clears PIN hash and disables lock (data preserved)
+async function emergencyPINReset() {
+  var input = document.getElementById('ftEmergencyInput');
+  var val = input ? input.value.trim().toUpperCase() : '';
+  if (val !== 'RESET') { toast('❌ Type RESET to confirm'); return; }
+  // Clear all PIN-related keys
+  localStorage.removeItem('ft_pk_hash');
+  localStorage.removeItem('ft_pk');
+  localStorage.removeItem('ft_app_lock');
+  safeSave('ft_app_lock', 'false');
+  safeSave('ft_pk_hash', '');
+  safeSave('ft_pk', '');
+  FT_APP_LOCK = false;
+  ftIsUnlocked = true;
+  // Boot the app
+  await ftLoadAll();
+  loadAllModuleData();
+  initApp();
+  var unlockEl = document.getElementById('ftUnlock');
+  if (unlockEl) unlockEl.remove();
+  var appEl = document.getElementById('app');
+  if (appEl) appEl.style.display = '';
+  toast('✅ PIN cleared. Set a new one in Settings → Security');
+}
+
 // === FORGOT PIN (v15.7 — Recovery Code + Security Questions) ===
 function showForgotPIN() {
   var hasCode = hasRecoverySetup();
   var hasQuestions = hasSecurityQuestions();
   if (!hasCode && !hasQuestions) {
-    alert('No recovery method has been set up. You can reset the app by clearing site data, or use the default PIN: 1234');
+    // No recovery method: show emergency reset option instead of useless alert
+    var unlockEl = document.getElementById('ftUnlock');
+    if (unlockEl) unlockEl.remove();
+    var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 15),oklch(0.5 0.2 30));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="alert-triangle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">No Recovery Method</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5">No recovery code or security questions were set up. You can reset the PIN to regain access. Your financial data will NOT be deleted.</div><div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;text-align:left"><div style="font-size:11px;font-weight:600;margin-bottom:6px">To confirm reset, type RESET below:</div><input id="ftEmergencyInput" type="text" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:14px;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase" placeholder="Type RESET"></div><button onclick="emergencyPINReset()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.2 15);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">Reset PIN & Unlock</button><button onclick="showUnlockScreen()" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font)">Back to PIN</button></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    if (typeof lucide !== 'undefined') lucide.createIcons();
+    var inp = document.getElementById('ftEmergencyInput');
+    if (inp) { inp.focus(); inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); emergencyPINReset(); } }); }
     return;
   }
   var unlockEl = document.getElementById('ftUnlock');
@@ -439,7 +471,7 @@ function initApp() {
   }
   // Load language + currency preferences
   currentLang = safeGet('ft_lang') || 'en';
-  displayCurrency = safeGet('ft_currency') || 'MYR';
+  displayCurrency = safeGet('ft_currency') || 'USD';
   // Apply CJK font if needed
   if (currentLang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (currentLang === 'ja') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
