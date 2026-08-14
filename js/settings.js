@@ -473,7 +473,7 @@ function renderSecurityTab(c) {
 
   c.innerHTML = '<h3 style="font-size:15px;font-weight:600;margin-bottom:12px">' + t('set_sec_title') + '</h3><p style="font-size:12px;color:var(--text-secondary);margin-bottom:16px">' + t('set_sec_desc') + '</p>' +
   // Change PIN
-  '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="lock" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">' + t('set_change_pin') + '</div><div style="font-size:10px;color:var(--text-tertiary)">' + t('set_update_pin') + '</div></div></div><div class="fg"><label class="fl">' + t('set_cur_pk') + '</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">' + t('set_new_pk') + '</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><button class="btn bp" onclick="chgPK()">' + t('set_update') + '</button></div>' +
+  '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="lock" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">' + t('set_change_pin') + '</div><div style="font-size:10px;color:var(--text-tertiary)">' + t('set_update_pin') + '</div></div></div><div class="fg"><label class="fl">' + t('set_cur_pk') + '</label><input class="fi" type="password" id="spkc" style="max-width:200px"></div><div class="fg"><label class="fl">' + t('set_new_pk') + '</label><input class="fi" type="password" id="spkn" style="max-width:200px"></div><div style="display:flex;align-items:center;gap:12px"><button class="btn bp" onclick="chgPK()">' + t('set_update') + '</button><button style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline" onclick="forgotPINFromSettings()">Forgot PIN?</button></div></div>' +
   // Recovery Code
   '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="key" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">' + t('set_recovery_code') + '</div><div style="font-size:10px;color:var(--text-tertiary)">' + t('set_recovery_desc') + '</div></div></div><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px"><span style="font-size:12px;font-weight:600;color:' + (hasRecovery ? 'var(--emerald)' : 'var(--rose)') + '">Status: ' + (hasRecovery ? '✓' : '⚠️') + '</span><button class="btn ' + (hasRecovery ? 'bs' : 'bp') + '" style="font-size:11px;padding:6px 14px" onclick="regenerateRecoveryCode()">' + (hasRecovery ? t('set_update') : t('misc_save')) + '</button></div></div>' +
   // Security Questions
@@ -783,6 +783,24 @@ async function chgPK() {
 async function generateNewRecoveryCode() {
   const code = await setupRecoveryCode();
   showRecoveryCodeDisplay(code);
+}
+
+// Forgot PIN from Settings page
+function forgotPINFromSettings() {
+  const hasCode = typeof hasRecoverySetup === 'function' && hasRecoverySetup();
+  const hasQ = typeof hasSecurityQuestions === 'function' && hasSecurityQuestions();
+  if (hasCode || hasQ) {
+    showForgotPIN();
+  } else {
+    // No recovery: direct emergency reset
+    if (!confirm('No recovery method set up. Reset PIN now?\n\nYour financial data will NOT be deleted.')) return;
+    localStorage.removeItem('ft_pk_hash');
+    localStorage.removeItem('ft_pk');
+    safeSave('ft_pk_hash', '');
+    safeSave('ft_pk', '');
+    toast('✅ PIN cleared. You can set a new one now.');
+    renderSecurityTab(document.getElementById('setc'));
+  }
 }
 
 // === NOTIFICATION MANAGER ===
