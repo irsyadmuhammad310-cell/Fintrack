@@ -348,10 +348,49 @@ function hideCatSuggestion() {
 function doAuth(action, id) {
   if (Date.now() < lockUntil) { toast(t('auth_locked')); return; }
   pendAct = { action, id };
-  const h = `<div class="mo show" id="mauth" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('auth_title')}</div><div class="mds">${t('auth_desc')}</div></div></div><div class="fg"><label class="fl">${t('auth_passkey')}</label><input class="fi" type="password" id="f_pk" placeholder="${t('auth_enter')}" autofocus></div><div class="ferr" id="pkerr"></div><div id="pklck"></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mauth').remove();document.body.style.overflow=''">${t('auth_cancel')}</button><button class="btn bp" onclick="verifyPK()">${t('auth_confirm')}</button></div></div></div>`;
+  const h = `<div class="mo show" id="mauth" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('auth_title')}</div><div class="mds">${t('auth_desc')}</div></div></div><div class="fg"><label class="fl">${t('auth_passkey')}</label><input class="fi" type="password" id="f_pk" placeholder="${t('auth_enter')}" autofocus></div><div class="ferr" id="pkerr"></div><div id="pklck"></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mauth').remove();document.body.style.overflow=''">${t('auth_cancel')}</button><button class="btn bp" onclick="verifyPK()">${t('auth_confirm')}</button></div><div style="text-align:center;margin-top:10px"><button onclick="forgotPINFromAuth()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot PIN?</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   setTimeout(() => document.getElementById('f_pk')?.focus(), 50);
+}
+
+function forgotPINFromAuth() {
+  // Close auth modal
+  const authModal = document.getElementById('mauth');
+  if (authModal) { authModal.remove(); document.body.style.overflow = ''; }
+  // Show inline reset: since user is already in the app, allow reset with confirmation
+  const hasCode = typeof hasRecoverySetup === 'function' && hasRecoverySetup();
+  const hasQ = typeof hasSecurityQuestions === 'function' && hasSecurityQuestions();
+  if (hasCode || hasQ) {
+    // Has recovery method: redirect to recovery flow
+    showForgotPIN();
+  } else {
+    // No recovery: show emergency reset confirmation
+    const h = `<div class="mo show" id="mauthReset" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" style="max-width:380px" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">Reset PIN</div><div class="mds">No recovery method set up. Type RESET to clear your PIN.</div></div><button class="mx" onclick="document.getElementById('mauthReset').remove();document.body.style.overflow=''">✕</button></div><div class="fg"><input class="fi" type="text" id="authResetInput" placeholder="Type RESET to confirm" style="text-align:center;text-transform:uppercase;letter-spacing:2px"></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mauthReset').remove();document.body.style.overflow=''">Cancel</button><button class="btn bd" onclick="executeAuthPINReset()">Reset PIN</button></div></div></div>`;
+    document.body.insertAdjacentHTML('beforeend', h);
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => document.getElementById('authResetInput')?.focus(), 50);
+  }
+}
+
+function executeAuthPINReset() {
+  const input = document.getElementById('authResetInput');
+  const val = input ? input.value.trim().toUpperCase() : '';
+  if (val !== 'RESET') { toast('❌ Type RESET to confirm'); return; }
+  // Clear PIN
+  localStorage.removeItem('ft_pk_hash');
+  localStorage.removeItem('ft_pk');
+  safeSave('ft_pk_hash', '');
+  safeSave('ft_pk', '');
+  // Close modal
+  const modal = document.getElementById('mauthReset');
+  if (modal) { modal.remove(); document.body.style.overflow = ''; }
+  toast('✅ PIN cleared. Set a new one in Settings → Security');
+  // Now re-attempt the pending action (no PIN = passes through)
+  if (pendAct) {
+    if (pendAct.action === 'edit') doEdit(pendAct.id);
+    else doDelConfirm(pendAct.id);
+  }
 }
 
 function verifyPK() {
