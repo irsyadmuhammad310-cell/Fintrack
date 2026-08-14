@@ -69,8 +69,9 @@ function navigate(page) {
     if (page === 'transactions' && !txnInitialized) {
       mf.value = String(new Date().getMonth());
       txnInitialized = true;
-    } else if (page === 'dashboard' || page === 'analytics') {
+    } else if ((page === 'dashboard' || page === 'analytics') && !window._dashInitialized) {
       mf.value = 'total';
+      window._dashInitialized = true;
     }
   }
 
