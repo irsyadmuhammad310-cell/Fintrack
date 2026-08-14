@@ -268,29 +268,47 @@ function renderAccountsSection() {
   if (assets.length) {
     const totalAssetDisplay = assets.reduce((s, a) => s + getAccountBalanceInDisplay(a.id), 0);
     html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span>Assets</span><span style="font-size:11px;font-feature-settings:'tnum'">${fmt(totalAssetDisplay)}</span></div>`;
-    assets.forEach(a => {
+    assets.forEach((a, idx) => {
       const bal = getAccountBalance(a.id);
       const cur = a.currency || 'MYR';
       const showDual = cur !== displayCurrency;
       const displayBal = showDual ? convertToDisplay(bal, cur) : bal;
       const nativeBalStr = fmtIn(bal, cur);
       const displayBalStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(displayBal)}</div>` : '';
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}${a.notes ? ' · ' + a.notes : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Starting: ${fmtIn(a.initialBalance, cur)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${nativeBalStr}</div>${displayBalStr}<div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}${a.notes ? ' · ' + a.notes : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Starting: ${fmtIn(a.initialBalance, cur)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${nativeBalStr}</div>${displayBalStr}<div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px">${idx > 0 ? '<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount(\'' + a.id + '\',-1)" title="Move up">↑</button>' : ''}<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount('${a.id}',1)" title="Move down">↓</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
     });
   }
   if (liabilities.length) {
-    const totalLiabDisplay = liabilities.reduce((s, a) => s + convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'), 0);
+    const totalLiabDisplay = liabilities.reduce((s, a) => s + convertToDisplay(Math.abs(getAccountBalance(a.id)), a.currency || 'MYR'), 0);
     html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center"><span>Liabilities</span><span style="font-size:11px;font-feature-settings:'tnum'">-${fmt(totalLiabDisplay)}</span></div>`;
-    liabilities.forEach(a => {
+    liabilities.forEach((a, idx) => {
       const cur = a.currency || 'MYR';
+      const bal = getAccountBalance(a.id);
       const showDual = cur !== displayCurrency;
-      const nativeStr = fmtIn(-Math.abs(a.initialBalance), cur);
-      const displayStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(-convertToDisplay(Math.abs(a.initialBalance), cur))}</div>` : '';
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px"><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
+      const nativeStr = fmtIn(-Math.abs(bal), cur);
+      const displayStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(-convertToDisplay(Math.abs(bal), cur))}</div>` : '';
+      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${a.name}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px">${idx > 0 ? '<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount(\'' + a.id + '\',-1)" title="Move up">↑</button>' : ''}<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount('${a.id}',1)" title="Move down">↓</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
     });
   }
   html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">Net Worth</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
   return html;
+}
+
+function moveAccount(accId, direction) {
+  const idx = ACCOUNTS.findIndex(a => a.id === accId);
+  if (idx < 0) return;
+  const acc = ACCOUNTS[idx];
+  const sameType = ACCOUNTS.filter(a => a.type === acc.type);
+  const typeIdx = sameType.findIndex(a => a.id === accId);
+  const newTypeIdx = typeIdx + direction;
+  if (newTypeIdx < 0 || newTypeIdx >= sameType.length) return;
+  // Swap within same type group
+  const targetAcc = sameType[newTypeIdx];
+  const globalIdx1 = ACCOUNTS.findIndex(a => a.id === accId);
+  const globalIdx2 = ACCOUNTS.findIndex(a => a.id === targetAcc.id);
+  [ACCOUNTS[globalIdx1], ACCOUNTS[globalIdx2]] = [ACCOUNTS[globalIdx2], ACCOUNTS[globalIdx1]];
+  saveACCOUNTS();
+  renderCatAccountsTab(document.getElementById('setc'));
 }
 
 // === CATEGORIES (helpers) ===
