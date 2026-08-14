@@ -103,13 +103,16 @@ async function hashPIN(pin) {
 function getPK() {
   // Legacy: if old plain-text PIN exists, return it (will be migrated on next change)
   const legacy = safeGet('ft_pk');
-  if (legacy && legacy.length < 64) return legacy;
-  // Default fallback
-  return '1234';
+  if (legacy && legacy.length > 0 && legacy.length < 64) return legacy;
+  // Default fallback (also used after emergency reset when ft_pk is cleared)
+  return null;
 }
 
 function getPKHash() {
-  return safeGet('ft_pk_hash') || null;
+  const hash = safeGet('ft_pk_hash') || null;
+  // Empty string means PIN was reset/cleared, treat as no hash
+  if (!hash || hash.length < 64) return null;
+  return hash;
 }
 
 async function verifyPIN(inputPin) {
@@ -119,7 +122,10 @@ async function verifyPIN(inputPin) {
     return inputHash === storedHash;
   }
   // Legacy plain-text fallback
-  return inputPin === getPK();
+  const legacyPK = getPK();
+  if (legacyPK) return inputPin === legacyPK;
+  // No PIN set at all (after emergency reset): any input passes
+  return true;
 }
 
 async function setPINSecure(newPin) {
@@ -205,7 +211,14 @@ function getSecurityQuestionIndices() {
 }
 
 // === APP LOCK (Simple PIN) ===
-var FT_APP_LOCK = safeGet('ft_app_lock') === 'true';
+// Read from localStorage directly (must be sync for boot-time lock screen).
+// Also check _ftStore in case localStorage was evicted but IDB has the value.
+var FT_APP_LOCK = (function() {
+  var val = null;
+  try { val = localStorage.getItem('ft_app_lock'); } catch(e) {}
+  if (val === null && _ftStore.hasOwnProperty('ft_app_lock')) val = _ftStore['ft_app_lock'];
+  return val === 'true';
+})();
 
 function enableAppLock() {
   safeSave('ft_app_lock', 'true');
