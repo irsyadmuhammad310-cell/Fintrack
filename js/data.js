@@ -245,6 +245,7 @@ function getAccountBalance(accId) {
     const nativeAmt = cur === 'MYR' ? tx.a : convertFromTo(tx.a, 'MYR', cur);
     if (tx.t === 'Income') return sum + nativeAmt;
     if (tx.t === 'Expense') return sum - nativeAmt;
+    if (tx.t === 'Savings') return sum - nativeAmt;
     return sum;
   }, 0);
   return acc.initialBalance + txnTotal;
@@ -266,7 +267,10 @@ function getAccountCurrency(accId) {
 
 function getNetWorth() {
   const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalanceInDisplay(a.id), 0);
-  const liabilities = ACCOUNTS.filter(a => a.type === 'liability').reduce((sum, a) => sum + convertToDisplay(Math.abs(a.initialBalance), a.currency || 'MYR'), 0);
+  const liabilities = ACCOUNTS.filter(a => a.type === 'liability').reduce((sum, a) => {
+    const nativeBal = getAccountBalance(a.id);
+    return sum + convertToDisplay(Math.abs(nativeBal), a.currency || 'MYR');
+  }, 0);
   return assets - liabilities;
 }
 
@@ -328,8 +332,11 @@ function getNetWorthByPeriod(year, month) {
     else if (tx.t === 'Expense') nw -= tx.a;
     else if (tx.t === 'Savings') nw -= tx.a;
   });
-  // Subtract liability balances converted to MYR (base currency)
-  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => { nw -= convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'); });
+  // Subtract current liability balances (reflects payments made)
+  ACCOUNTS.filter(a => a.type === 'liability').forEach(a => {
+    const nativeBal = getAccountBalance(a.id);
+    nw -= convertFromTo(Math.abs(nativeBal), a.currency || 'MYR', 'MYR');
+  });
   return nw;
 }
 
