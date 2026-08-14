@@ -181,7 +181,7 @@ function renderGoals(c) {
   // === BUDGET STATUS: Overspent Categories (Cover Overspending Flow) ===
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const STATUS_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const statusYearKey = String(currentYear);
   const statusYearPlans = STATUS_PLANS[statusYearKey] || {};
   // Keys may be numeric or string after JSON parse; try both
@@ -211,7 +211,7 @@ function renderGoals(c) {
   }
 
   // === BUDGET PLANNER (Editable with Category Breakdown) ===
-  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
@@ -272,7 +272,7 @@ function openGoalModal(editG) {
   const linkedArr = isEdit && editG.linkedCats ? editG.linkedCats : (isEdit && editG.linkedCat ? [editG.linkedCat] : []);
   const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + cat + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + cat + '</label>').join('');
   const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
-  const currentVal = isEdit ? (linkedArr.length && editG.base !== undefined ? editG.base : editG.c) : '0';
+  const currentVal = isEdit ? (linkedArr.length ? (editG.base || 0) : editG.c) : '0';
   const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${currentVal}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Savings Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
@@ -434,13 +434,13 @@ function saveBudgetMonth(e, year, monthIdx) {
 }
 
 function clearBudgetMonth(year, monthIdx) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var monthKey = String(monthIdx);
   if (plans[yearKey] && (plans[yearKey][monthKey] || plans[yearKey][monthIdx])) {
     delete plans[yearKey][monthKey];
     delete plans[yearKey][monthIdx];
-    localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+    safeSave('ft_budget_plans', JSON.stringify(plans));
   }
   document.getElementById('mbudget').remove();
   document.body.style.overflow = '';
@@ -534,7 +534,7 @@ function showBudgetRowMenu(event, year, monthIdx, hasPlan) {
 }
 
 function copyBudgetToNext(year, monthIdx) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
@@ -556,14 +556,14 @@ function copyBudgetToNext(year, monthIdx) {
 
   if (!plans[nextYearKey]) plans[nextYearKey] = {};
   plans[nextYearKey][nextMonthKey] = JSON.parse(JSON.stringify(srcPlan));
-  localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  safeSave('ft_budget_plans', JSON.stringify(plans));
   toast('✅ Copied to ' + MONTH_NAMES[nextMonth] + ' ' + nextYear);
   if (typeof render === 'function') render();
   else renderGoals(document.getElementById('cnt'));
 }
 
 function copyBudgetToAll(year, monthIdx) {
-  var plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   var yearKey = String(year);
   var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
@@ -584,7 +584,7 @@ function copyBudgetToAll(year, monthIdx) {
   for (var m = 0; m < 12; m++) {
     plans[yearKey][String(m)] = JSON.parse(JSON.stringify(srcPlan));
   }
-  localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  safeSave('ft_budget_plans', JSON.stringify(plans));
   toast('✅ Budget applied to all months of ' + year);
   if (typeof render === 'function') render();
   else renderGoals(document.getElementById('cnt'));
@@ -595,7 +595,7 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   // Ensure types are correct
   monthIdx = parseInt(monthIdx);
   year = parseInt(year);
-  const PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const yearPlans = PLANS[yearKey] || null;
   if (!yearPlans) { toast('❌ No budget plans for ' + year); return; }
@@ -724,7 +724,7 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   const selected = document.querySelector('.cover-option-row.selected');
   if (selected) fromCat = selected.dataset.cat;
 
-  const plans = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   if (!plans[yearKey]) { toast('❌ Budget plan not found'); return; }
   const yearPlans = plans[yearKey];
@@ -747,7 +747,7 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
 
   // Save back using string key
   plans[yearKey][monthKey] = plan;
-  localStorage.setItem('ft_budget_plans', JSON.stringify(plans));
+  safeSave('ft_budget_plans', JSON.stringify(plans));
   closeCoverSheet();
   toast(`✅ Moved RM ${actualAmt.toFixed(2)} from ${fromCat} → ${toCat}`);
   if (typeof render === 'function') render();
@@ -999,7 +999,7 @@ function renderMobileBudgetTab(MD, year) {
   html += '<div style="height:1px;background:var(--border);margin:0 0 18px"></div>';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:13px;font-weight:700;letter-spacing:-0.01em">' + t('goal_budget_planner') + '</span><select class="fsel" style="font-size:10px;padding:4px 20px 4px 8px" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById(\'cnt\'))">' + YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></div>';
 
-  const BUDGET_PLANS = JSON.parse(localStorage.getItem('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
