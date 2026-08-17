@@ -2405,8 +2405,15 @@ tr:hover td { background: var(--bg-primary); }
   }
 }
 
-/* Fix 3: Tighter layout for tall narrow screens (360px width) */
+/* Fix 3: Force header into single row on narrow screens */
 @media (max-width: 400px) {
+  .hdr { padding: 8px 10px; }
+  .hdr-r { gap: 4px; flex-wrap: nowrap !important; }
+  .hdr-l { gap: 6px; }
+  .hdr h2 { font-size: 14px; }
+  .fsel { font-size: 9px; padding: 5px 16px 5px 6px; min-height: 32px; min-width: 0; }
+  .ibtn { width: 32px; height: 32px; min-width: 32px; min-height: 32px; border-radius: 7px; }
+  .sb-tog { width: 32px; height: 32px; }
   .mob-insights { gap: 10px; }
   .mob-dash { gap: 10px; }
   .mob-ins-metrics { gap: 6px; }
