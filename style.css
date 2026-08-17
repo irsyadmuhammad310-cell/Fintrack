@@ -2377,3 +2377,45 @@ tr:hover td { background: var(--bg-primary); }
     font-size: clamp(10px, 3.5vw, 14px) !important;
   }
 }
+
+/* =====================================================
+   V1.0.3 — Browser Mode Viewport Fix (Oppo A6 / Tall Screens)
+   ===================================================== */
+
+/* Fix 1: Use dvh (dynamic viewport height) to exclude browser URL bar */
+@supports (height: 100dvh) {
+  @media (max-width: 900px) {
+    body, .app {
+      height: 100dvh;
+    }
+    .cnt {
+      height: calc(100dvh - 56px - 64px - env(safe-area-inset-bottom, 0px)) !important;
+      max-height: calc(100dvh - 56px - 64px - env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+}
+
+/* Fix 2: Increase bottom padding for gesture nav safe area */
+@media (max-width: 900px) {
+  .cnt {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .bnav {
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Fix 3: Tighter layout for tall narrow screens (360px width) */
+@media (max-width: 400px) {
+  .mob-insights { gap: 10px; }
+  .mob-dash { gap: 10px; }
+  .mob-ins-metrics { gap: 6px; }
+  .mob-ins-metric { padding: 10px 10px; }
+  .mob-ins-metric-val { font-size: 14px; }
+  .hero-balance { padding: 16px; margin-bottom: 10px; }
+  .hero-balance-amount { font-size: 24px; }
+  .quick-actions { gap: 6px; }
+  .budget-progress-list { gap: 8px; }
+  .mob-dash-stats { gap: 6px; }
+  .mob-dash-stat { padding: 10px 6px; }
+}
