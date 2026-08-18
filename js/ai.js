@@ -1,4 +1,4 @@
-// === FLOATING AI ASSISTANT (v15.8.1 — Gemini Integration) ===
+// === FLOATING AI ASSISTANT (V2.0.0 — Gemini Integration) ===
 let aiRateLimitUntil = parseInt(safeGet('ft_ai_cooldown') || '0');
 (function() {
   const fab = document.createElement('div');
