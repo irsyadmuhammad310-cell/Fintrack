@@ -497,6 +497,8 @@ function initApp() {
   if (typeof initIdleTracking === 'function') initIdleTracking();
   // Backup reminder (#6)
   if (typeof checkBackupReminder === 'function') setTimeout(() => checkBackupReminder(), 2000);
+  // Cloud sync init (V2.0)
+  if (typeof ftCloudInit === 'function') ftCloudInit();
   // v15.5: Check budget alerts on app load
   if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
