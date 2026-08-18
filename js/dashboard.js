@@ -1,4 +1,4 @@
-// === DASHBOARD (FinTrack Premium V1.0.0) ===
+// === DASHBOARD (V2.0.0) ===
 function renderDashboard(c) {
   const year = getSelectedYear();
 
