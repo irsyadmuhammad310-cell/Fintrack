@@ -1,4 +1,4 @@
-// === i18n SYSTEM (v15.3.1 — Complete Translation) ===
+// === i18n SYSTEM (V2.0.0) ===
 const I18N = {
   en: {
     // Navigation
@@ -127,6 +127,24 @@ const I18N = {
     set_year_desc: 'Manage available years. Changes sync instantly.',
     set_add_year: 'Add Year', set_check_updates: 'Check for Updates',
     set_pk_wrong: '❌ Wrong current', set_pk_min: '❌ Min 4 chars', set_pk_ok: '✅ PIN updated',
+    // Categories & Accounts
+    cat_title: 'Categories', cat_add: 'Category', cat_add_sub: 'Add subcategory',
+    cat_no_cats: 'No categories yet. Add one above.',
+    acc_title: 'Accounts', acc_add: 'Add', acc_name: 'Account Name',
+    acc_type: 'Account Type', acc_currency: 'Account Currency',
+    acc_balance: 'Starting Balance', acc_notes: 'Notes',
+    acc_edit: 'Edit', acc_create: 'Create', acc_net_worth: 'Net Worth',
+    acc_assets: 'Assets', acc_liabilities: 'Liabilities', acc_current: 'Current',
+    // Investment form
+    inv_add: 'Add Investment', inv_edit: 'Edit Investment', inv_save: 'Save Changes',
+    inv_name: 'Investment Name', inv_category: 'Category', inv_link: 'Link to Savings TXN',
+    inv_cost: 'Total Cost Basis', inv_value: 'Current Value', inv_qty: 'Quantity / Units',
+    inv_date: 'Purchase Date', inv_avg_cost: 'Avg Cost per Unit', inv_unit_price: 'Current Price per Unit',
+    inv_dividends: 'Dividends Received', inv_notes: 'Notes',
+    inv_buy: 'Buy More', inv_sell: 'Sell Investment', inv_confirm_buy: 'Confirm Buy',
+    inv_confirm_sell: 'Confirm Sell', inv_no_holdings: 'No investments yet. Add your first investment.',
+    inv_no_activities: 'No recent activities', inv_watchlist: 'Watchlist',
+    inv_watchlist_add: 'Add to Watchlist', inv_holdings: 'Holdings',
     // Common
     misc_line: 'Line', misc_bar: 'Bar', misc_yes: 'Yes', misc_no: 'No',
     misc_light: '☀️ Light', misc_dark: '🌙 Dark',
@@ -211,6 +229,22 @@ const I18N = {
     set_reset_all: 'Set Semula Semua', set_clear_txn: 'Padam Transaksi Sahaja',
     set_profile: 'Profil', set_appearance: 'Paparan',
     set_cat_accounts: 'Kategori & Akaun', set_check_updates: 'Semak Kemaskini',
+    cat_title: 'Kategori', cat_add: 'Kategori', cat_add_sub: 'Tambah subkategori',
+    cat_no_cats: 'Tiada kategori lagi. Tambah di atas.',
+    acc_title: 'Akaun', acc_add: 'Tambah', acc_name: 'Nama Akaun',
+    acc_type: 'Jenis Akaun', acc_currency: 'Mata Wang Akaun',
+    acc_balance: 'Baki Permulaan', acc_notes: 'Nota',
+    acc_edit: 'Edit', acc_create: 'Cipta', acc_net_worth: 'Nilai Bersih',
+    acc_assets: 'Aset', acc_liabilities: 'Liabiliti', acc_current: 'Semasa',
+    inv_add: 'Tambah Pelaburan', inv_edit: 'Edit Pelaburan', inv_save: 'Simpan',
+    inv_name: 'Nama Pelaburan', inv_category: 'Kategori', inv_link: 'Paut ke Simpanan',
+    inv_cost: 'Jumlah Kos', inv_value: 'Nilai Semasa', inv_qty: 'Kuantiti / Unit',
+    inv_date: 'Tarikh Belian', inv_avg_cost: 'Kos Purata', inv_unit_price: 'Harga Semasa',
+    inv_dividends: 'Dividen Diterima', inv_notes: 'Nota',
+    inv_buy: 'Beli Lagi', inv_sell: 'Jual Pelaburan', inv_confirm_buy: 'Sahkan Belian',
+    inv_confirm_sell: 'Sahkan Jualan', inv_no_holdings: 'Tiada pelaburan lagi.',
+    inv_no_activities: 'Tiada aktiviti terkini', inv_watchlist: 'Senarai Pantau',
+    inv_watchlist_add: 'Tambah ke Senarai Pantau', inv_holdings: 'Pegangan',
     set_pk_wrong: '❌ PIN salah', set_pk_min: '❌ Min 4 aksara', set_pk_ok: '✅ PIN dikemaskini',
     misc_save: 'Simpan', misc_cancel: 'Batal', misc_delete: 'Padam', misc_edit: 'Edit',
     misc_back: 'Kembali', misc_close: 'Tutup', misc_confirm: 'Sahkan',
