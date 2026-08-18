@@ -1,7 +1,7 @@
-// === SETTINGS (FinTrack Premium V1.0.0) ===
+// === SETTINGS (FinTrack Premium V2.0.0) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'V1.0.2';
+const FINTRACK_VERSION = 'V2.0.0';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
