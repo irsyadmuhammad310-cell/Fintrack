@@ -1,4 +1,4 @@
-// === DATA & PERSISTENCE (V1.0.2 — IndexedDB Engine) ===
+// === DATA & PERSISTENCE (V2.0.0 — IndexedDB Engine) ===
 
 // === INDEXEDDB STORAGE ENGINE ===
 var _ftStore = {};
