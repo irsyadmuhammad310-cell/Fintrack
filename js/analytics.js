@@ -1,4 +1,4 @@
-// === ANALYTICS (v15.8.1) ===
+// === ANALYTICS (V2.0.0) ===
 var anCharts = [];
 
 function anDestroy() { anCharts.forEach(function(ch) { if (ch) ch.destroy(); }); anCharts = []; }
