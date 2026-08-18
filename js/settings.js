@@ -59,6 +59,21 @@ function saveProfileSettings() {
   renderProfileTab(document.getElementById('setc'));
 }
 
+// === CLOUD SYNC UI (V2.0) ===
+function renderCloudSyncUI() {
+  var isLoggedIn = typeof ftAuth !== 'undefined' && ftAuth.isLoggedIn();
+  var lastSync = safeGet('lastCloudSync');
+  var lastLabel = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
+  if (isLoggedIn) {
+    return '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="cloud" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Cloud Connected</div><div style="font-size:10px;color:var(--text-tertiary)">' + ftAuth.user.email + '</div></div></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:14px"><div style="font-size:11px;font-weight:500">Last Sync</div><div style="font-size:10px;color:var(--text-tertiary)">' + lastLabel + '</div></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"><button class="btn bp" style="font-size:11px;padding:8px 14px" onclick="cloudSyncNow(\'push\')"><i data-lucide="upload" width="12" height="12"></i> Push to Cloud</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="cloudSyncNow(\'pull\')"><i data-lucide="download" width="12" height="12"></i> Pull from Cloud</button></div><div style="font-size:10px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6"><b>Push</b>: upload local → cloud. <b>Pull</b>: download cloud → local.</div><div style="border-top:1px solid var(--border);padding-top:14px"><button class="btn bs" style="font-size:11px;padding:6px 14px;color:var(--rose);border-color:var(--rose)" onclick="cloudSignOut()"><i data-lucide="log-out" width="12" height="12"></i> Sign Out</button></div></div>';
+  }
+  return '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="cloud-off" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Cloud Sync</div><div style="font-size:10px;color:var(--text-tertiary)">Sign in to sync across devices</div></div></div><div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="cloud_email" placeholder="your@email.com"></div><div class="fg"><label class="fl">Password</label><input class="fi" type="password" id="cloud_pass" placeholder="Min 6 characters"></div><div id="cloudAuthErr" style="display:none;font-size:11px;color:var(--rose);margin-bottom:10px;padding:8px 12px;background:var(--rose-light);border-radius:7px"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn bp" style="flex:1;justify-content:center" onclick="cloudSignIn()">Sign In</button><button class="btn bs" style="flex:1;justify-content:center" onclick="cloudSignUp()">Create Account</button></div><div style="margin-top:14px;font-size:10px;color:var(--text-tertiary);line-height:1.6">Cloud is optional. Local data works without it.</div></div>';
+}
+async function cloudSignIn() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signIn(e,p);toast('✅ Signed in!');renderSysSub('cloud');}catch(x){err.textContent=x.message||'Sign in failed';err.style.display='block';} }
+async function cloudSignUp() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} if(p.length<6){err.textContent='Password must be 6+ characters';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signUp(e,p);toast('✅ Account created! Check email to confirm.');}catch(x){err.textContent=x.message||'Sign up failed';err.style.display='block';} }
+async function cloudSyncNow(dir) { if(typeof ftSync==='undefined'){toast('❌ Cloud module not loaded');return;} toast('☁️ Syncing...'); try{if(dir==='push')await ftSync.fullPush();else await ftSync.fullPull();toast('✅ Sync complete!');renderSysSub('cloud');}catch(x){toast('❌ '+x.message);} }
+async function cloudSignOut() { if(!confirm('Sign out? Local data stays intact.'))return; try{await ftAuth.signOut();toast('👋 Signed out');renderSysSub('cloud');}catch(x){toast('❌ Sign out failed');} }
+
 // === CHECK FOR UPDATES (clears cache only, keeps data) ===
 async function checkForUpdates() {
   toast('Checking for updates...');
@@ -108,14 +123,17 @@ function renderGenSub(sub) {
 // === SYSTEM TAB (clickable sub-items) ===
 function renderSystemTab(c) {
   try {
-  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('backup')"><span class="mob-set-icon">💾</span><span class="mob-set-label">Backup & Restore</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div></div>`;
+  var cloudLabel = typeof ftAuth !== 'undefined' && ftAuth.isLoggedIn() ? ftAuth.user.email : 'Not signed in';
+  c.innerHTML = `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden"><div class="mob-set-item" onclick="renderSysSub('cloud')"><span class="mob-set-icon">☁️</span><span class="mob-set-label">Cloud Sync</span><span class="mob-set-val" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${cloudLabel} &#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('budgetcat')"><span class="mob-set-icon">🧠</span><span class="mob-set-label">Budget Categorization</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('years')"><span class="mob-set-icon">📅</span><span class="mob-set-label">Year Management</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="renderSysSub('backup')"><span class="mob-set-icon">💾</span><span class="mob-set-label">Backup & Restore</span><span class="mob-set-val">&#8250;</span></div><div class="mob-set-item" onclick="checkForUpdates()"><span class="mob-set-icon">🔄</span><span class="mob-set-label">Check for Updates</span><span class="mob-set-val">${FINTRACK_VERSION} &#8250;</span></div></div>`;
   } catch(e) { c.innerHTML = '<div style="padding:20px;color:var(--rose);font-size:12px">Error: ' + e.message + '</div>'; }
 }
 
 function renderSysSub(sub) {
   const c = document.getElementById('setc');
   let html = `<div style="margin-bottom:12px"><button class="btn bs" style="font-size:11px;padding:5px 10px" onclick="renderSystemTab(document.getElementById('setc'))"><i data-lucide="arrow-left" width="11" height="11"></i> Back</button></div>`;
-  if (sub === 'budgetcat') {
+  if (sub === 'cloud') {
+    html += renderCloudSyncUI();
+  } else if (sub === 'budgetcat') {
     const catMemSize = Object.keys(JSON.parse(safeGet('ft_cat_memory') || '{}')).length;
     // Use StorageManager API for real IndexedDB usage (async render)
     const storageCard = 'storageCard_' + Date.now();
