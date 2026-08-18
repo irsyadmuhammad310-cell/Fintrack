@@ -1,4 +1,4 @@
-// === INVESTMENTS V12.1 - Portfolio Management ===
+// === INVESTMENTS (V2.0.0) ===
 const INV_STORAGE = 'ft_investments';
 const INV_ACT_STORAGE = 'ft_inv_activities';
 const INV_WL_STORAGE = 'ft_inv_watchlist';
