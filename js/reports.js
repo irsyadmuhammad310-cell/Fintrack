@@ -1,4 +1,4 @@
-// === REPORTS V13.0 - Professional Financial Reporting Center ===
+// === REPORTS (V2.0.0) ===
 var rptType = 'financial';
 var rptPeriod = 'year';
 var rptCustomFrom = '';
