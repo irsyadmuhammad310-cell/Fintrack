@@ -1,4 +1,4 @@
-// === HELPERS & UI UTILITIES (v15.8.1) ===
+// === HELPERS & UI UTILITIES (V2.0.0) ===
 
 // === XSS SANITIZATION (#8) ===
 function escapeHTML(str) {
