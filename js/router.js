@@ -1,4 +1,4 @@
-// === NAVIGATION & ROUTING ===
+// === NAVIGATION & ROUTING (V2.0.0) ===
 document.querySelectorAll('.ni').forEach(el => el.addEventListener('click', () => {
   document.querySelectorAll('.ni').forEach(i => i.classList.remove('active'));
   el.classList.add('active');
