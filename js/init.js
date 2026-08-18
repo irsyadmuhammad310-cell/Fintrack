@@ -1,4 +1,4 @@
-// === INIT (FinTrack Premium V1.0.0 Modular Boot) ===
+// === INIT (FinTrack Premium V2.0.0 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
@@ -739,24 +739,35 @@ const FINTRACK_CHANGELOG = {
   },
   'fintrack-v1.0.2': {
     version: 'V1.0.2',
-    date: '10 Aug 2026',
+    date: '11 Aug 2026',
     changes: [
-      'Security: PBKDF2 PIN hashing (100K iterations) + per-device salt',
-      'Security: PIN lockout after 5 failed attempts (exponential backoff)',
-      'Security: Auto-lock session after 5 min idle',
-      'Security: XSS sanitization (escapeHTML) on all user inputs',
-      'Storage: safeSave() wrapper with quota warnings (75%/90%)',
-      'Storage: iOS Private Browsing detection + in-memory fallback',
-      'Data: Integer cents storage (eliminates floating point rounding)',
-      'Data: Multi-tab sync via StorageEvent listener',
-      'Data: Cascading account delete (no orphaned transactions)',
-      'Data: Transfer type excluded from income/expense totals',
-      'Data: Schema validation on JSON import',
-      'Data: Backup reminder every 50 transactions',
-      'Data: Budget divide-by-zero guard',
-      'UI: ARIA labels + colorblind-safe indicators',
-      'UI: Focus-visible keyboard navigation rings',
-      'UI: Mobile keyboard no longer covers save button'
+      'IndexedDB dual-write engine (safeGet/safeSave across all modules)',
+      'PBKDF2 PIN hashing (100K iterations) + per-device salt',
+      'Session idle auto-lock (5 min)',
+      'XSS sanitization (escapeHTML) on all inputs',
+      'Backup reminder every 50 transactions',
+      'Budget progress per-category (real % shown)',
+      '420+ multilingual greetings (7 langs x 5 slots x 10-12 each)',
+      'Quick-start navigation guide for new users',
+      'Mobile keyboard no longer covers save button',
+      'Export fix: triggerDownload() for PWA compatibility'
+    ]
+  },
+  'fintrack-v2.0.0': {
+    version: 'V2.0.0',
+    date: '18 Aug 2026',
+    changes: [
+      'Cloud Sync: Supabase integration (auth + real-time sync)',
+      'Sign up / Sign in with email + password',
+      'Push to Cloud: backup all local data to Supabase',
+      'Pull from Cloud: restore data on any new device',
+      'Incremental sync: transactions auto-push on save',
+      'Offline queue: changes flush when back online',
+      'Auto-pull on boot if last sync > 5 min ago',
+      'Cloud Sync UI in Settings → System',
+      'Browser viewport fix (dvh) for tall screens (Oppo A6)',
+      'Header forced single row on narrow screens (≤400px)',
+      'Safe-area padding for gesture navigation'
     ]
   }
 };
