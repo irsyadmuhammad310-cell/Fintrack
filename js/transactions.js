@@ -1,4 +1,4 @@
-// === TRANSACTIONS (FinTrack Premium V1.0.0) ===
+// === TRANSACTIONS (V2.0.0) ===
 function renderTransactions(c) {
   const selYear = getSelectedYear();
   const selMonth = document.getElementById('mf').value;
