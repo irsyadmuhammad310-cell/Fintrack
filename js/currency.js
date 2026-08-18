@@ -1,4 +1,4 @@
-// === CURRENCY SYSTEM (v15.8.1) ===
+// === CURRENCY SYSTEM (V2.0.0) ===
 const CURRENCY_CONFIG = {
   // Southeast Asia
   MYR: { symbol: 'RM', locale: 'en-MY', name: 'Malaysian Ringgit' },
