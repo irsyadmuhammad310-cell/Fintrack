@@ -26,6 +26,7 @@ const ASSETS = [
   './js/reports.js',
   './js/ai.js',
   './js/settings.js',
+  './js/supabase.js',
   './js/init.js',
   './manifest.json'
 ];
