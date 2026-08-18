@@ -1,4 +1,4 @@
-// === FinTrack Supabase Integration (V2.0) ===
+// === FinTrack Supabase Integration (V2.0.0) ===
 // Handles auth, cloud sync, and offline-first architecture
 // Sits on top of existing dual-write (localStorage + IndexedDB)
 
@@ -85,16 +85,16 @@ const ftSync = {
       const uid = ftAuth.uid();
 
       // Push accounts
-      var accounts = safeGet('accounts') || [];
+      var accounts = JSON.parse(safeGet('ft_accounts') || '[]');
       if (accounts.length) {
         var rows = accounts.map(function(a) {
           return {
             id: a.id,
             user_id: uid,
-            name: a.n || a.name,
+            name: a.name,
             type: a.type || 'savings',
-            currency: a.cur || 'MYR',
-            balance: a.b || a.balance || 0,
+            currency: a.currency || 'MYR',
+            balance: a.initialBalance || 0,
             icon: a.icon || '',
             color: a.color || '',
             is_active: a.active !== false,
@@ -105,22 +105,22 @@ const ftSync = {
       }
 
       // Push transactions
-      var txns = safeGet('transactions') || [];
+      var txns = JSON.parse(safeGet(STORAGE_KEY) || '[]');
       if (txns.length) {
         // Batch in chunks of 500
         for (var i = 0; i < txns.length; i += 500) {
           var chunk = txns.slice(i, i + 500).map(function(tx) {
             return {
-              id: tx.id,
+              id: String(tx.id),
               user_id: uid,
               account_id: tx.acc || null,
-              type: tx.tp || tx.type || 'expense',
-              amount: tx.a || tx.amount || 0,
-              currency: tx.cur || 'MYR',
-              description: tx.d || tx.desc || '',
-              note: tx.note || '',
-              date: tx.dt || tx.date,
-              category_id: null // map later if needed
+              type: tx.t || 'Expense',
+              amount: tx.a || 0,
+              currency: 'MYR',
+              description: tx.dt || '',
+              note: tx.s || '',
+              date: tx.d || new Date().toISOString().split('T')[0],
+              category_id: null
             };
           });
           await _supabase.from('transactions').upsert(chunk, { onConflict: 'id' });
@@ -128,18 +128,18 @@ const ftSync = {
       }
 
       // Push goals
-      var goals = safeGet('goals') || [];
+      var goals = typeof GOALS !== 'undefined' ? GOALS : [];
       if (goals.length) {
         var goalRows = goals.map(function(g) {
           return {
-            id: g.id,
+            id: String(g.id),
             user_id: uid,
-            name: g.n || g.name,
+            name: g.n || g.name || '',
             icon: g.icon || '',
-            target_amount: g.t || g.target || 0,
-            current_amount: g.c || g.current || 0,
+            target_amount: g.t || 0,
+            current_amount: g.c || 0,
             currency: 'MYR',
-            deadline: g.dl || g.deadline || null,
+            deadline: g.dl || null,
             priority: g.pri || 'medium',
             status: g.paused ? 'paused' : (g.completed ? 'completed' : 'active')
           };
@@ -148,7 +148,7 @@ const ftSync = {
       }
 
       // Push budgets
-      var budgets = safeGet('budgetPlans') || {};
+      var budgets = JSON.parse(safeGet('ft_budget_plans') || '{}');
       for (var year in budgets) {
         var yearPlans = budgets[year];
         for (var month in yearPlans) {
@@ -195,17 +195,17 @@ const ftSync = {
       if (txns && txns.length) {
         var localTxns = txns.map(function(tx) {
           return {
-            id: tx.id,
-            tp: tx.type,
+            id: parseInt(tx.id) || tx.id,
+            t: tx.type,
+            c: tx.note || 'Uncategorized',
+            s: '',
             a: parseFloat(tx.amount),
-            d: tx.description,
-            dt: tx.date,
-            acc: tx.account_id,
-            note: tx.note || '',
-            cur: tx.currency
+            d: tx.date,
+            dt: tx.description || '',
+            acc: tx.account_id || undefined
           };
         });
-        safeSave('transactions', localTxns);
+        safeSave(STORAGE_KEY, JSON.stringify(localTxns));
       }
 
       // Pull goals
@@ -217,18 +217,18 @@ const ftSync = {
       if (goals && goals.length) {
         var localGoals = goals.map(function(g) {
           return {
-            id: g.id,
+            id: parseInt(g.id) || g.id,
             n: g.name,
-            icon: g.icon,
+            icon: g.icon || '',
             t: parseFloat(g.target_amount),
             c: parseFloat(g.current_amount),
-            dl: g.deadline,
-            pri: g.priority,
+            dl: g.deadline || '',
+            pri: g.priority || 'medium',
             paused: g.status === 'paused',
             completed: g.status === 'completed'
           };
         });
-        safeSave('goals', localGoals);
+        safeSave('ft_goals', JSON.stringify(localGoals));
       }
 
       // Pull accounts
@@ -243,15 +243,16 @@ const ftSync = {
             id: a.id,
             name: a.name,
             type: a.type,
-            cur: a.currency,
-            balance: parseFloat(a.balance),
-            icon: a.icon,
-            color: a.color,
-            active: a.is_active,
-            sort: a.sort_order
+            accountType: a.type,
+            currency: a.currency || 'MYR',
+            initialBalance: parseFloat(a.balance) || 0,
+            icon: a.icon || '',
+            color: a.color || '',
+            active: a.is_active !== false,
+            sort: a.sort_order || 0
           };
         });
-        safeSave('accounts', localAccounts);
+        safeSave('ft_accounts', JSON.stringify(localAccounts));
       }
 
       this.lastSyncAt = new Date().toISOString();
@@ -275,15 +276,15 @@ const ftSync = {
     }
     try {
       await _supabase.from('transactions').upsert({
-        id: tx.id,
+        id: String(tx.id),
         user_id: ftAuth.uid(),
-        type: tx.tp || tx.type,
-        amount: tx.a || tx.amount,
-        description: tx.d || tx.desc || '',
-        date: tx.dt || tx.date,
+        type: tx.t || 'Expense',
+        amount: tx.a || 0,
+        description: tx.dt || '',
+        date: tx.d || new Date().toISOString().split('T')[0],
         account_id: tx.acc || null,
-        note: tx.note || '',
-        currency: tx.cur || 'MYR'
+        note: tx.s || '',
+        currency: 'MYR'
       }, { onConflict: 'id' });
     } catch (e) {
       // Offline: queue for later
@@ -297,13 +298,13 @@ const ftSync = {
     if (!ftAuth.isLoggedIn()) return;
     try {
       await _supabase.from('goals').upsert({
-        id: goal.id,
+        id: String(goal.id),
         user_id: ftAuth.uid(),
-        name: goal.n || goal.name,
+        name: goal.n || goal.name || '',
         icon: goal.icon || '',
-        target_amount: goal.t || goal.target,
-        current_amount: goal.c || goal.current,
-        deadline: goal.dl || goal.deadline || null,
+        target_amount: goal.t || 0,
+        current_amount: goal.c || 0,
+        deadline: goal.dl || null,
         priority: goal.pri || 'medium',
         status: goal.paused ? 'paused' : (goal.completed ? 'completed' : 'active')
       }, { onConflict: 'id' });
