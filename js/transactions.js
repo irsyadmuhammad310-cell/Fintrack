@@ -77,7 +77,7 @@ function renderMobileTransactions(c) {
       const bgColor = tx.t === 'Income' ? 'var(--emerald-light)' : tx.t === 'Savings' ? 'var(--blue-light)' : 'var(--rose-light)';
       const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
       const meta = [tx.c, tx.s, accName].filter(Boolean).join(' · ');
-      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit',${tx.id})">
+      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit','${String(tx.id).replace(/'/g, "\\'")}')">
         <div class="mob-txn-cat-dot" style="background:${bgColor}">${emoji}</div>
         <div class="mob-txn-info">
           <div class="mob-txn-name">${tx.dt || tx.c}</div>
@@ -151,7 +151,8 @@ function renderTxnTable() {
     body.innerHTML = pg.map(tx => {
       const cl = tx.t === 'Income' ? 'i' : tx.t === 'Expense' ? 'e' : 's';
       const acl = tx.t === 'Income' ? 'ai' : tx.t === 'Savings' ? 'as' : 'ae';
-      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${tx.t}</span></td><td>${tx.c}</td><td>${tx.s || '-'}</td><td style="color:var(--text-tertiary)">${tx.dt || '-'}</td><td class="${acl}" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit',${tx.id})">✏️</button><button class="abtn del" onclick="doAuth('delete',${tx.id})">🗑</button></div></td></tr>`;
+      const txIdEsc = String(tx.id).replace(/'/g, "\\'");
+      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${tx.t}</span></td><td>${tx.c}</td><td>${tx.s || '-'}</td><td style="color:var(--text-tertiary)">${tx.dt || '-'}</td><td class="${acl}" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit','${txIdEsc}')">✏️</button><button class="abtn del" onclick="doAuth('delete','${txIdEsc}')">🗑</button></div></td></tr>`;
     }).join('');
   }
   document.getElementById('txinfo').textContent = f.length ? `${start + 1}-${Math.min(start + pp, f.length)} of ${f.length}` : '';
@@ -240,7 +241,7 @@ function saveTxn(e) {
   if (accEl && accEl.value) data.acc = accEl.value;
   if (liabEl && liabEl.value) data.liab = liabEl.value;
   if (editId) { const i = TXN.findIndex(tx => tx.id === editId); if (i >= 0) TXN[i] = { ...TXN[i], ...data }; toast(t('txn_updated')); }
-  else { data.id = nxId++; TXN.push(data); toast(t('txn_added')); }
+  else { data.id = generateTxnId(); TXN.push(data); toast(t('txn_added')); }
   // If liability payment: create a reduction on the liability account
   if (data.t === 'Expense' && data.liab) {
     const liabAcc = ACCOUNTS.find(a => a.id === data.liab);
@@ -249,6 +250,8 @@ function saveTxn(e) {
   // Learn from this transaction for auto-categorization
   if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
   saveTXN(); tryClose();
+  // Cloud sync: push transaction incrementally
+  if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(data);
   // Sync goals immediately after save
   if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   // v15.3.0: Refresh current view (stays on current tab)
@@ -403,21 +406,23 @@ function verifyPK() {
 }
 
 function doEdit(id) {
-  const tx = TXN.find(x => x.id === id); if (!tx) return;
-  editId = id; openAdd();
+  const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
+  editId = tx.id; openAdd();
   setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || 'MYR'; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
 }
 
 function doDelConfirm(id) {
-  const tx = TXN.find(x => x.id === id); if (!tx) return;
-  pendAct = { action: 'delete', id };
+  const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
+  pendAct = { action: 'delete', id: tx.id };
   const h = `<div class="mo show" id="mdel" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('del_title')}</div><div class="mds">${t('del_desc')}</div></div></div><div style="padding:12px;background:var(--rose-light);border-radius:8px;font-size:12px;margin-bottom:16px"><b>${tx.c}</b> ${tx.s ? '/ ' + tx.s : ''} - ${fmtD(tx.a)}</div><div class="ma"><button class="btn bs" onclick="document.getElementById('mdel').remove();document.body.style.overflow=''">${t('del_cancel')}</button><button class="btn bd" onclick="execDel()">${t('del_delete')}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
 
 function execDel() {
-  TXN = TXN.filter(tx => tx.id !== pendAct.id); saveTXN();
+  TXN = TXN.filter(tx => String(tx.id) !== String(pendAct.id)); saveTXN();
+  // Cloud sync: delete from Supabase
+  if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(pendAct.id);
   // Sync goals immediately after delete
   if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   document.getElementById('mdel').remove(); document.body.style.overflow = '';
