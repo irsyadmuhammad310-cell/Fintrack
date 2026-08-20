@@ -394,8 +394,16 @@ function dismissReminder(id) {
 
 function updateNotifBadge() {
   var count = 0;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
   for (var i = 0; i < REMINDERS.length; i++) {
-    if (!REMINDERS[i].completed && !REMINDERS[i].dismissed) count++;
+    var r = REMINDERS[i];
+    if (r.completed || r.dismissed) continue;
+    var rDate = new Date(r.date); rDate.setHours(0, 0, 0, 0);
+    var diff = Math.ceil((rDate - today) / (1000 * 60 * 60 * 24));
+    var timing = r.timing || [7, 3, 1];
+    var maxWindow = Math.max.apply(null, timing);
+    if (diff > maxWindow) continue; // not yet in notification window
+    count++;
   }
   var bdg = document.getElementById('notifBdg');
   if (bdg) {
