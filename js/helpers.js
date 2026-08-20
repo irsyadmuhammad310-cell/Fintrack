@@ -8,6 +8,36 @@ function escapeHTML(str) {
   return div.innerHTML;
 }
 
+// === PRIVACY SCREEN (V2.0.1 — Bank-style tab-switch cover) ===
+// Shows a cover overlay instantly when user switches away from the app.
+// No PIN needed to dismiss (just return to tab). PIN re-lock is separate (App Lock).
+var FT_PRIVACY_SCREEN = safeGet('ft_privacy_screen') === 'true';
+
+function enablePrivacyScreen() { safeSave('ft_privacy_screen', 'true'); FT_PRIVACY_SCREEN = true; toast('🔒 Privacy screen enabled'); }
+function disablePrivacyScreen() { safeSave('ft_privacy_screen', 'false'); FT_PRIVACY_SCREEN = false; toast('🔓 Privacy screen disabled'); }
+
+function showPrivacyCover() {
+  if (document.getElementById('ftPrivacyCover')) return;
+  var html = '<div id="ftPrivacyCover" style="position:fixed;inset:0;background:var(--bg-primary);z-index:9998;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;animation:fi 100ms ease-out"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></div><div style="font-size:14px;font-weight:700;color:var(--text-primary)">FinTrack</div><div style="font-size:11px;color:var(--text-tertiary)">Content hidden for privacy</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function hidePrivacyCover() {
+  var cover = document.getElementById('ftPrivacyCover');
+  if (cover) cover.remove();
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (!FT_PRIVACY_SCREEN) return;
+  if (document.hidden) {
+    showPrivacyCover();
+  } else {
+    // If App Lock timeout triggered, don't remove cover (unlock screen handles it)
+    if (FT_APP_LOCK && !ftIsUnlocked) return;
+    hidePrivacyCover();
+  }
+});
+
 // === SESSION TIMEOUT (#7) ===
 var _idleTimer = null;
 var _sessionLocked = false;
