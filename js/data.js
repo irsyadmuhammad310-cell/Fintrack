@@ -413,7 +413,7 @@ function createBalanceAdjustment(accId, oldBal, newBal, reason) {
   const diff = newBal - oldBal;
   if (diff === 0) return;
   const txn = {
-    id: nxId++,
+    id: generateTxnId(),
     d: new Date().toISOString().split('T')[0],
     t: diff > 0 ? 'Income' : 'Expense',
     c: 'Balance Adjustment',
@@ -508,6 +508,12 @@ let TXN = [];
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
 let txnMonthSel = null, txnYearSel = null, txnInitialized = false;
 
+// V2.0.1: Generate unique IDs (UUID if available, fallback to timestamp-based)
+function generateTxnId() {
+  if (typeof ftUUID === 'function') return ftUUID();
+  return 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+}
+
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
   safeSave(STORAGE_KEY, JSON.stringify(TXN));
@@ -518,7 +524,7 @@ function loadTXN() {
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
   const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
-  else nxId = TXN.length ? Math.max(...TXN.map(t => t.id)) + 1 : 100;
+  else nxId = TXN.length ? Math.max(...TXN.filter(t => typeof t.id === 'number').map(t => t.id), 99) + 1 : 100;
 }
 
 // === MASTER DATA LOADER (called after ftLoadAll) ===
