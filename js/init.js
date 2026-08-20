@@ -1,4 +1,4 @@
-// === INIT (FinTrack Premium V2.0.0 Modular Boot) ===
+// === INIT (FinTrack Premium V2.0.1 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
@@ -20,64 +20,64 @@ function getGreeting() {
 
   const greetings = {
     en: {
-      night: ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,', "Can't sleep?", 'Working late,', 'Midnight hustle,', 'The quiet hours,', 'Burning candles,', 'Nocturnal mode,'],
-      morning: ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,', 'New day, new wins,', 'Early bird,', 'Bright and early,', 'Morning sunshine,', "Let's get it,", 'Wakey wakey,', 'Dawn patrol,'],
-      afternoon: ['Good afternoon,', 'Afternoon,', 'Hey,', "What's good,", 'Midday check-in,', "How's the day,", 'Back at it,', 'Afternoon vibes,', 'Hey champ,', "What's cooking,", 'Halfway there,', 'Keep pushing,'],
-      evening: ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,', 'Winding down?', 'End of day review,', 'Evening check-in,', 'Almost done,', 'Sunset vibes,', "Day's wrapping up,", 'Home stretch,', 'Relax mode,'],
-      latenight: ['Good evening,', 'Night shift?', 'Back again,', 'Hey,', 'Still grinding?', 'One more look?', 'Before bed?', 'Night check,', 'Burning midnight oil,', 'Last peek,']
+      night: ['Still up?', 'Burning the midnight oil,', 'Late night grind,', 'Night owl mode,', "Can't sleep?", 'Working late,', 'Midnight hustle,', 'The quiet hours,', 'Burning candles,', 'Nocturnal mode,', 'Moonlight check,', 'After hours,', 'Night shift energy,', 'Dark mode activated,', 'Sleepless and counting,', 'The world sleeps but you don\'t,', 'Quiet hours, big moves,', '3AM thoughts,', 'Stars are out,', 'Late bloomer,'],
+      morning: ['Good morning,', 'Morning,', 'Rise and shine,', 'Top of the morning,', 'Fresh start today,', 'New day, new wins,', 'Early bird,', 'Bright and early,', 'Morning sunshine,', "Let's get it,", 'Wakey wakey,', 'Dawn patrol,', 'Hello sunshine,', 'First things first,', 'A brand new day,', 'Coffee time,', 'Up and at it,', 'Seize the day,', 'Carpe diem,', 'Off to a great start,', 'Rise up,', 'Good vibes this morning,', 'Make today count,', 'Another chance to win,'],
+      afternoon: ['Good afternoon,', 'Afternoon,', 'Hey,', "What's good,", 'Midday check-in,', "How's the day,", 'Back at it,', 'Afternoon vibes,', 'Hey champ,', "What's cooking,", 'Halfway there,', 'Keep pushing,', 'Power hour,', 'Still going strong,', 'Lunch break over?', 'Afternoon hustle,', 'The grind continues,', 'Cruising along,', 'Afternoon energy,', 'Second wind,', 'Post-lunch mode,', 'Staying sharp,', 'Killing it today,', 'On a roll,'],
+      evening: ['Good evening,', 'Evening,', 'Hey there,', 'Welcome back,', 'Winding down?', 'End of day review,', 'Evening check-in,', 'Almost done,', 'Sunset vibes,', "Day's wrapping up,", 'Home stretch,', 'Relax mode,', 'Golden hour,', 'Well done today,', 'Evening calm,', 'Powered through,', 'Sun is setting,', 'Good day?', 'Time to unwind,', 'Another day conquered,', 'You made it,', 'Evening reflection,', 'Done for the day?', 'Closing time,'],
+      latenight: ['Good evening,', 'Night shift?', 'Back again,', 'Hey,', 'Still grinding?', 'One more look?', 'Before bed?', 'Night check,', 'Burning midnight oil,', 'Last peek,', 'Night owl,', 'Can\'t stop won\'t stop,', 'One last thing,', 'Final check,', 'Sleep can wait,', 'Moonlit hustle,', 'Just one more,', 'Almost bedtime,', 'Wrapping up?', 'Night mode,']
     },
     ms: {
-      night: ['Masih terjaga?', 'Kerja malam,', 'Tak boleh tidur?', 'Rajin betul,', 'Malam yang senyap,', 'Night owl mode,', 'Hustle lewat malam,', 'Burning midnight oil,', 'Tak ngantuk lagi?', 'Malam produktif,'],
-      morning: ['Selamat pagi,', 'Pagi,', 'Assalamualaikum,', 'Semangat pagi,', 'Pagi yang cerah,', 'Bismillah,', 'Hari baru,', 'Jom hustle,', 'Fresh morning,', 'Pagi2 dah rajin,', 'Bangun awal ni,', 'Subuh productivity,'],
-      afternoon: ['Selamat petang,', 'Petang,', 'Hey,', 'Apa khabar,', 'Tengah hari check-in,', 'Macam mana hari ni,', 'Semangat lagi,', 'Petang produktif,', 'Keep going,', 'Halfway there,', 'Jangan give up,', 'Teruskan,'],
-      evening: ['Selamat malam,', 'Malam,', 'Eh dah malam,', 'Balik kerja?', 'Rehat jap,', 'Review harian,', 'Alhamdulillah,', 'Malam yang tenang,', 'Winding down,', 'Hari hampir tamat,', 'Penat tak?', 'Good job hari ni,'],
-      latenight: ['Selamat malam,', 'Tak tidur lagi?', 'Kerja lagi?', 'Night owl ni,', 'Last check,', 'Sebelum tidur?', 'Rajinnya,', 'Hustle tak berhenti,', 'Mata masih celik,', 'Satu lagi peek,']
+      night: ['Masih terjaga?', 'Kerja malam,', 'Tak boleh tidur?', 'Rajin betul,', 'Malam yang senyap,', 'Night owl mode,', 'Hustle lewat malam,', 'Burning midnight oil,', 'Tak ngantuk lagi?', 'Malam produktif,', 'Berjaga malam,', 'Senyap tapi sibuk,', 'Malam panjang,', 'Masih on fire,', 'Semangat malam,', 'Power tak habis,', 'Midnight warrior,', 'Kopi masih berkesan,', 'Malam penuh makna,', 'Sambung esok boleh tak?'],
+      morning: ['Selamat pagi,', 'Pagi,', 'Assalamualaikum,', 'Semangat pagi,', 'Pagi yang cerah,', 'Bismillah,', 'Hari baru,', 'Jom hustle,', 'Fresh morning,', 'Pagi2 dah rajin,', 'Bangun awal ni,', 'Subuh productivity,', 'Ayuh mula hari ni,', 'Segar pagi ni,', 'Alhamdulillah pagi,', 'Rezeki baru menanti,', 'Pagi yang indah,', 'Peluang baru hari ni,', 'Semangat waja,', 'Dah ready?', 'Pagi cerah, hati ceria,', 'Gas pagi ni,', 'Hari baru, peluang baru,', 'Productive morning,'],
+      afternoon: ['Selamat petang,', 'Petang,', 'Hey,', 'Apa khabar,', 'Tengah hari check-in,', 'Macam mana hari ni,', 'Semangat lagi,', 'Petang produktif,', 'Keep going,', 'Halfway there,', 'Jangan give up,', 'Teruskan,', 'Power petang,', 'Masih on track,', 'Lunch dah?', 'Kuat lagi,', 'Layan petang,', 'Steady lah,', 'Mood petang,', 'Santai tapi progress,', 'On fire petang ni,', 'Maintain momentum,', 'Boleh lagi ni,', 'Push sikit lagi,'],
+      evening: ['Selamat malam,', 'Malam,', 'Eh dah malam,', 'Balik kerja?', 'Rehat jap,', 'Review harian,', 'Alhamdulillah,', 'Malam yang tenang,', 'Winding down,', 'Hari hampir tamat,', 'Penat tak?', 'Good job hari ni,', 'Tahniah hari ni,', 'Sunset check,', 'Malam santai,', 'Kerja siap?', 'Akhirnya malam,', 'Refleksi malam,', 'Berehat sat,', 'Hari yang penuh,', 'Bersyukur,', 'Nikmat malam,', 'Done for today?', 'Congrats survived today,'],
+      latenight: ['Selamat malam,', 'Tak tidur lagi?', 'Kerja lagi?', 'Night owl ni,', 'Last check,', 'Sebelum tidur?', 'Rajinnya,', 'Hustle tak berhenti,', 'Mata masih celik,', 'Satu lagi peek,', 'Macam tak penat je,', 'Dedicated betul,', 'Terakhir hari ni,', 'Almost done,', 'Last round,', 'Esok hari baru,', 'Tido sat lagi,', 'One more check,', 'Malam masih muda,', 'Hebat lah kau,']
     },
     id: {
-      night: ['Masih bangun?', 'Begadang,', 'Kerja malam,', 'Belum tidur?', 'Rajin banget,', 'Malam yang tenang,', 'Night mode,', 'Lembur ya,', 'Masih semangat,', 'Nocturnal mode,'],
-      morning: ['Selamat pagi,', 'Pagi,', 'Semangat pagi,', 'Pagi yang indah,', 'Bismillah,', 'Hari baru,', 'Yuk mulai,', 'Pagi cerah,', 'Bangun pagi rejeki,', 'Fresh pagi,', 'Selamat beraktivitas,', 'Ayo produktif,'],
-      afternoon: ['Selamat siang,', 'Siang,', 'Hai,', 'Apa kabar,', 'Siang produktif,', 'Gimana harinya,', 'Semangat terus,', 'Midday hustle,', 'Keep going,', 'Lanjut terus,', 'Setengah jalan,', 'Gas terus,'],
-      evening: ['Selamat malam,', 'Malam,', 'Hai,', 'Sudah malam,', 'Pulang kerja?', 'Waktunya review,', 'Alhamdulillah,', 'Malam tenang,', 'Winding down,', 'Hari hampir selesai,', 'Capek ya?', 'Istirahat dulu,'],
-      latenight: ['Selamat malam,', 'Belum tidur?', 'Kerja lagi?', 'Night owl,', 'Cek terakhir,', 'Sebelum tidur?', 'Rajin ya,', 'Late night grind,', 'Masih on?', 'Satu lagi,']
+      night: ['Masih bangun?', 'Begadang,', 'Kerja malam,', 'Belum tidur?', 'Rajin banget,', 'Malam yang tenang,', 'Night mode,', 'Lembur ya,', 'Masih semangat,', 'Nocturnal mode,', 'Malam panjang,', 'Masih sibuk,', 'Midnight grind,', 'Tidur bisa nanti,', 'Malam produktif,', 'Kopi masih ngefek,', 'Warrior malam,', 'Semangat 45,', 'Masih on,', 'Begadang dulu,'],
+      morning: ['Selamat pagi,', 'Pagi,', 'Semangat pagi,', 'Pagi yang indah,', 'Bismillah,', 'Hari baru,', 'Yuk mulai,', 'Pagi cerah,', 'Bangun pagi rejeki,', 'Fresh pagi,', 'Selamat beraktivitas,', 'Ayo produktif,', 'Pagi baru semangat baru,', 'Hari penuh peluang,', 'Rise and shine,', 'Gas pagi ini,', 'Siap tempur,', 'Pagi menawan,', 'Rezeki pagi,', 'Mulai dengan senyum,', 'Energi penuh,', 'Pagi yang segar,', 'Lets go,', 'Bismillah mulai,'],
+      afternoon: ['Selamat siang,', 'Siang,', 'Hai,', 'Apa kabar,', 'Siang produktif,', 'Gimana harinya,', 'Semangat terus,', 'Midday hustle,', 'Keep going,', 'Lanjut terus,', 'Setengah jalan,', 'Gas terus,', 'Masih semangat?', 'Power siang,', 'Sudah makan?', 'On track terus,', 'Siang yang sibuk,', 'Steady,', 'Push lagi,', 'Jalan terus,', 'Maintain pace,', 'Sip siang ini,', 'Lanjut gas,', 'Keren hari ini,'],
+      evening: ['Selamat malam,', 'Malam,', 'Hai,', 'Sudah malam,', 'Pulang kerja?', 'Waktunya review,', 'Alhamdulillah,', 'Malam tenang,', 'Winding down,', 'Hari hampir selesai,', 'Capek ya?', 'Istirahat dulu,', 'Good job hari ini,', 'Malam santai,', 'Refleksi malam,', 'Bersyukur,', 'Selesai sudah,', 'Malam indah,', 'Congrats,', 'Sunset vibes,', 'Relax mode on,', 'Akhirnya,', 'Tenang dulu,', 'Hari yang bermakna,'],
+      latenight: ['Selamat malam,', 'Belum tidur?', 'Kerja lagi?', 'Night owl,', 'Cek terakhir,', 'Sebelum tidur?', 'Rajin ya,', 'Late night grind,', 'Masih on?', 'Satu lagi,', 'Dedicated banget,', 'Last round,', 'Besok hari baru,', 'Tidur bentar lagi,', 'Final check,', 'Malam masih muda,', 'Semangat terus,', 'Hampir selesai,', 'Satu hal lagi,', 'Istirahat soon,']
     },
     zh: {
-      night: ['还没睡？', '夜猫子模式，', '深夜奋斗，', '熬夜中，', '安静的夜晚，', '午夜冲刺，', '晚上好，', '加油，', '夜深了，', '还在忙？'],
-      morning: ['早上好，', '早安，', '新的一天，', '阳光明媚，', '早起的鸟儿，', '精神抖擞，', '美好的早晨，', '开始新的一天，', '今天加油，', '早安打工人，', '元气满满，', '新的开始，'],
-      afternoon: ['下午好，', '午安，', '你好，', '下午了，', '今天怎么样，', '继续加油，', '下午茶时间，', '半天过去了，', '保持节奏，', '午后时光，', '加油干，', '继续前进，'],
-      evening: ['晚上好，', '晚安，', '辛苦了，', '回来了，', '一天快结束了，', '放松一下，', '晚间回顾，', '今天辛苦了，', '日落时分，', '准备休息了？', '收工了，', '晚上愉快，'],
-      latenight: ['晚上好，', '还在忙？', '又回来了，', '夜深了，', '最后看一眼？', '睡前检查，', '辛苦了，', '夜间模式，', '快去睡吧，', '最后一次，']
+      night: ['还没睡？', '夜猫子模式，', '深夜奋斗，', '熬夜中，', '安静的夜晚，', '午夜冲刺，', '晚上好，', '加油，', '夜深了，', '还在忙？', '月光下的努力，', '夜未央，', '深夜档，', '安静的时光，', '星星都出来了，', '不眠之夜，', '夜色正好，', '默默努力，', '夜间模式，', '最后看一眼，'],
+      morning: ['早上好，', '早安，', '新的一天，', '阳光明媚，', '早起的鸟儿，', '精神抖擞，', '美好的早晨，', '开始新的一天，', '今天加油，', '早安打工人，', '元气满满，', '新的开始，', '又是充满希望的一天，', '朝气蓬勃，', '一日之计在于晨，', '满血复活，', '朝阳初升，', '美好在前方，', '今天也要努力，', '清晨的力量，', '准备好了吗，', '让我们开始吧，', '崭新的一天，', '阳光正好，'],
+      afternoon: ['下午好，', '午安，', '你好，', '下午了，', '今天怎么样，', '继续加油，', '下午茶时间，', '半天过去了，', '保持节奏，', '午后时光，', '加油干，', '继续前进，', '状态还好吗，', '坚持就是胜利，', '下半场开始，', '稳步前进，', '效率时间，', '继续保持，', '午后加油，', '再接再厉，', '马力全开，', '冲刺下午，', '节奏不变，', '你很棒，'],
+      evening: ['晚上好，', '晚安，', '辛苦了，', '回来了，', '一天快结束了，', '放松一下，', '晚间回顾，', '今天辛苦了，', '日落时分，', '准备休息了？', '收工了，', '晚上愉快，', '今天真棒，', '安静的夜晚，', '值得休息，', '完美的一天，', '轻松一下，', '感恩今天，', '夕阳很美，', '结束了吗，', '今天很充实，', '好好休息，', '一天圆满，', '值得庆祝，'],
+      latenight: ['晚上好，', '还在忙？', '又回来了，', '夜深了，', '最后看一眼？', '睡前检查，', '辛苦了，', '夜间模式，', '快去睡吧，', '最后一次，', '明天见，', '该休息了，', '夜色深沉，', '收尾了，', '明天更好，', '放下手机，', '安心入睡，', '今晚到此，', '梦里见，', '晚安，']
     },
     ja: {
-      night: ['まだ起きてる？', '夜更かし中，', '深夜の頑張り，', '眠れない？', '静かな夜，', '真夜中のハッスル，', 'お疲れ様，', '夜型モード，', 'もう寝よう，', '深夜作業，'],
-      morning: ['おはようございます，', 'おはよう，', '新しい一日，', '爽やかな朝，', '今日も頑張ろう，', '朝活中，', '素敵な朝，', 'いい天気，', '早起きは三文の徳，', 'さあ始めよう，', '元気出して，', '朝のルーティン，'],
-      afternoon: ['こんにちは，', '午後，', 'やあ，', '調子どう？', '午後も頑張ろう，', 'お昼のチェック，', '折り返し地点，', '午後のひととき，', 'ペース維持，', '順調？', 'あと半分，', '頑張って，'],
-      evening: ['こんばんは，', '夜，', 'おかえり，', 'お疲れ様，', '一日の終わり，', 'リラックスタイム，', '振り返りの時間，', '今日もお疲れ，', '日没の頃，', 'もう少し，', 'ゆっくりして，', '今日も良い日，'],
-      latenight: ['こんばんは，', 'まだ頑張ってる？', 'また来たね，', '夜更けに，', '最後のチェック？', '寝る前に？', 'お疲れ様，', '深夜モード，', 'そろそろ寝よう，', 'ラストチェック，']
+      night: ['まだ起きてる？', '夜更かし中，', '深夜の頑張り，', '眠れない？', '静かな夜，', '真夜中のハッスル，', 'お疲れ様，', '夜型モード，', 'もう寝よう，', '深夜作業，', '月明かりの中で，', '夜は長い，', '静かな時間，', '深夜のチャレンジ，', '星空の下で，', '不眠の夜，', '夜が明けるまで，', '頑張り屋さん，', 'ラストスパート，', 'あと少し，'],
+      morning: ['おはようございます，', 'おはよう，', '新しい一日，', '爽やかな朝，', '今日も頑張ろう，', '朝活中，', '素敵な朝，', 'いい天気，', '早起きは三文の徳，', 'さあ始めよう，', '元気出して，', '朝のルーティン，', '希望に満ちた朝，', '気持ちのいい朝，', '今日も一日，', 'フレッシュスタート，', '朝日が眩しい，', '新しいチャンス，', 'やる気満々，', '最高の朝，', '準備はOK，', '今日のゴールは，', '朝から全力，', 'エネルギー満タン，'],
+      afternoon: ['こんにちは，', '午後，', 'やあ，', '調子どう？', '午後も頑張ろう，', 'お昼のチェック，', '折り返し地点，', '午後のひととき，', 'ペース維持，', '順調？', 'あと半分，', '頑張って，', '午後のエネルギー，', 'いい感じ，', 'ランチ後の一踏ん張り，', '集中タイム，', 'まだまだ，', '午後も最高，', '絶好調？', 'リズムキープ，', '午後のパワー，', '進捗どう？', 'いいペース，', '余裕あり，'],
+      evening: ['こんばんは，', '夜，', 'おかえり，', 'お疲れ様，', '一日の終わり，', 'リラックスタイム，', '振り返りの時間，', '今日もお疲れ，', '日没の頃，', 'もう少し，', 'ゆっくりして，', '今日も良い日，', '頑張った，', '素敵な夜，', '今日も最高だった，', '安らぎの時間，', '夕暮れ時，', '一日お疲れ，', '夜の静けさ，', 'ホッと一息，', '今日の成果は，', '安心して，', '穏やかな夜，', 'グッジョブ，'],
+      latenight: ['こんばんは，', 'まだ頑張ってる？', 'また来たね，', '夜更けに，', '最後のチェック？', '寝る前に？', 'お疲れ様，', '深夜モード，', 'そろそろ寝よう，', 'ラストチェック，', '明日も頑張ろう，', 'おやすみ前に，', '夜も更けて，', '最後に一つ，', '今日はここまで，', '明日があるさ，', '静かな夜に，', 'もう十分，', '安らかに，', 'いい夢を，']
     },
     ko: {
-      night: ['아직 안 자?', '야근 중,', '밤늦게까지,', '잠이 안 와?', '조용한 밤,', '한밤중 허슬,', '수고해,', '야행성 모드,', '아직 일해?', '밤새 작업,'],
-      morning: ['좋은 아침,', '안녕,', '새로운 하루,', '상쾌한 아침,', '오늘도 화이팅,', '일찍 일어났네,', '좋은 하루 보내,', '아침 햇살,', '힘내자,', '시작하자,', '활기찬 아침,', '오늘의 시작,'],
-      afternoon: ['안녕하세요,', '오후,', '점심 먹었어?', '오늘 어때,', '오후도 화이팅,', '반 지났다,', '계속 가자,', '오후 시간,', '잘하고 있어,', '페이스 유지,', '파이팅,', '거의 다 왔어,'],
-      evening: ['좋은 저녁,', '저녁,', '돌아왔네,', '수고했어,', '하루 마무리,', '쉬는 시간,', '오늘 리뷰,', '퇴근 후,', '해질녘,', '거의 다 왔어,', '오늘도 고생,', '편히 쉬어,'],
-      latenight: ['좋은 저녁,', '아직 일해?', '또 왔네,', '밤이야,', '마지막 체크?', '자기 전에?', '수고해,', '늦은 밤 모드,', '곧 자야지,', '마지막으로,']
+      night: ['아직 안 자?', '야근 중,', '밤늦게까지,', '잠이 안 와?', '조용한 밤,', '한밤중 허슬,', '수고해,', '야행성 모드,', '아직 일해?', '밤새 작업,', '달빛 아래,', '밤은 길어,', '고요한 시간,', '야간 모드,', '별빛 아래서,', '불면의 밤,', '마지막 스퍼트,', '밤이 깊었어,', '열정적이네,', '밤의 전사,'],
+      morning: ['좋은 아침,', '안녕,', '새로운 하루,', '상쾌한 아침,', '오늘도 화이팅,', '일찍 일어났네,', '좋은 하루 보내,', '아침 햇살,', '힘내자,', '시작하자,', '활기찬 아침,', '오늘의 시작,', '아침부터 열정,', '오늘도 최고,', '새로운 시작,', '에너지 충전,', '좋은 기운,', '오늘도 빛나,', '파워 모닝,', '아침이 좋다,', '오늘은 특별해,', '일어나자마자 화이팅,', '모닝 루틴,', '준비됐지?'],
+      afternoon: ['안녕하세요,', '오후,', '점심 먹었어?', '오늘 어때,', '오후도 화이팅,', '반 지났다,', '계속 가자,', '오후 시간,', '잘하고 있어,', '페이스 유지,', '파이팅,', '거의 다 왔어,', '오후 에너지,', '좋은 흐름,', '계속 달려,', '집중 타임,', '아직 멀었어,', '순조로워,', '오후도 최고,', '리듬 유지,', '꾸준히,', '잘 되고 있어,', '자신감 있게,', '오후 파워,'],
+      evening: ['좋은 저녁,', '저녁,', '돌아왔네,', '수고했어,', '하루 마무리,', '쉬는 시간,', '오늘 리뷰,', '퇴근 후,', '해질녘,', '거의 다 왔어,', '오늘도 고생,', '편히 쉬어,', '잘했어 오늘,', '저녁 노을,', '하루 끝,', '평화로운 밤,', '오늘 최고였어,', '쉬어가자,', '감사한 하루,', '마무리 잘,', '고요한 저녁,', '오늘의 성과,', '편안한 밤,', '굿 나잇,'],
+      latenight: ['좋은 저녁,', '아직 일해?', '또 왔네,', '밤이야,', '마지막 체크?', '자기 전에?', '수고해,', '늦은 밤 모드,', '곧 자야지,', '마지막으로,', '내일 또 보자,', '자기 전 마지막,', '밤이 깊었어,', '하나만 더,', '오늘은 여기까지,', '내일이 있어,', '조용한 밤에,', '충분히 했어,', '편히 자,', '좋은 꿈,']
     },
     ru: {
-      night: ['Ещё не спишь?', 'Работаешь допоздна,', 'Ночная смена,', 'Не спится?', 'Тихая ночь,', 'Полуночный хастл,', 'Добрый вечер,', 'Ночной режим,', 'Бессонница?', 'Последний взгляд,'],
-      morning: ['Доброе утро,', 'Утро,', 'С добрым утром,', 'Новый день,', 'Бодрое утро,', 'Раннее утро,', 'Отличное утро,', 'Начнём,', 'Солнечное утро,', 'Поехали,', 'Свежее утро,', 'Пора начинать,'],
-      afternoon: ['Добрый день,', 'День,', 'Привет,', 'Как дела,', 'Полдень,', 'Продолжаем,', 'Дневной чек,', 'Половина дня,', 'Держим темп,', 'Всё идёт,', 'Вперёд,', 'Не сдаёмся,'],
-      evening: ['Добрый вечер,', 'Вечер,', 'С возвращением,', 'Как день прошёл,', 'Конец дня,', 'Время отдыха,', 'Вечерний обзор,', 'Сегодня молодец,', 'Закат,', 'Почти всё,', 'Отдыхай,', 'Хороший день,'],
-      latenight: ['Добрый вечер,', 'Ещё работаешь?', 'Снова здесь,', 'Ночь,', 'Последний взгляд?', 'Перед сном?', 'Молодец,', 'Поздний вечер,', 'Пора спать,', 'Финальный чек,']
+      night: ['Ещё не спишь?', 'Работаешь допоздна,', 'Ночная смена,', 'Не спится?', 'Тихая ночь,', 'Полуночный хастл,', 'Добрый вечер,', 'Ночной режим,', 'Бессонница?', 'Последний взгляд,', 'Лунный свет,', 'Ночь длинная,', 'Тишина вокруг,', 'Ночной марафон,', 'Под звёздами,', 'Ночь без сна,', 'Последний рывок,', 'Глубокая ночь,', 'Мотивация 100%,', 'Ночной воин,'],
+      morning: ['Доброе утро,', 'Утро,', 'С добрым утром,', 'Новый день,', 'Бодрое утро,', 'Раннее утро,', 'Отличное утро,', 'Начнём,', 'Солнечное утро,', 'Поехали,', 'Свежее утро,', 'Пора начинать,', 'Утро полно возможностей,', 'Энергия на максимуме,', 'Сегодня наш день,', 'Утренний заряд,', 'Новые горизонты,', 'Утро победителя,', 'Готов к свершениям,', 'Рассвет нового дня,', 'Утро добрых дел,', 'Вперёд к цели,', 'Продуктивное утро,', 'Энергия утра,'],
+      afternoon: ['Добрый день,', 'День,', 'Привет,', 'Как дела,', 'Полдень,', 'Продолжаем,', 'Дневной чек,', 'Половина дня,', 'Держим темп,', 'Всё идёт,', 'Вперёд,', 'Не сдаёмся,', 'Дневная энергия,', 'Отлично идём,', 'После обеда,', 'Концентрация,', 'Ещё немного,', 'Всё по плану,', 'Дневной режим,', 'Ритм сохраняем,', 'Молодцом,', 'Прогресс есть,', 'Стабильно,', 'Уверенно,'],
+      evening: ['Добрый вечер,', 'Вечер,', 'С возвращением,', 'Как день прошёл,', 'Конец дня,', 'Время отдыха,', 'Вечерний обзор,', 'Сегодня молодец,', 'Закат,', 'Почти всё,', 'Отдыхай,', 'Хороший день,', 'Отличный день,', 'Тихий вечер,', 'Заслуженный отдых,', 'Итоги дня,', 'Вечерний покой,', 'Спасибо себе,', 'Вечер красив,', 'Завершаем,', 'День удался,', 'Вечернее спокойствие,', 'Приятного вечера,', 'До завтра,'],
+      latenight: ['Добрый вечер,', 'Ещё работаешь?', 'Снова здесь,', 'Ночь,', 'Последний взгляд?', 'Перед сном?', 'Молодец,', 'Поздний вечер,', 'Пора спать,', 'Финальный чек,', 'Завтра новый день,', 'Перед сном,', 'Уже поздно,', 'Ещё одно дело,', 'На сегодня всё,', 'Завтра будет лучше,', 'Тихая ночь,', 'Достаточно,', 'Спокойной ночи,', 'Сладких снов,']
     }
   };
 
   const welcomes = {
-    en: ["Let's check your numbers.", 'Your finances await.', 'Ready to crush it.', 'Money moves time.', "Let's see where you stand.", 'Time to level up.', 'Your dashboard is ready.', "Numbers don't lie.", "Let's make progress.", 'Stack check time.', ''],
-    ms: ['Jom tengok duit.', 'Kewangan menanti.', 'Jom hustle.', 'Masa semak kewangan.', 'Dashboard siap.', 'Level up time.', 'Semak kedudukan.', 'Nombor tak tipu.', 'Jom progress.', ''],
-    id: ['Yuk cek keuangan.', 'Keuangan menunggu.', 'Siap hustle.', 'Waktunya cek.', 'Dashboard siap.', 'Level up.', 'Lihat posisi kamu.', 'Angka tidak bohong.', 'Yuk maju.', ''],
-    zh: ['看看你的数据。', '财务等着你。', '准备好了。', '该看看钱了。', '仪表盘就绪。', '升级时间。', '数字不会说谎。', '继续进步。', ''],
-    ja: ['数字を確認しよう。', '家計が待ってる。', '準備OK。', 'お金の時間。', 'ダッシュボード準備完了。', 'レベルアップ。', '数字は嘘つかない。', '進捗を見よう。', ''],
-    ko: ['숫자를 확인하자.', '재정이 기다려.', '준비 완료.', '돈 관리 시간.', '대시보드 준비됨.', '레벨업 시간.', '숫자는 거짓말 안 해.', '진행 상황 보자.', ''],
-    ru: ['Проверим цифры.', 'Финансы ждут.', 'Готов к делу.', 'Время денег.', 'Дашборд готов.', 'Уровень вверх.', 'Цифры не врут.', 'Двигаемся дальше.', '']
+    en: ["Let's check your numbers.", 'Your finances await.', 'Ready to crush it.', 'Money moves time.', "Let's see where you stand.", 'Time to level up.', 'Your dashboard is ready.', "Numbers don't lie.", "Let's make progress.", 'Stack check time.', 'Every dollar counts.', 'Building wealth, one step at a time.', 'Your money story continues.', 'Let\'s make smart moves.', 'Financial clarity awaits.', 'Numbers are looking good.', 'Let\'s keep the streak going.', 'Growth is a daily habit.', 'Your future self thanks you.', ''],
+    ms: ['Jom tengok duit.', 'Kewangan menanti.', 'Jom hustle.', 'Masa semak kewangan.', 'Dashboard siap.', 'Level up time.', 'Semak kedudukan.', 'Nombor tak tipu.', 'Jom progress.', 'Setiap sen dikira.', 'Konsisten adalah kunci.', 'Kewangan makin mantap.', 'Cerita duit anda.', 'Langkah bijak hari ni.', 'Clarity kewangan.', 'Nombor makin cantik.', 'Keep the streak.', 'Grow every day.', 'Masa depan cerah.', ''],
+    id: ['Yuk cek keuangan.', 'Keuangan menunggu.', 'Siap hustle.', 'Waktunya cek.', 'Dashboard siap.', 'Level up.', 'Lihat posisi kamu.', 'Angka tidak bohong.', 'Yuk maju.', 'Setiap rupiah berarti.', 'Konsisten itu kunci.', 'Keuangan makin kuat.', 'Cerita uangmu.', 'Langkah cerdas.', 'Kejelasan keuangan.', 'Angka makin bagus.', 'Jaga momentum.', 'Tumbuh setiap hari.', 'Masa depan cerah.', ''],
+    zh: ['看看你的数据。', '财务等着你。', '准备好了。', '该看看钱了。', '仪表盘就绪。', '升级时间。', '数字不会说谎。', '继续进步。', '每一分都重要。', '坚持就是胜利。', '财富在增长。', '你的故事在继续。', '聪明的决定。', '清晰的财务。', '数字越来越好。', '保持节奏。', '每天成长。', '未来可期。', '一步一个脚印。', ''],
+    ja: ['数字を確認しよう。', '家計が待ってる。', '準備OK。', 'お金の時間。', 'ダッシュボード準備完了。', 'レベルアップ。', '数字は嘘つかない。', '進捗を見よう。', '一円も大切に。', '継続は力なり。', '資産成長中。', 'あなたの物語。', '賢い選択を。', '明確な家計。', '数字がいい感じ。', 'ペースを維持。', '毎日成長。', '未来は明るい。', '一歩ずつ確実に。', ''],
+    ko: ['숫자를 확인하자.', '재정이 기다려.', '준비 완료.', '돈 관리 시간.', '대시보드 준비됨.', '레벨업 시간.', '숫자는 거짓말 안 해.', '진행 상황 보자.', '한 푼도 중요해.', '꾸준함이 핵심.', '자산 성장 중.', '네 이야기.', '현명한 선택.', '명확한 재정.', '숫자가 좋아지고 있어.', '페이스 유지.', '매일 성장.', '밝은 미래.', '한 걸음씩 확실히.', ''],
+    ru: ['Проверим цифры.', 'Финансы ждут.', 'Готов к делу.', 'Время денег.', 'Дашборд готов.', 'Уровень вверх.', 'Цифры не врут.', 'Двигаемся дальше.', 'Каждый рубль важен.', 'Стабильность — ключ.', 'Капитал растёт.', 'Твоя история.', 'Умные решения.', 'Финансовая ясность.', 'Цифры радуют.', 'Держим темп.', 'Рост каждый день.', 'Будущее светлое.', 'Шаг за шагом.', '']
   };
 
   const langGreets = greetings[lang] || greetings.en;
@@ -768,6 +768,20 @@ const FINTRACK_CHANGELOG = {
       'Browser viewport fix (dvh) for tall screens (Oppo A6)',
       'Header forced single row on narrow screens (≤400px)',
       'Safe-area padding for gesture navigation'
+    ]
+  },
+  'fintrack-v2.0.1': {
+    version: 'V2.0.1',
+    date: '20 Aug 2026',
+    changes: [
+      'Notification page stays on notification tab after add/edit',
+      'Notification badge only shows reminders within timing window',
+      'Done on reminder properly clears badge count',
+      'Dismiss on recurring reminders resurfaces at next cycle',
+      'Desktop Mode toggle hidden on desktop (only shows on mobile)',
+      'Page title removed from header for cleaner UI',
+      '700+ multilingual greetings (7 langs x 5 slots x 20+ each)',
+      'Recovery code flow verified for forgotten PIN scenario'
     ]
   }
 };
