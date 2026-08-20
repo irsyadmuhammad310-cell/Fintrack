@@ -1,11 +1,11 @@
 // === SETTINGS (FinTrack Premium V2.0.0) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'V2.0.0';
+const FINTRACK_VERSION = 'V2.0.1';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
-  c.innerHTML = `<div class="stitle">Settings</div><div class="ssub">Manage your preferences</div><div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories & Accounts</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
+  c.innerHTML = `<div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories & Accounts</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
 }
@@ -45,7 +45,7 @@ function setTab(el, tab) {
 // === PROFILE TAB ===
 function renderProfileTab(c) {
   const desktopMode = safeGet('ft_desktop_mode') === 'true';
-  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your display name and greeting</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px" onchange="saveProfileSettings()"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px" onchange="saveProfileSettings()"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display mode</div></div></div><div class="trow"><div class="tinf"><div class="tna">Dark Mode</div><div class="tde">Switch between light and dark theme</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;safeSave('theme',th)"></div></div><div class="trow"><div class="tinf"><div class="tna">Desktop Mode</div><div class="tde">Force desktop layout on mobile</div></div><div class="tsw ${desktopMode ? 'on' : ''}" onclick="this.classList.toggle('on');safeSave('ft_desktop_mode',this.classList.contains('on')?'true':'false');toast(this.classList.contains('on')?'🖥 Desktop mode on. Reload to apply.':'📱 Mobile mode restored. Reload to apply.')"></div></div></div>`;
+  c.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Profile</div><div style="font-size:10px;color:var(--text-tertiary)">Your display name and greeting</div></div></div><div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;align-items:end"><div style="flex:1;min-width:140px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Name</label><input class="fi" id="set_username" value="${getUserName()}" placeholder="Your name" style="font-size:13px" onchange="saveProfileSettings()"></div><div style="min-width:100px"><label style="font-size:10px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:3px">Title</label><select class="fi" id="set_usertitle" style="font-size:13px" onchange="saveProfileSettings()"><option value=""${!getUserTitle() ? ' selected' : ''}>None</option><option value="sir"${getUserTitle()==='sir' ? ' selected' : ''}>Sir</option><option value="master"${getUserTitle()==='master' ? ' selected' : ''}>Master</option><option value="boss"${getUserTitle()==='boss' ? ' selected' : ''}>Boss</option><option value="bro"${getUserTitle()==='bro' ? ' selected' : ''}>Bro</option><option value="chief"${getUserTitle()==='chief' ? ' selected' : ''}>Chief</option></select></div></div></div><div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="palette" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Appearance</div><div style="font-size:10px;color:var(--text-tertiary)">Theme and display mode</div></div></div><div class="trow"><div class="tinf"><div class="tna">Dark Mode</div><div class="tde">Switch between light and dark theme</div></div><div class="tsw ${document.documentElement.dataset.theme === 'dark' ? 'on' : ''}" onclick="this.classList.toggle('on');const th=this.classList.contains('on')?'dark':'light';document.documentElement.dataset.theme=th;safeSave('theme',th)"></div></div>${window.innerWidth <= 768 ? `<div class="trow"><div class="tinf"><div class="tna">Desktop Mode</div><div class="tde">Force desktop layout on mobile</div></div><div class="tsw ${desktopMode ? 'on' : ''}" onclick="this.classList.toggle('on');safeSave('ft_desktop_mode',this.classList.contains('on')?'true':'false');toast(this.classList.contains('on')?'🖥 Desktop mode on. Reload to apply.':'📱 Mobile mode restored. Reload to apply.')"></div></div>` : ''}</div>`;
   lucide.createIcons();
 }
 
@@ -230,9 +230,8 @@ function switchLang(lang) {
     mf.options[0].textContent = t('hdr_total_year');
     for (let i = 1; i <= 12; i++) mf.options[i].textContent = mNames[i - 1];
   }
-  // Update header title
-  const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
-  document.getElementById('pt').textContent = t(titleKeys[curPage]) || curPage;
+  // V2.0.1: Title removed from header
+  document.getElementById('pt').textContent = '';
   // Stay on language tab (re-render just the language list)
   const setc = document.getElementById('setc');
   if (setc) renderLanguageTab(setc);
@@ -902,7 +901,7 @@ function saveReminder(e, editId) {
   else { data.id = reminderNxId++; REMINDERS.push(data); toast('✅ Reminder created'); }
   saveREMINDERS();
   document.getElementById('mremind').remove(); document.body.style.overflow = '';
-  setSubTab = 'notifications'; renderGeneralTab(document.getElementById('setc'));
+  renderGenSub('notif');
   updateNotifBadge();
 }
 
@@ -913,7 +912,7 @@ function deleteReminder(id) {
   REMINDERS = REMINDERS.filter(r => r.id !== id);
   saveREMINDERS();
   toast('🗑 Reminder deleted');
-  setSubTab = 'notifications'; renderGeneralTab(document.getElementById('setc'));
+  renderGenSub('notif');
   updateNotifBadge();
 }
 
