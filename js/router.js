@@ -59,9 +59,9 @@ function navigate(page) {
   if (history.state?.page !== page) {
     history.pushState({ page }, '', '');
   }
-  const titleKeys = { dashboard: 'nav_dashboard', transactions: 'nav_transactions', investments: 'nav_investments', goals: 'nav_goals', analytics: 'nav_analytics', reports: 'nav_reports', settings: 'nav_settings' };
-  document.getElementById('pt').textContent = t(titleKeys[page]) || page;
-  document.getElementById('ps').textContent = page === 'dashboard' ? t('dash_subtitle') : '';
+  // V2.0.1: Title removed from header for cleaner look
+  document.getElementById('pt').textContent = '';
+  document.getElementById('ps').textContent = page === 'dashboard' ? getGreeting() : '';
 
   // Set default month filter per tab (only on first visit, preserve user's selection after)
   const mf = document.getElementById('mf');
