@@ -32,8 +32,8 @@ document.addEventListener('visibilitychange', function() {
   if (document.hidden) {
     showPrivacyCover();
   } else {
-    // If App Lock timeout triggered, don't remove cover (unlock screen handles it)
-    if (FT_APP_LOCK && !ftIsUnlocked) return;
+    // Only keep cover if App Lock is enabled AND session expired (unlock screen will handle it)
+    if (FT_APP_LOCK && _sessionLocked) return;
     hidePrivacyCover();
   }
 });
