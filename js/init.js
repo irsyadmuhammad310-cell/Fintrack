@@ -1,4 +1,4 @@
-// === INIT (FinTrack Premium V2.0.1 Modular Boot) ===
+// === INIT (FinTrack Premium V2.0.2 Modular Boot) ===
 document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
 
 // Populate header year dropdown
@@ -782,6 +782,20 @@ const FINTRACK_CHANGELOG = {
       'Page title removed from header for cleaner UI',
       '700+ multilingual greetings (7 langs x 5 slots x 20+ each)',
       'Recovery code flow verified for forgotten PIN scenario'
+    ]
+  },
+  'fintrack-v2.0.2': {
+    version: 'V2.0.2',
+    date: '21 Aug 2026',
+    changes: [
+      'Quick-Add: Money Manager-style numpad flow on mobile (3-tap transactions)',
+      'Category grid with subcategory chips on tap',
+      'Liability auto-linking from subcategory mapping',
+      'Liability Mapping in Settings (one-time setup, then automatic)',
+      'Account selector in quick-add',
+      'Auto-categorization integrated into quick-add description field',
+      'Supabase sync: fixed category mapping, merge-on-pull, UUID IDs, 72h auto-push',
+      'Desktop keeps full form modal (unchanged)'
     ]
   }
 };
