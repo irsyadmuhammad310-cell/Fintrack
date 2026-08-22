@@ -1,7 +1,7 @@
 // === SETTINGS (FinTrack Premium V2.0.0) ===
 let setSubTab = 'profile';
 
-const FINTRACK_VERSION = 'V2.0.1';
+const FINTRACK_VERSION = 'V2.0.2';
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
@@ -268,6 +268,20 @@ function renderCatAccountsTab(c) {
   html += `<div style="border-top:2px solid var(--border);padding-top:20px">`;
   html += renderAccountsSection();
   html += `</div>`;
+  // Liability Mapping Section (V2.0.2)
+  var liabilities = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
+  var loanSubs = SCHEMA.Expense && SCHEMA.Expense['Loan'] ? SCHEMA.Expense['Loan'] : [];
+  if (liabilities.length && loanSubs.length) {
+    var liabMap = getLiabMap();
+    html += `<div style="border-top:2px solid var(--border);padding-top:20px;margin-top:20px">`;
+    html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="link" width="16" height="16" style="color:var(--accent)"></i> Liability Mapping</div>`;
+    html += `<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">Link Loan subcategories to liability accounts. Quick-add will auto-select the liability when you pick a subcategory.</div>`;
+    loanSubs.forEach(function(sub) {
+      var mapped = liabMap[sub] || '';
+      html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 12px;background:var(--bg-primary);border-radius:8px"><span style="font-size:12px;font-weight:600;flex:1">${sub}</span><select class="fi" style="max-width:180px;font-size:11px;padding:6px 8px" onchange="saveLiabMapping('${sub}',this.value)"><option value="">None</option>${liabilities.map(function(l) { return '<option value="' + l.id + '"' + (mapped === l.id ? ' selected' : '') + '>' + l.name + '</option>'; }).join('')}</select></div>`;
+    });
+    html += `</div>`;
+  }
   c.innerHTML = html;
   lucide.createIcons();
 }
@@ -330,6 +344,15 @@ function moveAccount(accId, direction) {
 
 // === CATEGORIES (helpers) ===
 let catTypeFilter = 'Income';
+
+// V2.0.2: Save liability mapping
+function saveLiabMapping(sub, accId) {
+  var map = getLiabMap();
+  if (accId) map[sub] = accId;
+  else delete map[sub];
+  saveLiabMap(map);
+  toast('✅ Mapping saved');
+}
 
 function promptAddCategory() {
   const name = prompt(`New ${catTypeFilter} category name:`);
