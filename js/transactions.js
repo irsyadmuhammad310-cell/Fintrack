@@ -184,12 +184,12 @@ function openQuickAdd() {
   var h = '<div class="mo show" id="mqadd" style="background:var(--bg-primary)"><div style="display:flex;flex-direction:column;height:100dvh;overflow:hidden">';
   // Type tabs
   h += '<div style="display:flex;gap:6px;padding:12px 16px 6px"><div class="qa-tab active" data-t="Expense" onclick="qaSetType(\'Expense\')">Expense</div><div class="qa-tab" data-t="Income" onclick="qaSetType(\'Income\')">Income</div><div class="qa-tab" data-t="Savings" onclick="qaSetType(\'Savings\')">Savings</div></div>';
-  // Amount
-  h += '<div style="text-align:center;padding:14px 20px 6px"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Amount</div><div id="qaAmtDisplay" style="font-size:2.4rem;font-weight:900;letter-spacing:-0.03em;font-feature-settings:\'tnum\';color:var(--rose)"><span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>0</div></div>';
-  // Description
+  // Amount (tappable input, triggers native keyboard)
+  h += '<div style="text-align:center;padding:14px 20px 6px"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Amount</div><div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:0.9rem;color:var(--text-tertiary)">RM</span><input type="number" step="0.01" inputmode="decimal" id="qaAmtInput" placeholder="0" oninput="qaAmtChange()" style="border:none;background:none;outline:none;font-size:2.4rem;font-weight:900;letter-spacing:-0.03em;font-feature-settings:\'tnum\';color:var(--rose);text-align:center;width:60%;font-family:inherit"></div></div>';
+  // Description (tappable input, triggers native keyboard)
   h += '<div style="padding:0 16px 6px"><input class="fi" id="qaDesc" placeholder="Description (auto-categorizes)" oninput="qaHandleDesc()" style="text-align:center;font-size:13px;padding:8px 12px"></div>';
   // Auto-cat
-  h += '<div id="qaAutoCat" style="display:none;padding:2px 16px 4px;text-align:center"><span id="qaAutoCatText" style="display:inline-block;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;background:var(--accent-light);color:var(--accent);border:1px solid oklch(0.35 0.1 270/0.3)"></span> <button style="font-size:10px;font-weight:700;background:var(--accent);color:#fff;border:none;padding:3px 8px;border-radius:5px;cursor:pointer;margin-left:4px" onclick="qaAcceptCat()">Apply</button><button style="font-size:13px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;padding:2px 4px;margin-left:2px" onclick="qaAutoCat.style.display=\'none\'">✕</button></div>';
+  h += '<div id="qaAutoCat" style="display:none;padding:2px 16px 4px;text-align:center"><span id="qaAutoCatText" style="display:inline-block;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;background:var(--accent-light);color:var(--accent);border:1px solid oklch(0.35 0.1 270/0.3)"></span> <button style="font-size:10px;font-weight:700;background:var(--accent);color:#fff;border:none;padding:3px 8px;border-radius:5px;cursor:pointer;margin-left:4px" onclick="qaAcceptCat()">Apply</button><button style="font-size:13px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;padding:2px 4px;margin-left:2px" onclick="document.getElementById(\'qaAutoCat\').style.display=\'none\'">✕</button></div>';
   // Scrollable middle
   h += '<div style="flex:1;overflow-y:auto;padding:0 16px;min-height:0">';
   h += '<div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin:4px 0 6px">Category</div>';
@@ -198,12 +198,10 @@ function openQuickAdd() {
   h += '<div id="qaLiabRow" style="display:none;margin:8px 0"></div>';
   h += '<div id="qaAccRow" style="margin:8px 0"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Account</div><div id="qaAccChips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>';
   h += '</div>';
-  // Numpad
-  h += '<div class="qa-numpad">';
-  h += '<div class="qa-num" onclick="qaNum(\'1\')">1</div><div class="qa-num" onclick="qaNum(\'2\')">2</div><div class="qa-num" onclick="qaNum(\'3\')">3</div><div class="qa-num qa-del" onclick="qaDel()">⌫</div>';
-  h += '<div class="qa-num" onclick="qaNum(\'4\')">4</div><div class="qa-num" onclick="qaNum(\'5\')">5</div><div class="qa-num" onclick="qaNum(\'6\')">6</div><div class="qa-num qa-close" onclick="qaClose()">✕</div>';
-  h += '<div class="qa-num" onclick="qaNum(\'7\')">7</div><div class="qa-num" onclick="qaNum(\'8\')">8</div><div class="qa-num" onclick="qaNum(\'9\')">9</div><div class="qa-num qa-confirm disabled" id="qaConfirm" onclick="qaSave()">✓</div>';
-  h += '<div class="qa-num" onclick="qaNum(\'00\')">00</div><div class="qa-num" onclick="qaNum(\'.\')">.</div><div class="qa-num" onclick="qaNum(\'0\')">0</div><div class="qa-num" style="visibility:hidden"></div>';
+  // Bottom bar (close + confirm only, no numpad)
+  h += '<div style="display:flex;gap:8px;padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border)">';
+  h += '<button style="flex:1;padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:14px;font-weight:600;cursor:pointer;font-family:inherit" onclick="qaClose()">Cancel</button>';
+  h += '<button id="qaConfirm" style="flex:2;padding:14px;border-radius:10px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0.3;pointer-events:none" onclick="qaSave()">Save Transaction</button>';
   h += '</div>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
@@ -212,12 +210,21 @@ function openQuickAdd() {
   qaRenderAccounts();
 }
 
+function qaAmtChange() {
+  var input = document.getElementById('qaAmtInput');
+  _qaAmt = input.value;
+  var color = _qaType === 'Income' ? 'var(--emerald)' : _qaType === 'Savings' ? 'var(--blue)' : 'var(--rose)';
+  input.style.color = color;
+  qaUpdateConfirm();
+}
+
 function qaSetType(type) {
   _qaType = type;
   _qaCat = ''; _qaSub = ''; _qaLiab = '';
   document.querySelectorAll('.qa-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.t === type); });
   var color = type === 'Income' ? 'var(--emerald)' : type === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-  document.getElementById('qaAmtDisplay').style.color = color;
+  var input = document.getElementById('qaAmtInput');
+  if (input) input.style.color = color;
   qaRenderCats();
   document.getElementById('qaSubRow').style.display = 'none';
   document.getElementById('qaLiabRow').style.display = 'none';
@@ -281,29 +288,6 @@ function qaRenderAccounts() {
 }
 
 function qaSelectAcc(id) { _qaAcc = _qaAcc === id ? '' : id; qaRenderAccounts(); }
-
-function qaNum(key) {
-  if (key === '.' && _qaAmt.includes('.')) return;
-  if (key === '.' && !_qaAmt) _qaAmt = '0';
-  if (_qaAmt.includes('.') && _qaAmt.split('.')[1].length >= 2) return;
-  if (key === '00' && (!_qaAmt || _qaAmt === '0' || _qaAmt.includes('.'))) return;
-  if (_qaAmt === '0' && key !== '.' && key !== '00') _qaAmt = '';
-  _qaAmt += key;
-  document.getElementById('qaAmtDisplay').innerHTML = '<span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>' + (_qaAmt || '0');
-  qaUpdateConfirm();
-}
-
-function qaDel() {
-  _qaAmt = _qaAmt.slice(0, -1);
-  document.getElementById('qaAmtDisplay').innerHTML = '<span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>' + (_qaAmt || '0');
-  qaUpdateConfirm();
-}
-
-function qaUpdateConfirm() {
-  var btn = document.getElementById('qaConfirm');
-  var valid = _qaAmt && parseFloat(_qaAmt) > 0 && _qaCat;
-  if (btn) btn.className = 'qa-num qa-confirm' + (valid ? '' : ' disabled');
-}
 
 function qaHandleDesc() {
   var val = document.getElementById('qaDesc').value.trim();
