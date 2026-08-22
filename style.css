@@ -2426,3 +2426,40 @@ tr:hover td { background: var(--bg-primary); }
   .mob-dash-stats { gap: 6px; }
   .mob-dash-stat { padding: 10px 6px; }
 }
+
+/* =====================================================
+   V2.0.2 — Quick Add Numpad Flow (Mobile)
+   ===================================================== */
+.qa-tab { flex: 1; padding: 9px; border-radius: 10px; text-align: center; font-size: 12px; font-weight: 700; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-tertiary); cursor: pointer; transition: all 0.15s var(--ease-out); }
+.qa-tab.active { background: var(--rose-light); border-color: var(--rose); color: var(--rose); }
+.qa-tab[data-t="Income"].active { background: var(--emerald-light); border-color: var(--emerald); color: var(--emerald); }
+.qa-tab[data-t="Savings"].active { background: var(--blue-light); border-color: var(--blue); color: var(--blue); }
+.qa-cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+.qa-cat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); cursor: pointer; transition: all 0.12s var(--ease-out); }
+.qa-cat-item:active { transform: scale(0.93); }
+.qa-cat-item.selected { background: var(--accent-light); border-color: var(--accent); }
+.qa-cat-item.selected span:last-child { color: var(--accent) !important; }
+.qa-sub-chip { padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; transition: all 0.1s; }
+.qa-sub-chip:active { transform: scale(0.95); }
+.qa-sub-chip.selected { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.qa-liab-chip { padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; background: oklch(0.2 0.06 75); border: 1px solid oklch(0.3 0.08 75); color: var(--amber); cursor: pointer; transition: all 0.1s; }
+.qa-liab-chip:active { transform: scale(0.95); }
+.qa-liab-chip.selected { background: oklch(0.3 0.12 75); border-color: var(--amber); }
+.qa-liab-chip.skip { background: var(--bg-card); border-color: var(--border); color: var(--text-tertiary); }
+.qa-acc-chip { padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; }
+.qa-acc-chip.selected { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+.qa-numpad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 6px 16px; padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+.qa-num { padding: 14px; border-radius: 11px; background: var(--bg-card); border: 1px solid var(--border); font-size: 1.2rem; font-weight: 600; color: var(--text-primary); text-align: center; cursor: pointer; transition: all 0.08s; user-select: none; -webkit-tap-highlight-color: transparent; }
+.qa-num:active { background: var(--bg-primary); transform: scale(0.94); }
+.qa-del { font-size: 0.9rem; color: var(--text-tertiary); }
+.qa-close { font-size: 0.9rem; color: var(--rose); }
+.qa-confirm { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 800; font-size: 1.1rem; }
+.qa-confirm:active { opacity: 0.8; }
+.qa-confirm.disabled { opacity: 0.25; pointer-events: none; }
+
+@media (max-width: 400px) {
+  .qa-numpad { padding: 4px 12px; gap: 4px; }
+  .qa-num { padding: 12px; font-size: 1.1rem; }
+  .qa-cat-grid { gap: 4px; }
+  .qa-cat-item { padding: 8px 2px; }
+}
