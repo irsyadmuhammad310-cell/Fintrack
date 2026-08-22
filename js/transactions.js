@@ -160,6 +160,11 @@ function renderTxnTable() {
 
 // === ADD/EDIT MODAL ===
 function openAdd() {
+  // V2.0.2: Mobile uses quick-add numpad flow
+  if (window.innerWidth <= 900 && safeGet('ft_desktop_mode') !== 'true' && editId === null) {
+    openQuickAdd();
+    return;
+  }
   const isEdit = editId !== null;
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
@@ -169,6 +174,182 @@ function openAdd() {
   document.body.style.overflow = 'hidden';
   // Bootstrap category memory on first modal open
   if (typeof bootstrapCatMemory === 'function') bootstrapCatMemory();
+}
+
+// === QUICK ADD (V2.0.2 — Mobile numpad-first flow) ===
+var _qaType = 'Expense', _qaCat = '', _qaSub = '', _qaAmt = '', _qaDesc = '', _qaAcc = '', _qaLiab = '';
+
+function openQuickAdd() {
+  _qaType = 'Expense'; _qaCat = ''; _qaSub = ''; _qaAmt = ''; _qaDesc = ''; _qaAcc = ''; _qaLiab = '';
+  var h = '<div class="mo show" id="mqadd" style="background:var(--bg-primary)"><div style="display:flex;flex-direction:column;height:100dvh;overflow:hidden">';
+  // Type tabs
+  h += '<div style="display:flex;gap:6px;padding:12px 16px 6px"><div class="qa-tab active" data-t="Expense" onclick="qaSetType(\'Expense\')">Expense</div><div class="qa-tab" data-t="Income" onclick="qaSetType(\'Income\')">Income</div><div class="qa-tab" data-t="Savings" onclick="qaSetType(\'Savings\')">Savings</div></div>';
+  // Amount
+  h += '<div style="text-align:center;padding:14px 20px 6px"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Amount</div><div id="qaAmtDisplay" style="font-size:2.4rem;font-weight:900;letter-spacing:-0.03em;font-feature-settings:\'tnum\';color:var(--rose)"><span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>0</div></div>';
+  // Description
+  h += '<div style="padding:0 16px 6px"><input class="fi" id="qaDesc" placeholder="Description (auto-categorizes)" oninput="qaHandleDesc()" style="text-align:center;font-size:13px;padding:8px 12px"></div>';
+  // Auto-cat
+  h += '<div id="qaAutoCat" style="display:none;padding:2px 16px 4px;text-align:center"><span id="qaAutoCatText" style="display:inline-block;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;background:var(--accent-light);color:var(--accent);border:1px solid oklch(0.35 0.1 270/0.3)"></span> <button style="font-size:10px;font-weight:700;background:var(--accent);color:#fff;border:none;padding:3px 8px;border-radius:5px;cursor:pointer;margin-left:4px" onclick="qaAcceptCat()">Apply</button><button style="font-size:13px;color:var(--text-tertiary);background:none;border:none;cursor:pointer;padding:2px 4px;margin-left:2px" onclick="qaAutoCat.style.display=\'none\'">✕</button></div>';
+  // Scrollable middle
+  h += '<div style="flex:1;overflow-y:auto;padding:0 16px;min-height:0">';
+  h += '<div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;margin:4px 0 6px">Category</div>';
+  h += '<div id="qaCatGrid" class="qa-cat-grid"></div>';
+  h += '<div id="qaSubRow" style="display:none;margin:8px 0;display:flex;gap:6px;flex-wrap:wrap"></div>';
+  h += '<div id="qaLiabRow" style="display:none;margin:8px 0"></div>';
+  h += '<div id="qaAccRow" style="margin:8px 0"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Account</div><div id="qaAccChips" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>';
+  h += '</div>';
+  // Numpad
+  h += '<div class="qa-numpad">';
+  h += '<div class="qa-num" onclick="qaNum(\'1\')">1</div><div class="qa-num" onclick="qaNum(\'2\')">2</div><div class="qa-num" onclick="qaNum(\'3\')">3</div><div class="qa-num qa-del" onclick="qaDel()">⌫</div>';
+  h += '<div class="qa-num" onclick="qaNum(\'4\')">4</div><div class="qa-num" onclick="qaNum(\'5\')">5</div><div class="qa-num" onclick="qaNum(\'6\')">6</div><div class="qa-num qa-close" onclick="qaClose()">✕</div>';
+  h += '<div class="qa-num" onclick="qaNum(\'7\')">7</div><div class="qa-num" onclick="qaNum(\'8\')">8</div><div class="qa-num" onclick="qaNum(\'9\')">9</div><div class="qa-num qa-confirm disabled" id="qaConfirm" onclick="qaSave()">✓</div>';
+  h += '<div class="qa-num" onclick="qaNum(\'00\')">00</div><div class="qa-num" onclick="qaNum(\'.\')">.</div><div class="qa-num" onclick="qaNum(\'0\')">0</div><div class="qa-num" style="visibility:hidden"></div>';
+  h += '</div>';
+  h += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', h);
+  document.body.style.overflow = 'hidden';
+  qaRenderCats();
+  qaRenderAccounts();
+}
+
+function qaSetType(type) {
+  _qaType = type;
+  _qaCat = ''; _qaSub = ''; _qaLiab = '';
+  document.querySelectorAll('.qa-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.t === type); });
+  var color = type === 'Income' ? 'var(--emerald)' : type === 'Savings' ? 'var(--blue)' : 'var(--rose)';
+  document.getElementById('qaAmtDisplay').style.color = color;
+  qaRenderCats();
+  document.getElementById('qaSubRow').style.display = 'none';
+  document.getElementById('qaLiabRow').style.display = 'none';
+  qaUpdateConfirm();
+}
+
+function qaRenderCats() {
+  var cats = SCHEMA[_qaType] ? Object.keys(SCHEMA[_qaType]) : [];
+  var emojis = {'Food':'🍜','Transportation':'🚗','Housing':'🏠','Loan':'💸','Gift':'🎁','Entertainment':'🎬','Insurance & Taxes':'🛡','Employment (Net)':'💼','Cash':'💰','Dividen':'📈','KWSP':'📊','TH':'🕌','ASBN':'💎','Bank':'🏦','Versa':'🔮','Future':'📉','TNGO':'📱','Rize':'🏦','Saham PPK':'📊'};
+  var grid = document.getElementById('qaCatGrid');
+  grid.innerHTML = cats.map(function(c) {
+    var emoji = emojis[c] || '📦';
+    var shortName = c.length > 10 ? c.substring(0,9) + '..' : c;
+    return '<div class="qa-cat-item' + (_qaCat === c ? ' selected' : '') + '" onclick="qaSelectCat(\'' + c.replace(/'/g,"\\'") + '\')"><span style="font-size:18px">' + emoji + '</span><span style="font-size:8.5px;font-weight:600;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">' + shortName + '</span></div>';
+  }).join('');
+}
+
+function qaSelectCat(cat) {
+  _qaCat = cat;
+  _qaSub = '';
+  _qaLiab = '';
+  qaRenderCats();
+  // Show subcategories
+  var subs = SCHEMA[_qaType] && SCHEMA[_qaType][cat] ? SCHEMA[_qaType][cat] : [];
+  var subRow = document.getElementById('qaSubRow');
+  if (subs.length) {
+    subRow.innerHTML = subs.map(function(s) {
+      return '<div class="qa-sub-chip' + (_qaSub === s ? ' selected' : '') + '" onclick="qaSelectSub(\'' + s.replace(/'/g,"\\'") + '\')">' + s + '</div>';
+    }).join('');
+    subRow.style.display = 'flex';
+  } else { subRow.style.display = 'none'; }
+  // Show liability picker for Loan category (auto-map or manual)
+  var liabRow = document.getElementById('qaLiabRow');
+  if (_qaType === 'Expense' && (cat === 'Loan' || cat.toLowerCase().includes('loan'))) {
+    var liabs = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
+    if (liabs.length) {
+      liabRow.innerHTML = '<div style="font-size:9px;font-weight:700;color:oklch(0.78 0.14 75);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">💳 Pay liability?</div><div style="display:flex;gap:6px;flex-wrap:wrap">' + liabs.map(function(l) { return '<div class="qa-liab-chip' + (_qaLiab === l.id ? ' selected' : '') + '" onclick="qaSelectLiab(\'' + l.id + '\')">' + l.name + '</div>'; }).join('') + '<div class="qa-liab-chip skip" onclick="qaSelectLiab(\'\')">Skip</div></div>';
+      liabRow.style.display = 'block';
+    } else { liabRow.style.display = 'none'; }
+  } else { liabRow.style.display = 'none'; }
+  qaUpdateConfirm();
+}
+
+function qaSelectSub(sub) {
+  _qaSub = _qaSub === sub ? '' : sub;
+  qaSelectCat(_qaCat); // Re-render to update selection + auto-link liability
+  // Auto-link liability from map
+  var mappedLiab = getLiabForSub(sub);
+  if (mappedLiab && _qaType === 'Expense') { _qaLiab = mappedLiab; qaSelectCat(_qaCat); }
+}
+
+function qaSelectLiab(id) { _qaLiab = _qaLiab === id ? '' : id; qaSelectCat(_qaCat); }
+
+function qaRenderAccounts() {
+  var assets = ACCOUNTS.filter(function(a) { return a.type === 'asset'; });
+  var chips = document.getElementById('qaAccChips');
+  if (!chips) return;
+  chips.innerHTML = assets.map(function(a) {
+    return '<div class="qa-acc-chip' + (_qaAcc === a.id ? ' selected' : '') + '" onclick="qaSelectAcc(\'' + a.id + '\')">' + a.name + '</div>';
+  }).join('');
+}
+
+function qaSelectAcc(id) { _qaAcc = _qaAcc === id ? '' : id; qaRenderAccounts(); }
+
+function qaNum(key) {
+  if (key === '.' && _qaAmt.includes('.')) return;
+  if (key === '.' && !_qaAmt) _qaAmt = '0';
+  if (_qaAmt.includes('.') && _qaAmt.split('.')[1].length >= 2) return;
+  if (key === '00' && (!_qaAmt || _qaAmt === '0' || _qaAmt.includes('.'))) return;
+  if (_qaAmt === '0' && key !== '.' && key !== '00') _qaAmt = '';
+  _qaAmt += key;
+  document.getElementById('qaAmtDisplay').innerHTML = '<span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>' + (_qaAmt || '0');
+  qaUpdateConfirm();
+}
+
+function qaDel() {
+  _qaAmt = _qaAmt.slice(0, -1);
+  document.getElementById('qaAmtDisplay').innerHTML = '<span style="font-size:0.9rem;color:var(--text-tertiary);margin-right:4px">RM</span>' + (_qaAmt || '0');
+  qaUpdateConfirm();
+}
+
+function qaUpdateConfirm() {
+  var btn = document.getElementById('qaConfirm');
+  var valid = _qaAmt && parseFloat(_qaAmt) > 0 && _qaCat;
+  if (btn) btn.className = 'qa-num qa-confirm' + (valid ? '' : ' disabled');
+}
+
+function qaHandleDesc() {
+  var val = document.getElementById('qaDesc').value.trim();
+  _qaDesc = val;
+  if (!val || val.length < 2 || safeGet('ft_autocat_off') === 'true') { document.getElementById('qaAutoCat').style.display = 'none'; return; }
+  var suggestion = typeof suggestCategory === 'function' ? suggestCategory(val) : null;
+  if (suggestion && suggestion.t === _qaType) {
+    document.getElementById('qaAutoCatText').textContent = suggestion.c + (suggestion.s ? ' → ' + suggestion.s : '');
+    document.getElementById('qaAutoCat').style.display = 'block';
+    document.getElementById('qaAutoCat').dataset.cat = suggestion.c;
+    document.getElementById('qaAutoCat').dataset.sub = suggestion.s || '';
+  } else { document.getElementById('qaAutoCat').style.display = 'none'; }
+}
+
+function qaAcceptCat() {
+  var cat = document.getElementById('qaAutoCat').dataset.cat;
+  var sub = document.getElementById('qaAutoCat').dataset.sub;
+  if (cat) { qaSelectCat(cat); if (sub) { _qaSub = sub; qaSelectCat(cat); } }
+  document.getElementById('qaAutoCat').style.display = 'none';
+}
+
+function qaSave() {
+  var amt = parseFloat(_qaAmt);
+  if (!amt || !_qaCat) return;
+  var data = { id: generateTxnId(), d: new Date().toISOString().split('T')[0], t: _qaType, c: _qaCat, s: _qaSub, a: amt, dt: _qaDesc };
+  if (_qaAcc) data.acc = _qaAcc;
+  if (_qaLiab) data.liab = _qaLiab;
+  TXN.push(data);
+  // Liability payment reduction
+  if (data.t === 'Expense' && data.liab) {
+    var liabAcc = ACCOUNTS.find(function(a) { return a.id === data.liab; });
+    if (liabAcc) { liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - data.a); saveACCOUNTS(); }
+  }
+  if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
+  saveTXN();
+  if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(data);
+  if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
+  if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
+  toast(t('txn_added'));
+  qaClose();
+  render();
+}
+
+function qaClose() {
+  var el = document.getElementById('mqadd');
+  if (el) { el.remove(); document.body.style.overflow = ''; }
 }
 
 function cascType() {
