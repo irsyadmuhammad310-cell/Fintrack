@@ -503,6 +503,12 @@ function deleteCategory(type, category) {
   return true;
 }
 
+// === LIABILITY MAPPING (V2.0.2 — links Loan subcategories to liability accounts) ===
+// Storage: ft_liab_map = { "Car": "acc_id", "Personal": "acc_id", ... }
+function getLiabMap() { return JSON.parse(safeGet('ft_liab_map') || '{}'); }
+function saveLiabMap(map) { safeSave('ft_liab_map', JSON.stringify(map)); }
+function getLiabForSub(subcategory) { var map = getLiabMap(); return map[subcategory] || null; }
+
 let TXN = [];
 
 let nxId = 100, curPage = 'dashboard', txnPg = 1, editId = null, pendAct = null, authAtt = 0, lockUntil = 0;
