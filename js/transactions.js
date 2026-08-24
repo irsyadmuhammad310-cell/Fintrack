@@ -185,7 +185,10 @@ function openQuickAdd() {
   // Type tabs
   h += '<div style="display:flex;gap:6px;padding:12px 16px 6px"><div class="qa-tab active" data-t="Expense" onclick="qaSetType(\'Expense\')">Expense</div><div class="qa-tab" data-t="Income" onclick="qaSetType(\'Income\')">Income</div><div class="qa-tab" data-t="Savings" onclick="qaSetType(\'Savings\')">Savings</div></div>';
   // Amount (tappable input, triggers native keyboard)
-  h += '<div style="text-align:center;padding:14px 20px 6px"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Amount</div><div style="display:flex;align-items:center;justify-content:center;gap:6px"><span style="font-size:0.9rem;color:var(--text-tertiary)">RM</span><input type="number" step="0.01" inputmode="decimal" id="qaAmtInput" placeholder="0" oninput="qaAmtChange()" style="border:none;background:none;outline:none;font-size:2.4rem;font-weight:900;letter-spacing:-0.03em;font-feature-settings:\'tnum\';color:var(--rose);text-align:center;width:60%;font-family:inherit"></div></div>';
+  var currOpts = Object.entries(CURRENCY_CONFIG).map(function(e) { return '<option value="' + e[0] + '"' + (e[0] === displayCurrency ? ' selected' : '') + '>' + e[1].symbol + '</option>'; }).join('');
+  h += '<div style="text-align:center;padding:14px 20px 6px"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Amount</div><div style="display:flex;align-items:center;justify-content:center;gap:6px"><select id="qaCur" style="border:none;background:none;outline:none;font-size:0.9rem;font-weight:600;color:var(--text-tertiary);font-family:inherit;appearance:none;text-align:center;padding:4px">' + currOpts + '</select><input type="number" step="0.01" inputmode="decimal" id="qaAmtInput" placeholder="0" oninput="qaAmtChange()" style="border:none;background:none;outline:none;font-size:2.4rem;font-weight:900;letter-spacing:-0.03em;font-feature-settings:\'tnum\';color:var(--rose);text-align:center;width:60%;font-family:inherit"></div></div>';
+  // Date picker
+  h += '<div style="padding:0 16px 6px"><input class="fi" id="qaDate" type="date" value="' + new Date().toISOString().split('T')[0] + '" style="text-align:center;font-size:13px;padding:8px 12px"></div>';
   // Description (tappable input, triggers native keyboard)
   h += '<div style="padding:0 16px 6px"><input class="fi" id="qaDesc" placeholder="Description (auto-categorizes)" oninput="qaHandleDesc()" style="text-align:center;font-size:13px;padding:8px 12px"></div>';
   // Auto-cat
@@ -312,7 +315,16 @@ function qaAcceptCat() {
 function qaSave() {
   var amt = parseFloat(_qaAmt);
   if (!amt || !_qaCat) return;
-  var data = { id: generateTxnId(), d: new Date().toISOString().split('T')[0], t: _qaType, c: _qaCat, s: _qaSub, a: amt, dt: _qaDesc };
+  var dateVal = document.getElementById('qaDate') ? document.getElementById('qaDate').value : new Date().toISOString().split('T')[0];
+  var txnCurrency = document.getElementById('qaCur') ? document.getElementById('qaCur').value : displayCurrency;
+  var data = { id: generateTxnId(), d: dateVal, t: _qaType, c: _qaCat, s: _qaSub, a: amt, dt: _qaDesc };
+  // Convert to MYR if different currency
+  if (txnCurrency !== 'MYR') {
+    var rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
+    data.a = Math.round((amt / rate) * 100) / 100;
+    data.cur = txnCurrency;
+    data.origAmt = amt;
+  }
   if (_qaAcc) data.acc = _qaAcc;
   if (_qaLiab) data.liab = _qaLiab;
   TXN.push(data);
