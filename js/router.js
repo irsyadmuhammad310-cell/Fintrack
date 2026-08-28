@@ -63,15 +63,15 @@ function navigate(page) {
   document.getElementById('pt').textContent = '';
   document.getElementById('ps').textContent = page === 'dashboard' ? getGreeting() : '';
 
-  // Set default month filter per tab (only on first visit, preserve user's selection after)
+  // Set default month filter per tab (first visit only, then preserve user's selection)
   const mf = document.getElementById('mf');
   if (mf) {
-    if (page === 'transactions' && !txnInitialized) {
-      mf.value = String(new Date().getMonth());
-      txnInitialized = true;
-    } else if ((page === 'dashboard' || page === 'analytics') && !window._dashInitialized) {
+    if ((page === 'dashboard' || page === 'analytics') && !window._dashFilterSet) {
       mf.value = 'total';
-      window._dashInitialized = true;
+      window._dashFilterSet = true;
+    } else if ((page === 'transactions' || page === 'goals') && !window._txnFilterSet) {
+      mf.value = String(new Date().getMonth());
+      window._txnFilterSet = true;
     }
   }
 
