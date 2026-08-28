@@ -506,11 +506,75 @@ function deleteCategory(type, category) {
   return true;
 }
 
-// === LIABILITY MAPPING (V2.0.2 — links Loan subcategories to liability accounts) ===
-// Storage: ft_liab_map = { "Car": "acc_id", "Personal": "acc_id", ... }
+// === LIABILITY MAPPING (V2.0.3 — Smart multi-liability support) ===
+// Storage: ft_liab_map = { "Car": "acc_id" | ["acc_id1","acc_id2"], ... }
+// Supports both 1:1 (legacy) and 1:many mappings per subcategory
 function getLiabMap() { return JSON.parse(safeGet('ft_liab_map') || '{}'); }
 function saveLiabMap(map) { safeSave('ft_liab_map', JSON.stringify(map)); }
-function getLiabForSub(subcategory) { var map = getLiabMap(); return map[subcategory] || null; }
+
+// Returns single ID (legacy), array of IDs, or null
+function getLiabForSub(subcategory) {
+  var map = getLiabMap();
+  var val = map[subcategory];
+  if (!val) return null;
+  // Normalize: single string → return as-is for backward compat
+  if (typeof val === 'string') return val;
+  // Array with one item → return single
+  if (Array.isArray(val) && val.length === 1) return val[0];
+  // Array with multiple → return array (caller must handle picker)
+  return val;
+}
+
+// Add a liability to a subcategory mapping
+function addLiabToSub(subcategory, accId) {
+  var map = getLiabMap();
+  var existing = map[subcategory];
+  if (!existing) {
+    map[subcategory] = accId;
+  } else if (typeof existing === 'string') {
+    if (existing === accId) return; // already mapped
+    map[subcategory] = [existing, accId];
+  } else if (Array.isArray(existing)) {
+    if (existing.includes(accId)) return;
+    existing.push(accId);
+  }
+  saveLiabMap(map);
+}
+
+// Remove a liability from a subcategory mapping
+function removeLiabFromSub(subcategory, accId) {
+  var map = getLiabMap();
+  var existing = map[subcategory];
+  if (!existing) return;
+  if (typeof existing === 'string') {
+    if (existing === accId) delete map[subcategory];
+  } else if (Array.isArray(existing)) {
+    map[subcategory] = existing.filter(id => id !== accId);
+    if (map[subcategory].length === 0) delete map[subcategory];
+    else if (map[subcategory].length === 1) map[subcategory] = map[subcategory][0];
+  }
+  saveLiabMap(map);
+}
+
+// Get all liabilities that match a category/subcategory (smart keyword matching)
+function getMatchingLiabilities(category, subcategory) {
+  var liabs = ACCOUNTS.filter(a => a.type === 'liability');
+  if (!liabs.length) return [];
+  // 1. Check explicit mapping first
+  var mapped = getLiabForSub(subcategory);
+  if (mapped) {
+    var ids = Array.isArray(mapped) ? mapped : [mapped];
+    var result = ids.map(id => liabs.find(a => a.id === id)).filter(Boolean);
+    if (result.length) return result;
+  }
+  // 2. Smart keyword matching: find liabilities whose name matches subcategory or category
+  var keywords = [subcategory, category].filter(Boolean).map(s => s.toLowerCase());
+  var matches = liabs.filter(a => {
+    var name = a.name.toLowerCase();
+    return keywords.some(kw => name.includes(kw) || kw.includes(name.split(' ')[0]));
+  });
+  return matches;
+}
 
 let TXN = [];
 
