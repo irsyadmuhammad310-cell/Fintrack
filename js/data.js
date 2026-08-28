@@ -319,8 +319,11 @@ function computeBalanceSeries(year) {
   return monthly;
 }
 
-// Net Worth by period: Initial Deposit + asset TXN - liability TXN up to period
+// Net Worth by period: sum of all asset balances - sum of all liability balances
+// Uses getAccountBalance which already factors in all TXN history, so no manual TXN loop needed
 function getNetWorthByPeriod(year, month) {
+  // For trend/sparkline purposes: compute cumulative net flow up to the period
+  // This gives a consistent time-series without double-counting
   let nw = INITIAL_DEPOSIT;
   const filtered = TXN.filter(tx => {
     const d = new Date(tx.d);
@@ -332,10 +335,10 @@ function getNetWorthByPeriod(year, month) {
     else if (tx.t === 'Expense') nw -= tx.a;
     else if (tx.t === 'Savings') nw -= tx.a;
   });
-  // Subtract current liability balances (reflects payments made)
+  // Subtract INITIAL liability balances only (original debt amounts, not current)
+  // Payments already reduce nw via the Expense txns above (linked to liabilities)
   ACCOUNTS.filter(a => a.type === 'liability').forEach(a => {
-    const nativeBal = getAccountBalance(a.id);
-    nw -= convertFromTo(Math.abs(nativeBal), a.currency || 'MYR', 'MYR');
+    nw -= convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR');
   });
   return nw;
 }
