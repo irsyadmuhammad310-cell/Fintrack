@@ -83,7 +83,7 @@ function renderMobileTransactions(c) {
           <div class="mob-txn-name">${tx.dt || tx.c}</div>
           <div class="mob-txn-meta">${meta}</div>
         </div>
-        <div class="mob-txn-amount" style="color:${amtColor}">${sign}${fmtD(tx.a)}</div>
+        <div class="mob-txn-amount" style="color:${amtColor}">${sign}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : tx.cur + ' ') + tx.origAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</div>
       </div>`;
     });
   });
@@ -152,7 +152,7 @@ function renderTxnTable() {
       const cl = tx.t === 'Income' ? 'i' : tx.t === 'Expense' ? 'e' : 's';
       const acl = tx.t === 'Income' ? 'ai' : tx.t === 'Savings' ? 'as' : 'ae';
       const txIdEsc = String(tx.id).replace(/'/g, "\\'");
-      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${tx.t}</span></td><td>${tx.c}</td><td>${tx.s || '-'}</td><td style="color:var(--text-tertiary)">${tx.dt || '-'}</td><td class="${acl}" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit','${txIdEsc}')">✏️</button><button class="abtn del" onclick="doAuth('delete','${txIdEsc}')">🗑</button></div></td></tr>`;
+      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${tx.t}</span></td><td>${tx.c}</td><td>${tx.s || '-'}</td><td style="color:var(--text-tertiary)">${tx.dt || '-'}</td><td class="${acl}" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : tx.cur + ' ') + tx.origAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit','${txIdEsc}')">✏️</button><button class="abtn del" style="background:var(--rose-light);border-radius:6px;min-width:28px;min-height:28px" onclick="doAuth('delete','${txIdEsc}')">🗑</button></div></td></tr>`;
     }).join('');
   }
   document.getElementById('txinfo').textContent = f.length ? `${start + 1}-${Math.min(start + pp, f.length)} of ${f.length}` : '';
@@ -169,9 +169,10 @@ function openAdd() {
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose)" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
+  lucide.createIcons();
   // Bootstrap category memory on first modal open
   if (typeof bootstrapCatMemory === 'function') bootstrapCatMemory();
 }
@@ -198,7 +199,7 @@ function openQuickAdd() {
   h += '<div class="qa-amount-hero">';
   h += '<div class="qa-amount-label">Amount</div>';
   h += '<div class="qa-amount-display">';
-  h += '<select id="qaCur" style="border:none;background:none;outline:none;font-size:1rem;font-weight:800;color:var(--text-tertiary);font-family:var(--font);appearance:none;text-align:center;padding:4px">' + currOpts + '</select>';
+  h += '<select id="qaCur" style="border:none;background:none;outline:none;font-size:1rem;font-weight:800;color:var(--text-tertiary);font-family:var(--font);appearance:none;text-align:center;padding:4px" onchange="qaUpdateConfirm()">' + currOpts + '</select>';
   h += '<input type="number" step="0.01" inputmode="decimal" id="qaAmtInput" placeholder="0" oninput="qaAmtChange()" style="color:var(--rose)">';
   h += '</div>';
   h += '<div class="qa-amount-line" id="qaAmtLine"></div>';
@@ -365,7 +366,9 @@ function qaUpdateConfirm() {
   if (valid) {
     btn.classList.remove('disabled');
     btn.classList.add('ready');
-    var sym = CURRENCY_CONFIG[displayCurrency] ? CURRENCY_CONFIG[displayCurrency].symbol : 'RM';
+    var curSel = document.getElementById('qaCur');
+    var selCur = curSel ? curSel.value : displayCurrency;
+    var sym = CURRENCY_CONFIG[selCur] ? CURRENCY_CONFIG[selCur].symbol : 'RM';
     btn.textContent = 'Save ' + (_qaType === 'Income' ? '+' : '-') + sym + parseFloat(_qaAmt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   } else {
     btn.classList.add('disabled');
@@ -421,22 +424,10 @@ function qaSave() {
   if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(data);
   if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
-  // Show success animation
-  var sym = CURRENCY_CONFIG[txnCurrency] ? CURRENCY_CONFIG[txnCurrency].symbol : 'RM';
-  var successColor = _qaType === 'Income' ? 'var(--emerald)' : _qaType === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-  var successH = '<div class="qa-success" id="qaSuccess">';
-  successH += '<div class="qa-success-check"><svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"></polyline></svg></div>';
-  successH += '<div class="qa-success-text">' + (_qaType === 'Savings' ? 'Transfer' : _qaType) + ' added!</div>';
-  successH += '<div class="qa-success-amount" style="color:' + successColor + '">' + (_qaType === 'Income' ? '+' : '-') + sym + amt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '</div>';
-  successH += '</div>';
-  document.body.insertAdjacentHTML('beforeend', successH);
-  // Auto-close after animation
-  setTimeout(function() {
-    var sEl = document.getElementById('qaSuccess');
-    if (sEl) sEl.remove();
-    qaClose();
-    render();
-  }, 1200);
+  // Instant close & refresh (no animation delay)
+  qaClose();
+  render();
+  toast('✅ ' + (_qaType === 'Savings' ? 'Transfer' : _qaType) + ' added');
 }
 
 function qaClose() {
