@@ -160,16 +160,11 @@ function renderTxnTable() {
 
 // === ADD/EDIT MODAL ===
 function openAdd() {
-  // V2.0.2: Mobile uses quick-add numpad flow
-  if (window.innerWidth <= 900 && safeGet('ft_desktop_mode') !== 'true' && editId === null) {
-    openQuickAdd();
-    return;
-  }
   const isEdit = editId !== null;
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)"></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   lucide.createIcons();
@@ -469,6 +464,9 @@ function cascType() {
       liabSel.innerHTML = '<option value="">None (regular expense)</option>' + ACCOUNTS.filter(a => a.type === 'liability').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
     }
   }
+  // Show fee field for Transfers only
+  const feeRow = document.getElementById('feeRow');
+  if (feeRow) feeRow.style.display = tp === 'Savings' ? 'block' : 'none';
 }
 
 function cascCat() {
@@ -504,8 +502,29 @@ function saveTxn(e) {
   const liabEl = document.getElementById('f_liab');
   if (accEl && accEl.value) data.acc = accEl.value;
   if (liabEl && liabEl.value) data.liab = liabEl.value;
+  // Transfer fee: store on txn and create a separate expense entry
+  const feeEl = document.getElementById('f_fee');
+  const feeAmt = feeEl ? parseFloat(feeEl.value) : 0;
+  if (feeAmt > 0 && data.t === 'Savings') {
+    data.fee = feeAmt;
+  }
   if (editId) { const i = TXN.findIndex(tx => tx.id === editId); if (i >= 0) TXN[i] = { ...TXN[i], ...data }; toast(t('txn_updated')); }
-  else { data.id = generateTxnId(); TXN.push(data); toast(t('txn_added')); }
+  else {
+    data.id = generateTxnId(); TXN.push(data);
+    // Auto-create fee expense transaction if transfer has a fee
+    if (feeAmt > 0 && data.t === 'Savings') {
+      const feeTxn = { id: generateTxnId(), d: data.d, t: 'Expense', c: 'Bills', s: 'Transfer Fee', a: feeAmt, dt: 'Fee for transfer: ' + (data.dt || data.c) };
+      if (txnCurrency !== 'MYR') {
+        const rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
+        feeTxn.a = Math.round((feeAmt / rate) * 100) / 100;
+        feeTxn.cur = txnCurrency;
+        feeTxn.origAmt = feeAmt;
+      }
+      if (data.acc) feeTxn.acc = data.acc;
+      TXN.push(feeTxn);
+    }
+    toast(t('txn_added'));
+  }
   // If liability payment: create a reduction on the liability account
   if (data.t === 'Expense' && data.liab) {
     const liabAcc = ACCOUNTS.find(a => a.id === data.liab);
@@ -672,7 +691,7 @@ function verifyPK() {
 function doEdit(id) {
   const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
   editId = tx.id; openAdd();
-  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || 'MYR'; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
+  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || 'MYR'; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } if (tx.fee) { const feeEl = document.getElementById('f_fee'); if (feeEl) feeEl.value = tx.fee; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
 }
 
 function doDelConfirm(id) {
