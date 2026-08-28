@@ -164,265 +164,12 @@ function openAdd() {
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)"></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><div style="display:flex;gap:6px;align-items:center"><span id="feeCurLabel" style="font-size:12px;font-weight:700;color:var(--text-tertiary);min-width:30px"></span><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)" style="flex:1"></div></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   lucide.createIcons();
   // Bootstrap category memory on first modal open
   if (typeof bootstrapCatMemory === 'function') bootstrapCatMemory();
-}
-
-// === QUICK ADD V2.0.3 (Modern Interactive Mobile Flow) ===
-var _qaType = 'Expense', _qaCat = '', _qaSub = '', _qaAmt = '', _qaDesc = '', _qaAcc = '', _qaLiab = '';
-
-function openQuickAdd() {
-  _qaType = 'Expense'; _qaCat = ''; _qaSub = ''; _qaAmt = ''; _qaDesc = ''; _qaAcc = ''; _qaLiab = '';
-  var currOpts = Object.entries(CURRENCY_CONFIG).map(function(e) { return '<option value="' + e[0] + '"' + (e[0] === displayCurrency ? ' selected' : '') + '>' + e[1].symbol + '</option>'; }).join('');
-  var today = new Date();
-  var dateLabel = today.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-  var h = '<div class="mo show" id="mqadd" style="background:var(--bg-primary)">';
-  h += '<div style="display:flex;flex-direction:column;height:100dvh;overflow:hidden">';
-  // Type selector with animated indicator
-  h += '<div class="qa-type-bar">';
-  h += '<div class="qa-type-indicator" data-type="Expense" id="qaTypeInd"></div>';
-  h += '<div class="qa-tab active" data-t="Expense" onclick="qaSetType(\'Expense\')">Expense</div>';
-  h += '<div class="qa-tab" data-t="Income" onclick="qaSetType(\'Income\')">Income</div>';
-  h += '<div class="qa-tab" data-t="Savings" onclick="qaSetType(\'Savings\')">Transfer</div>';
-  h += '</div>';
-  // Amount hero
-  h += '<div class="qa-amount-hero">';
-  h += '<div class="qa-amount-label">Amount</div>';
-  h += '<div class="qa-amount-display">';
-  h += '<select id="qaCur" style="border:none;background:none;outline:none;font-size:1rem;font-weight:800;color:var(--text-tertiary);font-family:var(--font);appearance:none;text-align:center;padding:4px" onchange="qaUpdateConfirm()">' + currOpts + '</select>';
-  h += '<input type="number" step="0.01" inputmode="decimal" id="qaAmtInput" placeholder="0" oninput="qaAmtChange()" style="color:var(--rose)">';
-  h += '</div>';
-  h += '<div class="qa-amount-line" id="qaAmtLine"></div>';
-  h += '</div>';
-  // Date chip
-  h += '<div class="qa-date-row">';
-  h += '<div class="qa-date-chip" onclick="document.getElementById(\'qaDateHidden\').showPicker?document.getElementById(\'qaDateHidden\').showPicker():document.getElementById(\'qaDateHidden\').focus()">';
-  h += '<span style="font-size:14px">📅</span><span id="qaDateLabel">' + dateLabel + '</span>';
-  h += '<input type="date" id="qaDateHidden" value="' + today.toISOString().split('T')[0] + '" onchange="qaDateChanged()" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">';
-  h += '</div></div>';
-  // Description
-  h += '<div class="qa-desc-wrap">';
-  h += '<input class="qa-desc-input" id="qaDesc" placeholder="What\'s this for?" oninput="qaHandleDesc()">';
-  h += '</div>';
-  // Auto-cat suggestion
-  h += '<div class="qa-autocat" id="qaAutoCat">';
-  h += '<div class="qa-autocat-pill"><span>🤖</span> <span id="qaAutoCatText"></span></div>';
-  h += '<button class="qa-autocat-apply" onclick="qaAcceptCat()">Apply</button>';
-  h += '<button class="qa-autocat-dismiss" onclick="document.getElementById(\'qaAutoCat\').classList.remove(\'show\')">✕</button>';
-  h += '</div>';
-  // Scrollable content
-  h += '<div style="flex:1;overflow-y:auto;padding:0 16px;min-height:0;-webkit-overflow-scrolling:touch">';
-  h += '<div class="qa-section-label">Category</div>';
-  h += '<div id="qaCatGrid" class="qa-cat-grid"></div>';
-  h += '<div id="qaSubRow" style="display:none"></div>';
-  h += '<div id="qaLiabRow" style="display:none"></div>';
-  h += '<div class="qa-acc-row">';
-  h += '<div class="qa-section-label">Account</div>';
-  h += '<div id="qaAccChips" class="qa-acc-chips"></div>';
-  h += '</div>';
-  h += '</div>';
-  // Bottom bar
-  h += '<div class="qa-bottom-bar">';
-  h += '<button class="qa-cancel-btn" onclick="qaClose()">Cancel</button>';
-  h += '<button class="qa-save-btn disabled" id="qaConfirm" onclick="qaSave()">Save</button>';
-  h += '</div>';
-  h += '</div></div>';
-  document.body.insertAdjacentHTML('beforeend', h);
-  document.body.style.overflow = 'hidden';
-  qaRenderCats();
-  qaRenderAccounts();
-  setTimeout(function() { document.getElementById('qaAmtInput').focus(); }, 350);
-}
-
-function qaDateChanged() {
-  var input = document.getElementById('qaDateHidden');
-  if (!input || !input.value) return;
-  var d = new Date(input.value + 'T00:00:00');
-  var today = new Date(); today.setHours(0,0,0,0);
-  var yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
-  var label;
-  if (d.toDateString() === today.toDateString()) label = 'Today';
-  else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday';
-  else label = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  document.getElementById('qaDateLabel').textContent = label;
-}
-
-function qaAmtChange() {
-  var input = document.getElementById('qaAmtInput');
-  _qaAmt = input.value;
-  var color = _qaType === 'Income' ? 'var(--emerald)' : _qaType === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-  input.style.color = color;
-  // Animate underline
-  var line = document.getElementById('qaAmtLine');
-  if (line) {
-    if (_qaAmt && parseFloat(_qaAmt) > 0) {
-      line.className = 'qa-amount-line active';
-      line.dataset.type = _qaType;
-    } else {
-      line.className = 'qa-amount-line';
-    }
-  }
-  qaUpdateConfirm();
-}
-
-function qaSetType(type) {
-  _qaType = type;
-  _qaCat = ''; _qaSub = ''; _qaLiab = '';
-  document.querySelectorAll('.qa-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.t === type); });
-  // Animate indicator
-  var ind = document.getElementById('qaTypeInd');
-  if (ind) ind.dataset.type = type;
-  // Update amount color
-  var color = type === 'Income' ? 'var(--emerald)' : type === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-  var input = document.getElementById('qaAmtInput');
-  if (input && input.value) input.style.color = color;
-  // Update underline
-  var line = document.getElementById('qaAmtLine');
-  if (line && line.classList.contains('active')) line.dataset.type = type;
-  qaRenderCats();
-  document.getElementById('qaSubRow').style.display = 'none';
-  document.getElementById('qaLiabRow').style.display = 'none';
-  qaUpdateConfirm();
-}
-
-function qaRenderCats() {
-  var cats = SCHEMA[_qaType] ? Object.keys(SCHEMA[_qaType]) : [];
-  var emojis = {'Food':'🍜','Transportation':'🚗','Housing':'🏠','Loan':'💸','Gift':'🎁','Entertainment':'🎬','Insurance & Taxes':'🛡','Employment (Net)':'💼','Cash':'💰','Dividen':'📈','KWSP':'📊','TH':'🕌','ASBN':'💎','Bank':'🏦','Versa':'🔮','Future':'📉','TNGO':'📱','Rize':'🏦','Saham PPK':'📊'};
-  var grid = document.getElementById('qaCatGrid');
-  grid.innerHTML = cats.map(function(c) {
-    var emoji = emojis[c] || '📦';
-    var shortName = c.length > 10 ? c.substring(0,9) + '..' : c;
-    return '<div class="qa-cat-item' + (_qaCat === c ? ' selected' : '') + '" onclick="qaSelectCat(\'' + c.replace(/'/g,"\\'") + '\')"><span class="qa-cat-emoji">' + emoji + '</span><span class="qa-cat-name">' + shortName + '</span></div>';
-  }).join('');
-}
-
-function qaSelectCat(cat) {
-  _qaCat = cat;
-  _qaSub = '';
-  _qaLiab = '';
-  qaRenderCats();
-  // Show subcategories with animation
-  var subs = SCHEMA[_qaType] && SCHEMA[_qaType][cat] ? SCHEMA[_qaType][cat] : [];
-  var subRow = document.getElementById('qaSubRow');
-  if (subs.length) {
-    subRow.innerHTML = '<div class="qa-section-label" style="margin-top:0">Subcategory</div><div class="qa-sub-row">' + subs.map(function(s) {
-      return '<div class="qa-sub-chip' + (_qaSub === s ? ' selected' : '') + '" onclick="qaSelectSub(\'' + s.replace(/'/g,"\\'") + '\')">' + s + '</div>';
-    }).join('') + '</div>';
-    subRow.style.display = 'block';
-  } else { subRow.style.display = 'none'; }
-  // Show liability picker
-  var liabRow = document.getElementById('qaLiabRow');
-  if (_qaType === 'Expense' && (cat === 'Loan' || cat.toLowerCase().includes('loan'))) {
-    var liabs = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
-    if (liabs.length) {
-      liabRow.innerHTML = '<div class="qa-liab-section"><div class="qa-liab-label">💳 Pay liability?</div><div class="qa-liab-chips">' + liabs.map(function(l) { return '<div class="qa-liab-chip' + (_qaLiab === l.id ? ' selected' : '') + '" onclick="qaSelectLiab(\'' + l.id + '\')">' + l.name + '</div>'; }).join('') + '<div class="qa-liab-chip skip" onclick="qaSelectLiab(\'\')">Skip</div></div></div>';
-      liabRow.style.display = 'block';
-    } else { liabRow.style.display = 'none'; }
-  } else { liabRow.style.display = 'none'; }
-  qaUpdateConfirm();
-  // Smooth scroll to subcategories
-  if (subs.length) {
-    setTimeout(function() { subRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
-  }
-}
-
-function qaSelectSub(sub) {
-  _qaSub = _qaSub === sub ? '' : sub;
-  qaSelectCat(_qaCat);
-  // Auto-link liability from map
-  var mappedLiab = typeof getLiabForSub === 'function' ? getLiabForSub(sub) : null;
-  if (mappedLiab && _qaType === 'Expense') { _qaLiab = mappedLiab; qaSelectCat(_qaCat); }
-}
-
-function qaSelectLiab(id) { _qaLiab = _qaLiab === id ? '' : id; qaSelectCat(_qaCat); }
-
-function qaRenderAccounts() {
-  var assets = ACCOUNTS.filter(function(a) { return a.type === 'asset'; });
-  var chips = document.getElementById('qaAccChips');
-  if (!chips) return;
-  var colors = ['var(--emerald)', 'var(--blue)', 'var(--amber)', 'var(--pink)', 'var(--accent)'];
-  chips.innerHTML = assets.map(function(a, i) {
-    var dotColor = colors[i % colors.length];
-    return '<div class="qa-acc-chip' + (_qaAcc === a.id ? ' selected' : '') + '" onclick="qaSelectAcc(\'' + a.id + '\')"><span class="qa-acc-dot" style="background:' + dotColor + '"></span>' + a.name + '</div>';
-  }).join('');
-}
-
-function qaSelectAcc(id) { _qaAcc = _qaAcc === id ? '' : id; qaRenderAccounts(); }
-
-function qaUpdateConfirm() {
-  var btn = document.getElementById('qaConfirm');
-  if (!btn) return;
-  var valid = _qaAmt && parseFloat(_qaAmt) > 0 && _qaCat;
-  if (valid) {
-    btn.classList.remove('disabled');
-    btn.classList.add('ready');
-    var curSel = document.getElementById('qaCur');
-    var selCur = curSel ? curSel.value : displayCurrency;
-    var sym = CURRENCY_CONFIG[selCur] ? CURRENCY_CONFIG[selCur].symbol : 'RM';
-    btn.textContent = 'Save ' + (_qaType === 'Income' ? '+' : '-') + sym + parseFloat(_qaAmt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  } else {
-    btn.classList.add('disabled');
-    btn.classList.remove('ready');
-    btn.textContent = 'Save';
-  }
-}
-
-function qaHandleDesc() {
-  var val = document.getElementById('qaDesc').value.trim();
-  _qaDesc = val;
-  if (!val || val.length < 2 || safeGet('ft_autocat_off') === 'true') { document.getElementById('qaAutoCat').classList.remove('show'); return; }
-  var suggestion = typeof suggestCategory === 'function' ? suggestCategory(val) : null;
-  if (suggestion && suggestion.t === _qaType) {
-    document.getElementById('qaAutoCatText').textContent = suggestion.c + (suggestion.s ? ' → ' + suggestion.s : '');
-    document.getElementById('qaAutoCat').classList.add('show');
-    document.getElementById('qaAutoCat').dataset.cat = suggestion.c;
-    document.getElementById('qaAutoCat').dataset.sub = suggestion.s || '';
-  } else { document.getElementById('qaAutoCat').classList.remove('show'); }
-}
-
-function qaAcceptCat() {
-  var el = document.getElementById('qaAutoCat');
-  var cat = el.dataset.cat;
-  var sub = el.dataset.sub;
-  if (cat) { qaSelectCat(cat); if (sub) { _qaSub = sub; qaSelectCat(cat); } }
-  el.classList.remove('show');
-}
-
-function qaSave() {
-  var amt = parseFloat(_qaAmt);
-  if (!amt || !_qaCat) return;
-  var dateVal = document.getElementById('qaDateHidden') ? document.getElementById('qaDateHidden').value : new Date().toISOString().split('T')[0];
-  var txnCurrency = document.getElementById('qaCur') ? document.getElementById('qaCur').value : displayCurrency;
-  var data = { id: generateTxnId(), d: dateVal, t: _qaType, c: _qaCat, s: _qaSub, a: amt, dt: _qaDesc };
-  // Convert to MYR if different currency
-  if (txnCurrency !== 'MYR') {
-    var rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
-    data.a = Math.round((amt / rate) * 100) / 100;
-    data.cur = txnCurrency;
-    data.origAmt = amt;
-  }
-  if (_qaAcc) data.acc = _qaAcc;
-  if (_qaLiab) data.liab = _qaLiab;
-  TXN.push(data);
-  // Liability payment reduction
-  if (data.t === 'Expense' && data.liab) {
-    var liabAcc = ACCOUNTS.find(function(a) { return a.id === data.liab; });
-    if (liabAcc) { liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - data.a); saveACCOUNTS(); }
-  }
-  if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
-  saveTXN();
-  if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(data);
-  if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
-  if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
-  // Instant close & refresh (no animation delay)
-  qaClose();
-  render();
-  toast('✅ ' + (_qaType === 'Savings' ? 'Transfer' : _qaType) + ' added');
 }
 
 function qaClose() {
@@ -466,7 +213,15 @@ function cascType() {
   }
   // Show fee field for Transfers only
   const feeRow = document.getElementById('feeRow');
-  if (feeRow) feeRow.style.display = tp === 'Savings' ? 'block' : 'none';
+  if (feeRow) {
+    feeRow.style.display = tp === 'Savings' ? 'block' : 'none';
+    const feeCurLabel = document.getElementById('feeCurLabel');
+    const curEl2 = document.getElementById('f_cur');
+    if (feeCurLabel && curEl2) {
+      const cfg = CURRENCY_CONFIG[curEl2.value] || CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
+      feeCurLabel.textContent = cfg.symbol;
+    }
+  }
 }
 
 function cascCat() {
