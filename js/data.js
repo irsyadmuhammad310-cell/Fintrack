@@ -148,7 +148,7 @@ function refreshYearSelectors() {
   const yf = document.getElementById('yf');
   if (yf) { const cur = parseInt(yf.value) || CURRENT_YEAR; yf.innerHTML = buildYearOptions(cur); }
 }
-const CURRENT_YEAR = 2026;
+const CURRENT_YEAR = new Date().getFullYear();
 
 function buildYearOptions(selectedYear) {
   return YEARS.map(y => `<option value="${y}"${y === selectedYear ? ' selected' : ''}>${y}</option>`).join('');
