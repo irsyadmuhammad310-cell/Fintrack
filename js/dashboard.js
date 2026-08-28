@@ -376,8 +376,15 @@ function computeCashFlowForecast() {
     if (planInc > 0) monthlyIncome = planInc;
   }
 
-  // Available to spend = income - savings - expenses already made
-  const spent = expenseThisMonth + savingsThisMonth;
+  // Planned savings: use budget plan target if savings not yet made
+  let plannedSavings = savingsThisMonth;
+  if (monthPlan) {
+    const budgetedSav = monthPlan.savCats ? Object.values(monthPlan.savCats).reduce((s, v) => s + v, 0) : (monthPlan.s || 0);
+    if (budgetedSav > savingsThisMonth) plannedSavings = budgetedSav;
+  }
+
+  // Available to spend = income - planned savings - expenses already made
+  const spent = expenseThisMonth + plannedSavings;
   const available = monthlyIncome - spent;
   const safePerDay = daysLeft > 0 ? available / daysLeft : 0;
 
@@ -491,7 +498,7 @@ function renderMobileDashboard(c, year) {
   const budgetTotal = getYearlyBudgetTotal(year);
   // Use selected month's budget if a month is selected, otherwise yearly
   const periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : budgetTotal;
-  const budgetUsed = periodBudget > 0 ? Math.min(100, (te / periodBudget * 100)).toFixed(0) : 0;
+  const budgetUsed = periodBudget > 0 ? (te / periodBudget * 100).toFixed(0) : 0;
 
   // Trend
   const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
