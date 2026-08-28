@@ -268,7 +268,7 @@ function saveTxn(e) {
     data.id = generateTxnId(); TXN.push(data);
     // Auto-create fee expense transaction if transfer has a fee
     if (feeAmt > 0 && data.t === 'Savings') {
-      const feeTxn = { id: generateTxnId(), d: data.d, t: 'Expense', c: 'Bills', s: 'Transfer Fee', a: feeAmt, dt: 'Fee for transfer: ' + (data.dt || data.c) };
+      const feeTxn = { id: generateTxnId(), d: data.d, t: 'Expense', c: 'Bills', s: 'Transfer Fee', a: feeAmt, dt: 'Fee for transfer: ' + (data.dt || data.c), feeLinkedTo: data.id };
       if (txnCurrency !== 'MYR') {
         const rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
         feeTxn.a = Math.round((feeAmt / rate) * 100) / 100;
@@ -458,9 +458,29 @@ function doDelConfirm(id) {
 }
 
 function execDel() {
-  TXN = TXN.filter(tx => String(tx.id) !== String(pendAct.id)); saveTXN();
+  const delId = pendAct.id;
+  // Also delete linked fee transaction if this is a Transfer with a fee
+  const parentTx = TXN.find(tx => String(tx.id) === String(delId));
+  if (parentTx && parentTx.t === 'Savings' && parentTx.fee) {
+    // Find the fee expense created at the same date with matching description
+    const feeIdx = TXN.findIndex(tx => tx.t === 'Expense' && tx.s === 'Transfer Fee' && tx.d === parentTx.d && tx.feeLinkedTo === delId);
+    if (feeIdx >= 0) {
+      const feeTx = TXN[feeIdx];
+      TXN.splice(feeIdx, 1);
+      if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(feeTx.id);
+    } else {
+      // Fallback: match by date + description pattern (for txns created before feeLinkedTo was added)
+      const feeIdx2 = TXN.findIndex(tx => tx.t === 'Expense' && tx.s === 'Transfer Fee' && tx.d === parentTx.d && tx.dt && tx.dt.includes(parentTx.dt || parentTx.c));
+      if (feeIdx2 >= 0) {
+        const feeTx = TXN[feeIdx2];
+        TXN.splice(feeIdx2, 1);
+        if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(feeTx.id);
+      }
+    }
+  }
+  TXN = TXN.filter(tx => String(tx.id) !== String(delId)); saveTXN();
   // Cloud sync: delete from Supabase
-  if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(pendAct.id);
+  if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(delId);
   // Sync goals immediately after delete
   if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   document.getElementById('mdel').remove(); document.body.style.overflow = '';
