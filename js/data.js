@@ -564,14 +564,23 @@ function getBANKS() {
 
 // Transfer detection: exclude from income/expense totals
 function isTransfer(tx) {
-  return tx.t === 'Transfer' || (tx.c === 'Balance Adjustment');
+  return tx.t === 'Transfer';
 }
 
 function computeMonthlyData(year) {
   const months = [];
   for (let m = 0; m < 12; m++) {
     const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m && !isTransfer(t); });
-    months.push({ m: MONTH_NAMES[m], i: mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0), e: mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0), s: mTxns.filter(t => t.t === 'Savings').reduce((s, t) => s + t.a, 0) });
+    const adj = mTxns.filter(t => t.c === 'Balance Adjustment');
+    const adjUp = adj.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0);
+    const adjDown = adj.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0);
+    months.push({
+      m: MONTH_NAMES[m],
+      i: mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0),
+      e: mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0),
+      s: mTxns.filter(t => t.t === 'Savings').reduce((s, t) => s + t.a, 0),
+      adj: adjUp - adjDown
+    });
   }
   return months;
 }
