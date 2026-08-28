@@ -232,6 +232,26 @@ function cascCat() {
   if (tp && cat && SCHEMA[tp] && SCHEMA[tp][cat] && SCHEMA[tp][cat].length) {
     SCHEMA[tp][cat].forEach(v => { s.innerHTML += '<option value="' + v + '">' + v + '</option>'; });
   }
+  // Smart liability auto-link when subcategory changes
+  if (s) {
+    s.onchange = function() {
+      if (tp !== 'Expense') return;
+      const sub = s.value;
+      if (!sub) return;
+      const matches = typeof getMatchingLiabilities === 'function' ? getMatchingLiabilities(cat, sub) : [];
+      const liabEl = document.getElementById('f_liab');
+      if (!liabEl) return;
+      if (matches.length === 1) {
+        // Single match: auto-select
+        liabEl.value = matches[0].id;
+      } else if (matches.length > 1) {
+        // Multiple matches: highlight the dropdown and show options
+        liabEl.innerHTML = '<option value="">Select liability (' + matches.length + ' match)</option>' + matches.map(a => '<option value="' + a.id + '">⭐ ' + a.name + '</option>').join('') + ACCOUNTS.filter(a => a.type === 'liability' && !matches.find(m => m.id === a.id)).map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+        liabEl.style.border = '1px solid var(--amber)';
+        setTimeout(() => { liabEl.style.border = ''; }, 3000);
+      }
+    };
+  }
 }
 
 function tryClose() {
