@@ -1,6 +1,6 @@
-// === FinTrack Premium Service Worker (V2.0.2) ===
+// === FinTrack Premium Service Worker (V2.0.3) ===
 // IMPORTANT: Bump this version string on EVERY deploy to trigger update
-const CACHE_NAME = 'fintrack-v2.0.2-b1787980320';
+const CACHE_NAME = 'fintrack-v2.0.3-b1788350580';
 
 // Listen for skip waiting message from the app
 self.addEventListener('message', function(e) {
