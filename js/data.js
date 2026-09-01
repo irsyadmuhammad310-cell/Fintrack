@@ -240,12 +240,20 @@ function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
   if (!acc) return 0;
   const cur = acc.currency || 'MYR';
-  const txnTotal = TXN.filter(tx => tx.acc === accId).reduce((sum, tx) => {
+  const txnTotal = TXN.filter(tx => tx.acc === accId || tx.toAcc === accId).reduce((sum, tx) => {
     // tx.a is stored in MYR; convert back to native currency for correct balance
     const nativeAmt = cur === 'MYR' ? tx.a : convertFromTo(tx.a, 'MYR', cur);
+    // Transfer: debit source, credit destination
+    if (tx.t === 'Savings') {
+      let delta = 0;
+      if (tx.acc === accId) delta -= nativeAmt;
+      if (tx.toAcc === accId) delta += nativeAmt;
+      return sum + delta;
+    }
+    // Non-transfer: only process if this is the linked account
+    if (tx.acc !== accId) return sum;
     if (tx.t === 'Income') return sum + nativeAmt;
     if (tx.t === 'Expense') return sum - nativeAmt;
-    if (tx.t === 'Savings') return sum - nativeAmt;
     return sum;
   }, 0);
   return acc.initialBalance + txnTotal;
