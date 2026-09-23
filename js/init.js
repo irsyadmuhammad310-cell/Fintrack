@@ -703,10 +703,21 @@ function showRecoveryCodeDisplay(code) {
   document.body.style.overflow = 'hidden';
 }
 
+// V2.0.4: Later = ask again next launch. Don't show again = never ask (saved via safeSave).
 function showRecoveryReminder() {
   if (hasRecoverySetup() && hasSecurityQuestions()) return;
-  var html = '<div style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--amber);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow-lg);z-index:8000;max-width:360px;width:90%;animation:fi 300ms ease-out" id="ftRecReminder"><div style="display:flex;align-items:flex-start;gap:10px"><span style="font-size:20px;flex-shrink:0">⚠️</span><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text-primary)">No recovery method set up</div><div style="font-size:10px;color:var(--text-secondary);margin-bottom:10px">If you forget your PIN, you may not be able to recover your data.</div><div style="display:flex;gap:6px"><button class="btn bp" style="font-size:10px;padding:5px 10px" onclick="document.getElementById(\'ftRecReminder\').remove();showFirstTimeSecuritySetup()">Set Up Now</button><button class="btn bs" style="font-size:10px;padding:5px 10px" onclick="document.getElementById(\'ftRecReminder\').remove()">Later</button></div></div></div></div>';
+  if (safeGet('ft_hide_recovery_reminder') === 'true') return;
+  if (document.getElementById('ftRecReminder')) return;
+  var btn = 'font-size:10px;padding:5px 10px';
+  var html = '<div style="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--bg-card);border:1px solid var(--amber);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow-lg);z-index:8000;max-width:360px;width:90%;animation:fi 300ms ease-out" id="ftRecReminder"><div style="display:flex;align-items:flex-start;gap:10px"><span style="font-size:20px;flex-shrink:0">⚠️</span><div style="flex:1"><div style="font-size:12px;font-weight:600;margin-bottom:4px;color:var(--text-primary)">No recovery method set up</div><div style="font-size:10px;color:var(--text-secondary);margin-bottom:10px">If you forget your PIN, you may not be able to recover your data.</div><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn bp" style="' + btn + '" onclick="document.getElementById(\'ftRecReminder\').remove();showFirstTimeSecuritySetup()">Set Up Now</button><button class="btn bs" style="' + btn + '" onclick="document.getElementById(\'ftRecReminder\').remove()">Later</button><button class="btn bs" style="' + btn + ';color:var(--text-tertiary)" onclick="ftHideRecoveryReminder()">Don\'t show again</button></div></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function ftHideRecoveryReminder() {
+  safeSave('ft_hide_recovery_reminder', 'true');
+  var el = document.getElementById('ftRecReminder');
+  if (el) el.remove();
+  toast('🔕 Got it. Set up anytime in Settings → Security');
 }
 
 // === UPDATE BANNER (V1.0.2 — PWA User-Controlled Update) ===
