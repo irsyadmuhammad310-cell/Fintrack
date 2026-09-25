@@ -34,17 +34,25 @@ function syncBottomNav(page) {
 
 function render() {
   const c = document.getElementById('cnt');
-  switch (curPage) {
-    case 'dashboard': renderDashboard(c); break;
-    case 'transactions': renderTransactions(c); break;
-    case 'investments': renderInvestments(c); break;
-    case 'goals': renderGoals(c); break;
-    case 'accounts': renderAccounts(c); break;
-    case 'analytics': renderAnalytics(c); break;
-    case 'reports': renderReports(c); break;
-    case 'settings': renderSettings(c); break;
+  // V2.0.4: a crash on one page shows the error on screen (screenshot it) instead of a dead tab
+  try {
+    switch (curPage) {
+      case 'dashboard': renderDashboard(c); break;
+      case 'transactions': renderTransactions(c); break;
+      case 'investments': renderInvestments(c); break;
+      case 'goals': renderGoals(c); break;
+      case 'accounts': renderAccounts(c); break;
+      case 'analytics': renderAnalytics(c); break;
+      case 'reports': renderReports(c); break;
+      case 'settings': renderSettings(c); break;
+    }
+  } catch (e) {
+    console.error('[FinTrack] Page render error:', curPage, e);
+    const msg = String((e && e.message) || e).replace(/[<>&]/g, '');
+    const where = String((e && e.stack) || '').split('\n').slice(0, 3).join(' | ').replace(/[<>&]/g, '');
+    c.innerHTML = '<div style="padding:40px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">This page crashed: ' + curPage + '</div><div style="font-size:12px;color:var(--rose);margin-bottom:8px">' + msg + '</div><div style="font-size:10px;color:var(--text-tertiary);word-break:break-all">' + where + '</div><div style="font-size:11px;color:var(--text-secondary);margin-top:12px">Your data is safe. Screenshot this and send it over.</div></div>';
   }
-  updateNotifBadge();
+  try { updateNotifBadge(); } catch (e) {}
 }
 
 function refresh() { render(); }
