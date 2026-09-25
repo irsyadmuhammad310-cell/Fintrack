@@ -87,6 +87,7 @@
     <a class="ni active" data-page="dashboard"><i data-lucide="layout-dashboard" width="18" height="18"></i><span class="nlbl">Dashboard</span></a>
     <a class="ni" data-page="transactions"><i data-lucide="receipt" width="18" height="18"></i><span class="nlbl">Transactions</span></a>
     <div class="nsec">Wealth</div>
+    <a class="ni" data-page="accounts"><i data-lucide="building-2" width="18" height="18"></i><span class="nlbl">Accounts</span></a>
     <a class="ni" data-page="investments"><i data-lucide="trending-up" width="18" height="18"></i><span class="nlbl">Investments</span></a>
     <a class="ni" data-page="goals"><i data-lucide="target" width="18" height="18"></i><span class="nlbl">Goals</span></a>
     <div class="nsec">Insights</div>
@@ -162,11 +163,7 @@
     </div>
   </div>
 </nav>
-<!-- Mobile Global FAB (Add Transaction) - shown on Dashboard & Transactions only -->
-<button class="mob-global-fab" id="mobGlobalFab" onclick="editId=null;openAdd()" aria-label="Add Transaction">
-  <i data-lucide="plus" width="22" height="22"></i>
-</button>
-<!-- Global Mobile FAB (Add Transaction) -->
+<!-- Mobile Global FAB (Add Transaction) - shown on Dashboard, Transactions & Accounts -->
 <button class="mob-global-fab" id="mobGlobalFab" onclick="editId=null;openAdd()" aria-label="Add Transaction">
   <i data-lucide="plus" width="22" height="22"></i>
 </button>
@@ -177,6 +174,7 @@
 <script src="js/currency.js"></script>
 <script src="js/helpers.js"></script>
 <script src="js/router.js"></script>
+<script src="js/accounts.js"></script>
 <script src="js/dashboard.js"></script>
 <script src="js/transactions.js"></script>
 <script src="js/investments.js"></script>
