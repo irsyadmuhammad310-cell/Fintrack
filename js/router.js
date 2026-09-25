@@ -16,7 +16,7 @@ function updateMobileFAB(page) {
   if (window.innerWidth > 900) return;
   const addFab = document.getElementById('mobGlobalFab');
   const aiFab = document.getElementById('aiFab');
-  if (page === 'dashboard' || page === 'transactions') {
+  if (page === 'dashboard' || page === 'transactions' || page === 'accounts') {
     if (addFab) { addFab.style.display = 'flex'; addFab.style.visibility = 'visible'; }
     if (aiFab) { aiFab.style.display = 'none'; aiFab.style.visibility = 'hidden'; }
   } else {
@@ -39,6 +39,7 @@ function render() {
     case 'transactions': renderTransactions(c); break;
     case 'investments': renderInvestments(c); break;
     case 'goals': renderGoals(c); break;
+    case 'accounts': renderAccounts(c); break;
     case 'analytics': renderAnalytics(c); break;
     case 'reports': renderReports(c); break;
     case 'settings': renderSettings(c); break;
