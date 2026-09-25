@@ -1,6 +1,6 @@
 // === FinTrack Premium Service Worker (V2.0.3) ===
 // IMPORTANT: Bump this version string on EVERY deploy to trigger update
-const CACHE_NAME = 'fintrack-v2.0.4-b1790308500';
+const CACHE_NAME = 'fintrack-v2.0.4-b1790310300';
 
 // Listen for skip waiting message from the app
 self.addEventListener('message', function(e) {
@@ -18,6 +18,7 @@ const ASSETS = [
   './js/data.js',
   './js/helpers.js',
   './js/router.js',
+  './js/accounts.js',
   './js/dashboard.js',
   './js/transactions.js',
   './js/investments.js',
@@ -35,7 +36,8 @@ const ASSETS = [
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(ASSETS);
+      // V2.0.4: cache 'reload' skips the browser's HTTP cache, so a new version never mixes old + new files
+      return cache.addAll(ASSETS.map(function(u) { return new Request(u, { cache: 'reload' }); }));
     })
   );
   self.skipWaiting();
