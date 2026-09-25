@@ -62,13 +62,17 @@ function buildFinancialContext() {
       const b = typeof getAccountBalance === 'function' ? getAccountBalance(a.id) : a.initialBalance;
       return a.name + ' (' + a.accountType + ', ' + (a.currency || 'MYR') + '): ' + fmtIn(b, a.currency || 'MYR');
     }).join('; ');
-    const goals = typeof GOALS !== 'undefined' && GOALS.length ? GOALS.map(g => g.name + ': ' + fmt(g.current) + '/' + fmt(g.target) + ' (' + (g.target > 0 ? (g.current / g.target * 100).toFixed(0) : 0) + '%)').join('; ') : 'None set';
-    const recentTxns = TXN.sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 10).map(tx => tx.d + ' | ' + tx.t + ' | ' + tx.c + (tx.s ? '/' + tx.s : '') + ' | ' + fmt(tx.a) + (tx.dt ? ' (' + tx.dt + ')' : '')).join('\n');
+    // V2.0.5: goal fields are n/c/t (old code read name/current/target and always sent "undefined")
+    const goals = typeof GOALS !== 'undefined' && GOALS.length ? GOALS.map(g => g.n + ': ' + fmt(g.c) + '/' + fmt(g.t) + ' (' + (g.t > 0 ? (g.c / g.t * 100).toFixed(0) : 0) + '%)').join('; ') : 'None set';
+    const tsa = MD.reduce((s, m) => s + (m.sa || 0), 0);
+    // slice() first: sorting TXN in place used to reorder the real transaction list
+    const recentTxns = TXN.slice().sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 10).map(tx => tx.d + ' | ' + tx.t + ' | ' + tx.c + (tx.s ? '/' + tx.s : '') + ' | ' + fmt(tx.a) + (tx.dt ? ' (' + tx.dt + ')' : '')).join('\n');
 
     return `USER FINANCIAL DATA (${year}, ${active} months recorded):
 - Total Income: ${fmt(ti)} (avg ${fmt(avgI)}/mo)
 - Total Expenses: ${fmt(te)} (avg ${fmt(te / Math.max(active, 1))}/mo)
-- Total Savings: ${fmt(ts)} (savings rate: ${savRate}%)
+- Total Savings (income - expense): ${fmt(ts)} (savings rate: ${savRate}%)
+- Set aside into Savings/Investment accounts: ${fmt(tsa)} (transfers between own accounts are NOT spending)
 - Balance: ${fmt(bal)}
 - Net Worth: ${fmt(nw)}
 - Top expense categories: ${topCats}
