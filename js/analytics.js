@@ -15,7 +15,7 @@ function renderAnalytics(c) {
   }
 
   var MD = computeMonthlyData(year);
-  var am = MD.filter(function(m) { return m.i > 0 || m.e > 0 || m.s > 0; });
+  var am = MD.filter(function(m) { return m.i > 0 || m.e > 0 || (m.sa || 0) !== 0; });
   if (!am.length) am = MD;
   var ti = MD.reduce(function(s,m){return s+m.i;},0);
   var te = MD.reduce(function(s,m){return s+m.e;},0);
@@ -23,6 +23,8 @@ function renderAnalytics(c) {
   var net = ti - te;
   var nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
   var savRate = ti > 0 ? (ts / ti * 100).toFixed(1) : '0.0';
+  // V2.0.5: ts = income - expense. Set aside = moved into Savings/Investment accounts (shown, not scored)
+  var tsa = MD.reduce(function(s,m){return s+(m.sa||0);},0);
 
   var html = '<div class="an-page">';
 
@@ -31,6 +33,7 @@ function renderAnalytics(c) {
     '<div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-up" width="13" height="13"></i></div><div class="kl">' + t('dash_income') + '</div></div><div class="kv">' + fmt(ti) + '</div></div></div>' +
     '<div class="kc rs"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-down" width="13" height="13"></i></div><div class="kl">' + t('dash_expense') + '</div></div><div class="kv">' + fmt(te) + '</div></div></div>' +
     '<div class="kc bl"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="piggy-bank" width="13" height="13"></i></div><div class="kl">' + t('dash_savings') + '</div></div><div class="kv">' + fmt(ts) + '</div></div></div>' +
+    '<div class="kc bl"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="lock" width="13" height="13"></i></div><div class="kl">Set aside</div></div><div class="kv">' + fmt(tsa) + '</div></div></div>' +
     '<div class="kc ' + (net>=0?'gn':'rs') + '"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="activity" width="13" height="13"></i></div><div class="kl">' + t('an_cash_flow') + '</div></div><div class="kv">' + fmt(net) + '</div></div></div>' +
     '<div class="kc gd"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">' + t('an_net_worth') + '</div></div><div class="kv">' + fmt(nw) + '</div></div></div>' +
     '<div class="kc pk"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="percent" width="13" height="13"></i></div><div class="kl">' + t('an_savings_rate') + '</div></div><div class="kv">' + savRate + '%</div></div></div>' +
@@ -311,7 +314,7 @@ function renderMobileInsights(c, year, month) {
   if (mf !== 'total') {
     var now = new Date();
     var selDate = new Date(year, +mf, 1);
-    var hasData = MD[+mf].i > 0 || MD[+mf].e > 0 || MD[+mf].s > 0;
+    var hasData = MD[+mf].i > 0 || MD[+mf].e > 0 || (MD[+mf].sa || 0) !== 0;
     if (selDate > now && !hasData) {
       c.innerHTML = '<div class="mob-insights"><div style="padding:60px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">📅</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">' + MONTH_NAMES[+mf] + ' ' + year + ' hasn\'t started yet</div><div style="font-size:12px;color:var(--text-tertiary)">Select "Total Year" or a past/current month to view insights.</div></div></div>';
       return;
