@@ -62,7 +62,7 @@ function renderDashboard(c) {
       const dt = TXN.filter(t => t.d === ds);
       cI += dt.filter(t => t.t === 'Income').reduce((a, t) => a + t.a, 0);
       cE += dt.filter(t => t.t === 'Expense').reduce((a, t) => a + t.a, 0);
-      cS += dt.filter(t => t.t === 'Savings').reduce((a, t) => a + t.a, 0);
+      cS = cI - cE; // V2.0.5: savings = income - expense
       iArr.push(cI); eArr.push(cE); sArr.push(cS);
       cfArr.push(cI - cE); nwArr.push(cI - cE);
     }
@@ -89,7 +89,7 @@ function renderDashboard(c) {
   const cards = [
     { l: t('dash_income'), v: fmt(ti), cl: 'gn', ic: 'arrow-down-left', s: series.income, exp: false },
     { l: t('dash_expense'), v: fmt(te), cl: 'rs', ic: 'arrow-up-right', s: series.expense, exp: true },
-    { l: t('dash_savings'), v: (ts < 0 ? '-' : '') + fmt(ts), cl: 'pk', ic: 'piggy-bank', s: series.savings, exp: false },
+    { l: t('dash_savings'), v: fmt(ts), cl: 'pk', ic: 'piggy-bank', s: series.savings, exp: false },
     { l: t('dash_balance'), v: fmt(bal), cl: bal >= 0 ? 'bl' : 'rs', ic: 'wallet', s: series.balance, exp: false },
     { l: t('dash_cashflow'), v: fmt(cf), cl: cf >= 0 ? 'em' : 'rs', ic: 'trending-up', s: series.cashflow, exp: false }
   ];
@@ -342,7 +342,8 @@ function computeCashFlowForecast() {
 
   const incomeThisMonth = monthTxns.filter(tx => tx.t === 'Income').reduce((s, tx) => s + tx.a, 0);
   const expenseThisMonth = monthTxns.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
-  const savingsThisMonth = monthTxns.filter(tx => tx.t === 'Savings').reduce((s, tx) => s + tx.a, 0);
+  // V2.0.5: only money set aside into Savings/Investment accounts is locked away. Moving Maybank -> Cash is not.
+  const savingsThisMonth = Math.max(0, monthTxns.reduce((s, tx) => s + ftSetAsideNet(tx), 0));
 
   // v15.8.2: Monthly income = actual income for the selected month (primary source)
   // Fallback to budget plan income if actual is 0
@@ -371,7 +372,7 @@ function computeCashFlowForecast() {
   // Projected end-of-month: current spending rate x days left
   const dailyAvgExpense = today > 0 ? expenseThisMonth / today : 0;
   const projectedTotalExpense = expenseThisMonth + (dailyAvgExpense * daysLeft);
-  const projectedEndBalance = monthlyIncome - savingsThisMonth - projectedTotalExpense;
+  const projectedEndBalance = monthlyIncome - plannedSavings - projectedTotalExpense;
 
   return {
     daysLeft,
@@ -500,8 +501,10 @@ function renderMobileDashboard(c, year) {
   }).sort((a, b) => new Date(b.d) - new Date(a.d)).slice(0, 5);
 
   const recentHtml = recent.map(tx => {
-    const color = tx.t === 'Income' ? 'var(--emerald)' : tx.t === 'Savings' ? 'var(--blue)' : 'var(--rose)';
-    const sign = tx.t === 'Income' ? '+' : '-';
+    const isX = ftIsXfer(tx);
+    const color = tx.t === 'Income' ? 'var(--emerald)' : isX ? 'var(--blue)' : 'var(--rose)';
+    // V2.0.5: an own-account transfer is not money out, so no minus sign
+    const sign = tx.t === 'Income' ? '+' : (isX && tx.toAcc) ? '⇄ ' : '-';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tx.dt || tx.c}</div><div style="font-size:10px;color:var(--text-tertiary)">${tx.c}${tx.s ? ' · ' + tx.s : ''}</div></div><div style="font-size:13px;font-weight:700;color:${color};font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div></div>`;
   }).join('');
 
@@ -634,6 +637,7 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
       <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmtD(cf)}</div></div>
     </div>
     ${cfChange !== null ? `<div style="font-size:10px;color:${+cfChange >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-weight:500;text-align:center">${+cfChange >= 0 ? '▲' : '▼'} ${Math.abs(cfChange)}% vs previous month</div>` : ''}
+    ${(() => { const sa = mf === 'total' ? yearData.reduce((s, m) => s + (m.sa || 0), 0) : (yearData[+mf].sa || 0); return sa !== 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--bg-primary);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary)">🔒 Set aside (to Savings/Investment accounts)</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:'tnum'">${fmt(sa)}</span></div>` : ''; })()}
   </div>`;
 
   // 4. CASH FLOW FORECAST
@@ -709,7 +713,7 @@ function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, 
   const periodTxns = TXN.filter(tx => { const d = new Date(tx.d); if (d.getFullYear() !== year) return false; if (mf !== 'total' && d.getMonth() !== +mf) return false; return true; });
   const periodExpenses = periodTxns.filter(tx => tx.t === 'Expense');
 
-  // 1. SAVINGS (20%): all Savings-type transactions / income
+  // 1. SAVINGS (20%): (income - expense) / income. V2.0.5: transfers no longer count (ts = ti - te)
   const savRate = ti > 0 ? (ts / ti * 100) : 0;
   const savScore = Math.min(100, Math.max(0, savRate / 20 * 100));
   metrics.push({ label: 'Savings', value: savRate.toFixed(0) + '%', target: '≥20%', color: savRate >= 20 ? 'var(--emerald)' : savRate >= 10 ? 'var(--amber)' : 'var(--rose)' });
@@ -809,10 +813,10 @@ function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, per
   if (+savRate >= 30) insights.push({ icon: '🏆', text: `Savings rate is <b>${savRate}%</b>. Excellent discipline!` });
   else if (+savRate >= 20) insights.push({ icon: '👍', text: `Savings rate: <b>${savRate}%</b>. Meeting the recommended 20% target.` });
   else if (+savRate > 0) insights.push({ icon: '💡', text: `Savings rate: <b>${savRate}%</b>. Aim for 20%+ to build faster.` });
-  else if (ti > 0) insights.push({ icon: '🔴', text: `No savings this period. Try to allocate at least 20% of income.` });
+  else if (ti > 0) insights.push({ icon: '🔴', text: `No savings this period. Try to keep at least 20% of income.` });
 
-  // Cash flow trend
-  if (cf < 0) insights.push({ icon: '📉', text: `Negative cash flow of <b>${fmt(Math.abs(cf))}</b>. Spending exceeds income after savings.` });
+  // Cash flow trend (V2.0.5: cf = income - expense, transfers are not spending)
+  if (cf < 0) insights.push({ icon: '📉', text: `Negative cash flow of <b>${fmt(Math.abs(cf))}</b>. Spending exceeds income.` });
   else if (cf > ti * 0.3) insights.push({ icon: '🚀', text: `Strong positive cash flow: <b>${fmt(cf)}</b>. Consider investing the surplus.` });
 
   // Expense vs prev month comparison
