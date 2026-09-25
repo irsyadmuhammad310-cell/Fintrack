@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setTimeout(applyHideAmounts, 200);
 });
 
-// === PIN SECURITY (v15.7 — SHA-256 hashed) ===
+// === PIN SECURITY (V2.0.4: PBKDF2 100k + random salt; old SHA-256 hashes upgrade on next unlock) ===
 async function hashPIN(pin) {
   const encoder = new TextEncoder();
   const data = encoder.encode(pin + 'fintrack_salt_2026');
@@ -100,11 +100,37 @@ async function hashPIN(pin) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// hashPIN above = OLD format (SHA-256 + fixed salt). Kept only to check old hashes.
+var FT_PBKDF2_ITER = 100000;
+function ftHex(buf) { return Array.from(new Uint8Array(buf)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join(''); }
+function ftUnhex(h) { var a = new Uint8Array(h.length / 2); for (var i = 0; i < a.length; i++) a[i] = parseInt(h.substr(i * 2, 2), 16); return a; }
+async function ftPbkdf2(secret, saltHex, iter) {
+  var key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveBits']);
+  var bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: ftUnhex(saltHex), iterations: iter, hash: 'SHA-256' }, key, 256);
+  return ftHex(bits);
+}
+// V2.0.4 stored format: pbkdf2$<iterations>$<salt hex>$<hash hex> (new random salt for every hash)
+async function ftHashSecret(secret) {
+  var salt = ftHex(crypto.getRandomValues(new Uint8Array(16)));
+  return 'pbkdf2$' + FT_PBKDF2_ITER + '$' + salt + '$' + (await ftPbkdf2(String(secret), salt, FT_PBKDF2_ITER));
+}
+async function ftCheckSecret(secret, stored) {
+  if (!stored) return false;
+  secret = String(secret);
+  if (stored.indexOf('pbkdf2$') === 0) {
+    var p = stored.split('$');
+    var iter = parseInt(p[1], 10);
+    if (p.length !== 4 || !(iter > 0)) return false;
+    return (await ftPbkdf2(secret, p[2], iter)) === p[3];
+  }
+  return (await hashPIN(secret)) === stored; // old SHA-256 format
+}
+function ftIsLegacyHash(stored) { return !!stored && stored.indexOf('pbkdf2$') !== 0; }
+
 function getPK() {
-  // Legacy: if old plain-text PIN exists, return it (will be migrated on next change)
+  // Legacy: if old plain-text PIN exists, return it (upgraded to PBKDF2 on next unlock)
   const legacy = safeGet('ft_pk');
   if (legacy && legacy.length > 0 && legacy.length < 64) return legacy;
-  // Default fallback (also used after emergency reset when ft_pk is cleared)
   return null;
 }
 
@@ -115,53 +141,113 @@ function getPKHash() {
   return hash;
 }
 
-async function verifyPIN(inputPin) {
+function ftHasPIN() { return !!(getPKHash() || getPK()); }
+
+// Strict check: false when no PIN exists. Old hashes / plain PINs are upgraded to PBKDF2 on success.
+async function ftVerifyPINStrict(inputPin) {
+  if (inputPin === null || inputPin === undefined) return false;
+  inputPin = String(inputPin);
   const storedHash = getPKHash();
   if (storedHash) {
-    const inputHash = await hashPIN(inputPin);
-    return inputHash === storedHash;
+    const ok = await ftCheckSecret(inputPin, storedHash);
+    if (ok && ftIsLegacyHash(storedHash)) { try { await setPINSecure(inputPin); } catch (e) {} }
+    return ok;
   }
-  // Legacy plain-text fallback
   const legacyPK = getPK();
-  if (legacyPK) return inputPin === legacyPK;
-  // No PIN set at all (after emergency reset): any input passes
-  return true;
+  if (legacyPK && inputPin === legacyPK) {
+    try { await setPINSecure(inputPin); } catch (e) {}
+    return true;
+  }
+  return false;
+}
+
+async function verifyPIN(inputPin) {
+  // No PIN set at all: open (lets the user create a first PIN). Reset/delete screens use ftVerifyPINStrict.
+  if (!ftHasPIN()) return true;
+  return ftVerifyPINStrict(inputPin);
 }
 
 async function setPINSecure(newPin) {
-  const hash = await hashPIN(newPin);
+  const hash = await ftHashSecret(String(newPin));
   safeSave('ft_pk_hash', hash);
-  localStorage.removeItem('ft_pk'); // Remove legacy plain-text
+  safeSave('ft_pk', ''); // Remove legacy plain-text (LS + IDB)
 }
 
-// === RECOVERY CODE (v15.7) ===
+// === PIN LOCKOUT (V2.0.4, survives reload; shared by unlock, recovery, questions, settings) ===
+var FT_LOCK_FREE = 5;                   // wrong tries allowed before the first lock
+var FT_LOCK_STEPS = [30, 60, 300, 900]; // seconds: 30s, 1 min, 5 min, 15 min
+function ftLockState() {
+  try { var s = JSON.parse(safeGet('ft_pin_lockout') || '{}'); return (s && typeof s === 'object') ? s : {}; } catch (e) { return {}; }
+}
+function ftLockoutRemaining() {
+  var s = ftLockState();
+  var r = Math.ceil(((s.until || 0) - Date.now()) / 1000);
+  if (r <= 0) return 0;
+  return Math.min(r, FT_LOCK_STEPS[FT_LOCK_STEPS.length - 1]); // clock moved back: never more than 15 min
+}
+function ftRegisterFail() {
+  var s = ftLockState();
+  s.fails = (s.fails || 0) + 1;
+  if (s.fails >= FT_LOCK_FREE) {
+    var idx = Math.min(s.fails - FT_LOCK_FREE, FT_LOCK_STEPS.length - 1);
+    s.until = Date.now() + FT_LOCK_STEPS[idx] * 1000;
+  }
+  safeSave('ft_pin_lockout', JSON.stringify(s));
+  return ftLockoutRemaining();
+}
+function ftRegisterSuccess() { safeSave('ft_pin_lockout', ''); }
+function ftLockMsg(sec) {
+  return '🔒 Too many wrong tries. Wait ' + (sec >= 60 ? Math.ceil(sec / 60) + ' min' : sec + 's') + '.';
+}
+function ftTriesLeftMsg() {
+  var left = FT_LOCK_FREE - (ftLockState().fails || 0);
+  return left > 0 ? left + (left === 1 ? ' try' : ' tries') + ' left before lock' : '';
+}
+// UI helpers: show a message in an error element (works for display:none divs and .ferr)
+function ftShowErr(id, msg) {
+  var e = document.getElementById(id);
+  if (e) { e.textContent = msg; e.style.display = 'block'; e.classList.add('show'); }
+}
+// Returns true (and shows the wait message) while locked out
+function ftLockGuard(id) {
+  var w = ftLockoutRemaining();
+  if (w > 0) { ftShowErr(id, ftLockMsg(w)); return true; }
+  return false;
+}
+// Count one wrong try and show "Wrong PIN. 3 tries left" or the lock message
+function ftFailMsg(id, base) {
+  var w = ftRegisterFail();
+  ftShowErr(id, w > 0 ? ftLockMsg(w) : base + ' ' + ftTriesLeftMsg());
+  return w;
+}
+
+// === RECOVERY CODE (v15.7, V2.0.4: crypto random + PBKDF2) ===
 function generateRecoveryCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars, so byte % 32 has no bias
+  const bytes = crypto.getRandomValues(new Uint8Array(12));
   let code = '';
   for (let i = 0; i < 12; i++) {
     if (i > 0 && i % 4 === 0) code += '-';
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(bytes[i] % chars.length);
   }
   return code;
 }
 
 async function setupRecoveryCode() {
   const code = generateRecoveryCode();
-  const codeHash = await hashPIN(code);
-  safeSave('ft_recovery_hash', codeHash);
+  safeSave('ft_recovery_hash', await ftHashSecret(code.replace(/-/g, '')));
   return code;
 }
 
 async function verifyRecoveryCode(inputCode) {
   const storedHash = safeGet('ft_recovery_hash');
-  if (!storedHash) return false;
+  if (!storedHash || !inputCode) return false;
   const cleanCode = inputCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  // Try with and without dashes
-  const inputHash = await hashPIN(cleanCode);
-  if (inputHash === storedHash) return true;
-  // Try original format
-  const inputHash2 = await hashPIN(inputCode.trim().toUpperCase());
-  return inputHash2 === storedHash;
+  let ok = await ftCheckSecret(cleanCode, storedHash);
+  // Old codes were hashed WITH dashes
+  if (!ok && ftIsLegacyHash(storedHash)) ok = await ftCheckSecret(inputCode.trim().toUpperCase(), storedHash);
+  if (ok && ftIsLegacyHash(storedHash)) safeSave('ft_recovery_hash', await ftHashSecret(cleanCode));
+  return ok;
 }
 
 function hasRecoverySetup() {
@@ -183,9 +269,9 @@ const SECURITY_QUESTIONS = [
 async function saveSecurityAnswers(q1Index, a1, q2Index, a2) {
   const data = {
     q1: q1Index,
-    a1: await hashPIN(a1.trim().toLowerCase()),
+    a1: await ftHashSecret(a1.trim().toLowerCase()),
     q2: q2Index,
-    a2: await hashPIN(a2.trim().toLowerCase())
+    a2: await ftHashSecret(a2.trim().toLowerCase())
   };
   safeSave('ft_security_questions', JSON.stringify(data));
 }
@@ -193,10 +279,13 @@ async function saveSecurityAnswers(q1Index, a1, q2Index, a2) {
 async function verifySecurityAnswers(a1, a2) {
   const stored = safeGet('ft_security_questions');
   if (!stored) return false;
-  const data = JSON.parse(stored);
-  const hash1 = await hashPIN(a1.trim().toLowerCase());
-  const hash2 = await hashPIN(a2.trim().toLowerCase());
-  return hash1 === data.a1 && hash2 === data.a2;
+  let data;
+  try { data = JSON.parse(stored); } catch (e) { return false; }
+  const x1 = String(a1 || '').trim().toLowerCase(), x2 = String(a2 || '').trim().toLowerCase();
+  const ok = (await ftCheckSecret(x1, data.a1)) && (await ftCheckSecret(x2, data.a2));
+  // Silent upgrade of old SHA-256 answers
+  if (ok && (ftIsLegacyHash(data.a1) || ftIsLegacyHash(data.a2))) await saveSecurityAnswers(data.q1, x1, data.q2, x2);
+  return ok;
 }
 
 function hasSecurityQuestions() {
