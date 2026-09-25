@@ -17,7 +17,8 @@ function renderAccounts(c) {
   let html = '';
   html += `<div class="ft-acc-page">`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">`;
-  html += `<div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="17" height="17" style="color:var(--accent)"></i> ${t('acc_title')}</div>`;
+  // V2.0.4: back chevron (reverse morph to Home) + title, same as the mockup header
+  html += `<div style="display:flex;align-items:center;gap:6px"><button class="ft-acc-back" onclick="ftMorphNav('dashboard')" aria-label="Back"><i data-lucide="chevron-left" width="20" height="20"></i></button><div style="font-size:17px;font-weight:700">${t('acc_title')}</div></div>`;
   html += `<button class="btn bp" style="font-size:12px;padding:7px 14px" onclick="openAccountModal()"><i data-lucide="plus" width="12" height="12"></i> ${t('acc_add')}</button>`;
   html += `</div>`;
 
@@ -26,7 +27,8 @@ function renderAccounts(c) {
   }
 
   // Net Worth summary card (visual only; same getNetWorth() the dashboard uses)
-  html += `<div class="ft-acc-networth"><div><div class="ft-acc-nw-label">${t('dash_net_worth')}</div><div class="ft-acc-nw-sub">${t('acc_assets')} ${fmt(totalAssets)} · ${t('acc_liabs')} -${fmt(totalLiabs)}</div></div><div class="ft-acc-nw-val">${fmt(getNetWorth())}</div></div>`;
+  // V2.0.4: same gradient card as Home (data-nw-morph = the shared element the morph flies between)
+  html += `<div class="ft-acc-networth ft-nw-card" data-nw-morph><div class="ft-nw-label">${t('dash_net_worth')}</div><div class="ft-acc-nw-val">${fmt(getNetWorth())}</div><div class="ft-nw-sub">${t('acc_assets')} ${fmt(totalAssets)} · ${t('acc_liabs')} -${fmt(totalLiabs)}</div></div>`;
 
   if (ACCOUNTS.length > 1) {
     html += `<div style="font-size:10px;color:var(--text-tertiary);margin:10px 0 6px">${t('acc_drag_hint')}</div>`;
@@ -52,6 +54,128 @@ function renderAccounts(c) {
   c.innerHTML = html;
   lucide.createIcons();
   ftInitAccDrag(c);
+}
+
+// === NET WORTH MORPH (V2.0.4) ===
+// Same motion as the mockup: the Net Worth card on Home grows into the Accounts header
+// and shrinks back on Back. Spring = stiffness 320, damping 34, mass 1 (the framer-motion values).
+// Visual only: never reads or writes money data.
+function ftNwTotals() {
+  try {
+    const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((s, a) => s + ftAccBalanceMYR(a.id), 0);
+    return { assets, liabs: ftLiabilitiesMYR() };
+  } catch (e) { return null; }
+}
+
+// Spring progress 0 -> 1 sampled per 60fps frame (settles in about 0.45s)
+function ftSpringCurve() {
+  if (ftSpringCurve._c) return ftSpringCurve._c;
+  const k = 320, d = 34, m = 1, sub = 4, dt = 1 / (60 * sub);
+  let x = 0, v = 0;
+  const out = [0];
+  for (let f = 1; f <= 120; f++) {
+    for (let s = 0; s < sub; s++) { const acc = (-k * (x - 1) - d * v) / m; v += acc * dt; x += v * dt; }
+    out.push(x);
+    if (Math.abs(1 - x) < 0.001 && Math.abs(v) < 0.02) break;
+  }
+  out[out.length - 1] = 1;
+  return (ftSpringCurve._c = out);
+}
+
+// Everything on the page except the card (and its parents)
+function ftMorphSiblings(el, stop) {
+  const list = [];
+  let node = el;
+  while (node && node !== stop && node.parentElement) {
+    Array.from(node.parentElement.children).forEach(s => { if (s !== node) list.push(s); });
+    node = node.parentElement;
+  }
+  return list;
+}
+
+function ftMorphClone(el) {
+  const c = el.cloneNode(true);
+  ['onclick', 'data-nw-morph', 'id'].forEach(a => c.removeAttribute(a));
+  c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+  c.querySelectorAll('[onclick]').forEach(n => n.removeAttribute('onclick'));
+  Object.assign(c.style, { position: 'absolute', left: '0', top: '0', width: '100%', height: '100%', margin: '0', transform: 'none', transition: 'none', animation: 'none', boxSizing: 'border-box', visibility: 'visible' });
+  return c;
+}
+
+function ftMorphNav(page, srcEl) {
+  const cnt = document.getElementById('cnt');
+  if (window._ftMorphing) return;
+  const src = srcEl || (cnt && cnt.querySelector('[data-nw-morph]'));
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !cnt || !src || !cnt.contains(src) || typeof src.animate !== 'function') { navigate(page); return; }
+  const r0 = src.getBoundingClientRect();
+  if (!r0.width || !r0.height) { navigate(page); return; }
+
+  window._ftMorphing = true;
+  const unlock = setTimeout(() => { window._ftMorphing = false; }, 2000);
+  const EASE = 'cubic-bezier(0.16,1,0.3,1)';
+  const rad0 = parseFloat(getComputedStyle(src).borderTopLeftRadius) || 0;
+
+  // Floating shell that carries the card between the two pages
+  const shell = document.createElement('div');
+  shell.className = 'ft-nw-shell';
+  Object.assign(shell.style, { left: r0.left + 'px', top: r0.top + 'px', width: r0.width + 'px', height: r0.height + 'px', borderRadius: rad0 + 'px' });
+  const a = ftMorphClone(src);
+  shell.appendChild(a);
+  document.body.appendChild(shell);
+  src.style.visibility = 'hidden';
+
+  // 1) old page fades out around the card (mockup: AnimatePresence mode="wait")
+  ftMorphSiblings(src, cnt).forEach(el => el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, easing: 'ease-out', fill: 'forwards' }));
+
+  setTimeout(() => {
+    let dst = null, done = false;
+    try {
+      navigate(page);
+      cnt.style.scrollBehavior = 'auto'; cnt.scrollTop = 0; cnt.style.scrollBehavior = '';
+      if (typeof applyHideAmounts === 'function') applyHideAmounts();
+      dst = cnt.querySelector('[data-nw-morph]');
+    } catch (e) { console.warn('[FinTrack] morph:', e); }
+
+    const finish = () => {
+      if (done) return; done = true;
+      if (dst) dst.style.visibility = '';
+      shell.remove();
+      clearTimeout(unlock);
+      window._ftMorphing = false;
+    };
+    if (!dst) { const f = shell.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, fill: 'forwards' }); f.onfinish = finish; setTimeout(finish, 400); return; }
+
+    // 2) card flies + resizes to its new spot on the spring, old look cross-fades into the new one
+    const r1 = dst.getBoundingClientRect();
+    const cs1 = getComputedStyle(dst);
+    const rad1 = parseFloat(cs1.borderTopLeftRadius) || 0;
+    shell.style.backgroundColor = cs1.backgroundColor;
+    shell.style.backgroundImage = cs1.backgroundImage;
+    shell.style.boxShadow = cs1.boxShadow;
+    dst.style.visibility = 'hidden';
+    const b = ftMorphClone(dst);
+    Object.assign(b.style, { background: 'none', boxShadow: 'none', opacity: '0' });
+    shell.insertBefore(b, a); // old look stays on top and fades away
+
+    const P = ftSpringCurve(), n = P.length - 1, dur = Math.round(n * 1000 / 60);
+    const L = (x, y, p) => x + (y - x) * p;
+    const frames = P.map((p, i) => ({ offset: i / n, left: L(r0.left, r1.left, p) + 'px', top: L(r0.top, r1.top, p) + 'px', width: L(r0.width, r1.width, p) + 'px', height: L(r0.height, r1.height, p) + 'px', borderRadius: L(rad0, rad1, p) + 'px' }));
+    const anim = shell.animate(frames, { duration: dur, easing: 'linear', fill: 'forwards' });
+    a.animate([{ opacity: 1 }, { opacity: 0 }], { duration: Math.round(dur * 0.5), easing: 'ease-out', fill: 'forwards' });
+    b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: Math.round(dur * 0.6), delay: Math.round(dur * 0.15), easing: 'ease-out', fill: 'forwards' });
+    anim.onfinish = finish;
+    setTimeout(finish, dur + 400);
+
+    // 3) new page fades in; account rows stagger in like the mockup (assets 150ms + 50ms each, liabilities 400ms + 50ms each)
+    let ai = 0, li = 0, k = 0;
+    ftMorphSiblings(dst, cnt).forEach(el => {
+      let delay;
+      if (el.classList.contains('ft-acc-row')) delay = el.dataset.accType === 'liability' ? 400 + (li++) * 50 : 150 + (ai++) * 50;
+      else delay = Math.min(60 + (k++) * 40, 300);
+      el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 450, delay, easing: EASE, fill: 'backwards' });
+    });
+  }, 160);
 }
 
 // One asset row. Drag handle on the left, edit/adjust/delete on the right.
