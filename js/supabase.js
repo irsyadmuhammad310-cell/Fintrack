@@ -78,12 +78,73 @@ const ftAuth = {
 };
 
 // =====================================================
+// PAGED FETCH (V2.0.4)
+// Supabase returns max 1,000 rows per request (project "Max Rows" setting).
+// Fetch 1,000 at a time with .range() until a short page comes back.
+// A stable order (date + id) keeps rows from shifting between pages.
+// Any error throws, so a half-finished pull never looks complete.
+// =====================================================
+var FT_PAGE_SIZE = 1000;
+async function ftFetchAll(table, uid, orderCol) {
+  var all = [];
+  for (var from = 0; ; from += FT_PAGE_SIZE) {
+    var q = _supabase.from(table).select('*').eq('user_id', uid);
+    if (orderCol) q = q.order(orderCol, { ascending: false });
+    q = q.order('id', { ascending: true }).range(from, from + FT_PAGE_SIZE - 1);
+    var res = await q;
+    if (res.error) throw new Error(table + ' pull failed: ' + res.error.message);
+    var rows = res.data || [];
+    all = all.concat(rows);
+    if (rows.length < FT_PAGE_SIZE) break;
+    if (from > 5000000) throw new Error(table + ' pull stopped: too many pages');
+  }
+  return all;
+}
+
+// V2.0.4: saveACCOUNTS() (data.js) calls this so reorders/edits reach the cloud.
+// Cheap debounce: pushes 3s after the last change, only when online and signed in.
+var _ftAccSyncTimer = null;
+function ftCloudAccountsDirty() {
+  if (typeof ftSync === 'undefined') return;
+  ftSync.markAccountsDirty();
+  clearTimeout(_ftAccSyncTimer);
+  _ftAccSyncTimer = setTimeout(function() {
+    try {
+      if (!ftSync._accountsDirty) return;
+      if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return;
+      if (navigator.onLine === false) return;
+      ftSync._accountsDirty = false;
+      ftSync.fullPush({ throwOnError: false }).catch(function() { ftSync._accountsDirty = true; });
+    } catch (e) {}
+  }, 3000);
+}
+
+// Throw on a failed upsert/delete instead of silently continuing
+function ftCheck(res, what) {
+  if (res && res.error) throw new Error(what + ' failed: ' + res.error.message);
+  return res;
+}
+
+// =====================================================
 // SYNC MODULE (Offline-first, sync when online)
 // =====================================================
+// V2.0.4: the cloud "note" column carries every link the table has no column for
+// (transfer destination, loan link, fee link, original currency). Old rows only had c/s: still readable.
+var FT_NOTE_EXTRA = ['toAcc', 'liab', 'fee', 'feeLinkedTo', 'cur', 'origAmt'];
+function ftTxNote(tx) {
+  var n = { c: tx.c || '', s: tx.s || '' };
+  FT_NOTE_EXTRA.forEach(function(k) { if (tx[k] !== undefined && tx[k] !== null && tx[k] !== '') n[k] = tx[k]; });
+  return JSON.stringify(n);
+}
+
 const ftSync = {
   isSyncing: false,
   lastSyncAt: null,
   pendingChanges: [],
+
+  // V2.0.4: called by data.js saveACCOUNTS() so account order changes sync on the next push
+  _accountsDirty: false,
+  markAccountsDirty() { this._accountsDirty = true; },
 
   // Helper: map local tx to cloud format
   _mapTxForCloud(tx) {
@@ -95,40 +156,41 @@ const ftSync = {
       description: tx.dt || '',
       date: tx.d || new Date().toISOString().split('T')[0],
       account_id: tx.acc || null,
-      note: JSON.stringify({ c: tx.c || '', s: tx.s || '' }),
-      currency: 'MYR',
+      note: ftTxNote(tx),
+      currency: FT_BASE,
       category_id: null
     };
   },
 
   // Full push: upload all local data to Supabase
-  async fullPush() {
+  // opts.throwOnError: manual Push button passes true so the UI shows the real error
+  async fullPush(opts) {
     if (!ftAuth.isLoggedIn()) return;
-    if (this.isSyncing) return;
+    if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
     this.isSyncing = true;
 
     try {
       const uid = ftAuth.uid();
 
-      // Push accounts
+      // Push accounts (V2.0.4: sort_order = array position, so drag reorder reaches other devices)
       var accounts = JSON.parse(safeGet('ft_accounts') || '[]');
       if (accounts.length) {
-        var rows = accounts.map(function(a) {
+        var rows = accounts.map(function(a, aIdx) {
           return {
             id: String(a.id),
             user_id: uid,
             name: a.name,
             type: a.type || 'asset',
-            currency: a.currency || 'MYR',
+            currency: a.currency || FT_BASE,
             balance: a.initialBalance || 0,
             icon: a.icon || '',
             color: a.color || '',
             is_active: a.active !== false,
-            sort_order: a.sort || 0,
-            note: JSON.stringify({ accountType: a.accountType, notes: a.notes || '' })
+            sort_order: aIdx,
+            note: JSON.stringify({ accountType: a.accountType, notes: a.notes || '', liabV2: a.liabV2 || undefined, createdAt: a.createdAt || undefined })
           };
         });
-        await _supabase.from('accounts').upsert(rows, { onConflict: 'id' });
+        ftCheck(await _supabase.from('accounts').upsert(rows, { onConflict: 'id' }), 'Accounts push');
       }
 
       // Push transactions (category + subcategory packed in note as JSON)
@@ -142,14 +204,14 @@ const ftSync = {
               account_id: tx.acc || null,
               type: tx.t || 'Expense',
               amount: tx.a || 0,
-              currency: 'MYR',
+              currency: FT_BASE,
               description: tx.dt || '',
-              note: JSON.stringify({ c: tx.c || '', s: tx.s || '' }),
+              note: ftTxNote(tx),
               date: tx.d || new Date().toISOString().split('T')[0],
               category_id: null
             };
           });
-          await _supabase.from('transactions').upsert(chunk, { onConflict: 'id' });
+          ftCheck(await _supabase.from('transactions').upsert(chunk, { onConflict: 'id' }), 'Transactions push (rows ' + (i + 1) + '+)');
         }
       }
 
@@ -164,14 +226,14 @@ const ftSync = {
             icon: g.icon || g.emoji || '',
             target_amount: g.target || g.t || 0,
             current_amount: g.current || g.c || 0,
-            currency: 'MYR',
+            currency: FT_BASE,
             deadline: g.deadline || g.dl || null,
             priority: g.priority || g.pri || 'medium',
             status: g.paused ? 'paused' : (g.completed ? 'completed' : 'active'),
             note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '' })
           };
         });
-        await _supabase.from('goals').upsert(goalRows, { onConflict: 'id' });
+        ftCheck(await _supabase.from('goals').upsert(goalRows, { onConflict: 'id' }), 'Goals push');
       }
 
       // Push budgets (with per-category data)
@@ -181,7 +243,7 @@ const ftSync = {
         for (var month in yearPlans) {
           var plan = yearPlans[month];
           if (plan) {
-            await _supabase.from('budgets').upsert({
+            var bRes = await _supabase.from('budgets').upsert({
               user_id: uid,
               year: parseInt(year),
               month: parseInt(month),
@@ -190,6 +252,7 @@ const ftSync = {
               savings_target: plan.s || 0,
               note: JSON.stringify({ incCats: plan.incCats, expCats: plan.expCats, savCats: plan.savCats })
             }, { onConflict: 'user_id,year,month' });
+            ftCheck(bRes, 'Budget push ' + year + '/' + month);
           }
         }
       }
@@ -198,32 +261,42 @@ const ftSync = {
       safeSave('lastCloudSync', this.lastSyncAt);
       console.log('[FinTrack] Full push complete at', this.lastSyncAt);
     } catch (e) {
+      // lastCloudSync is NOT updated on failure, so auto-sync retries later
       console.error('[FinTrack] Push error:', e);
+      if (opts && opts.throwOnError) throw e;
     } finally {
       this.isSyncing = false;
     }
   },
 
   // Full pull: download from Supabase and MERGE with local (no overwrite)
-  async fullPull() {
+  // V2.0.4: pages through ALL rows (1,000 per request). Everything is downloaded first,
+  // then merged, so a dropped connection mid-pull changes nothing locally.
+  async fullPull(opts) {
     if (!ftAuth.isLoggedIn()) return;
-    if (this.isSyncing) return;
+    if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
     this.isSyncing = true;
 
     try {
       var uid = ftAuth.uid();
 
-      // --- Pull and MERGE transactions ---
-      var { data: cloudTxns } = await _supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', uid)
-        .order('date', { ascending: false });
+      // --- Download everything first (paged) ---
+      var cloudTxns = await ftFetchAll('transactions', uid, 'date');
+      var cloudAccounts = await ftFetchAll('accounts', uid, null);
+      var cloudGoals = await ftFetchAll('goals', uid, null);
+      console.log('[FinTrack] Pulled ' + cloudTxns.length + ' transactions, ' + cloudAccounts.length + ' accounts, ' + cloudGoals.length + ' goals.');
 
-      if (cloudTxns && cloudTxns.length) {
+      // --- MERGE transactions ---
+      if (cloudTxns.length) {
         var localTxns = JSON.parse(safeGet(STORAGE_KEY) || '[]');
         var localMap = {};
         localTxns.forEach(function(tx) { localMap[String(tx.id)] = true; });
+        // V2.0.4 base currency: a new/empty phone adopts the cloud's base (rows saved before this are MYR).
+        // A phone that already has data converts any cloud row saved in a different base.
+        if (!localTxns.length) {
+          var cloudBase = cloudTxns[0].currency || 'MYR';
+          if (CURRENCY_CONFIG[cloudBase]) ftSetBase(cloudBase, true);
+        }
 
         var added = 0;
         cloudTxns.forEach(function(ctx) {
@@ -231,49 +304,43 @@ const ftSync = {
           if (localMap[String(ctx.id)]) return;
 
           // Parse category from note JSON
-          var category = 'Uncategorized', subcategory = '';
+          var category = 'Uncategorized', subcategory = '', noteData = {};
           try {
-            var noteData = JSON.parse(ctx.note || '{}');
+            noteData = JSON.parse(ctx.note || '{}') || {};
             if (noteData.c) { category = noteData.c; subcategory = noteData.s || ''; }
             else if (ctx.note && ctx.note.length < 100) { category = ctx.note; }
           } catch(e) {
+            noteData = {};
             if (ctx.note) category = ctx.note;
           }
 
-          localTxns.push({
+          var row = {
             id: isNaN(Number(ctx.id)) ? ctx.id : Number(ctx.id),
-            t: ctx.type || 'Expense',
+            t: ctx.type === 'Transfer' ? 'Savings' : (ctx.type || 'Expense'),
             c: category,
             s: subcategory,
-            a: parseFloat(ctx.amount) || 0,
+            a: (function(v, cur) { return cur && cur !== FT_BASE && CURRENCY_CONFIG[cur] ? Math.round(convertFromTo(v, cur, FT_BASE) * 100) / 100 : v; })(parseFloat(ctx.amount) || 0, ctx.currency),
             d: ctx.date || '',
             dt: ctx.description || '',
             acc: ctx.account_id || undefined
-          });
+          };
+          // V2.0.4: restore transfer / loan / fee links saved in the note
+          FT_NOTE_EXTRA.forEach(function(k) { if (noteData[k] !== undefined) row[k] = noteData[k]; });
+          localTxns.push(row);
+          localMap[String(ctx.id)] = true; // same id twice in cloud = add once
           added++;
         });
 
         if (added > 0) {
-          var txnJson = JSON.stringify(localTxns);
-          if (txnJson.length < 4 * 1024 * 1024) {
-            safeSave(STORAGE_KEY, txnJson);
-          } else {
-            // Too large for localStorage, write IDB only
-            _ftStore[STORAGE_KEY] = txnJson;
-            if (_ftDBReady) ftDB.set(STORAGE_KEY, txnJson).catch(function(){});
-            console.warn('[FinTrack] TXN too large for localStorage, IDB only.');
-          }
+          // safeSave keeps big keys in IndexedDB only (V2.0.4 storage engine)
+          safeSave(STORAGE_KEY, JSON.stringify(localTxns));
           console.log('[FinTrack] Merged', added, 'new transactions from cloud.');
         }
+        this.lastPullAdded = added;
       }
 
-      // --- Pull and MERGE accounts ---
-      var { data: cloudAccounts } = await _supabase
-        .from('accounts')
-        .select('*')
-        .eq('user_id', uid);
-
-      if (cloudAccounts && cloudAccounts.length) {
+      // --- MERGE accounts ---
+      if (cloudAccounts.length) {
         var localAccounts = JSON.parse(safeGet('ft_accounts') || '[]');
         var localAccMap = {};
         localAccounts.forEach(function(a) { localAccMap[String(a.id)] = true; });
@@ -287,22 +354,28 @@ const ftSync = {
             name: ca.name,
             type: ca.type || 'asset',
             accountType: meta.accountType || ca.type || 'Savings Account',
-            currency: ca.currency || 'MYR',
+            currency: ca.currency || FT_BASE,
             initialBalance: parseFloat(ca.balance) || 0,
             notes: meta.notes || '',
-            active: ca.is_active !== false
+            active: ca.is_active !== false,
+            liabV2: meta.liabV2 || undefined,
+            createdAt: meta.createdAt || undefined
           });
+        });
+        // V2.0.4: order = cloud sort_order (set by drag reorder). New accounts with no order go last.
+        var orderOf = {};
+        cloudAccounts.forEach(function(ca) { orderOf[String(ca.id)] = (ca.sort_order === 0 || ca.sort_order) ? ca.sort_order : 1e9; });
+        localAccounts.sort(function(a, b) {
+          var oa = orderOf[String(a.id)] !== undefined ? orderOf[String(a.id)] : 1e9;
+          var ob = orderOf[String(b.id)] !== undefined ? orderOf[String(b.id)] : 1e9;
+          if (oa !== ob) return oa - ob;
+          return 0;
         });
         safeSave('ft_accounts', JSON.stringify(localAccounts));
       }
 
-      // --- Pull and MERGE goals ---
-      var { data: cloudGoals } = await _supabase
-        .from('goals')
-        .select('*')
-        .eq('user_id', uid);
-
-      if (cloudGoals && cloudGoals.length) {
+      // --- MERGE goals ---
+      if (cloudGoals.length) {
         var localGoals = JSON.parse(safeGet('ft_goals') || '[]');
         var localGoalMap = {};
         localGoals.forEach(function(g) { localGoalMap[String(g.id)] = true; });
@@ -337,7 +410,9 @@ const ftSync = {
       loadAllModuleData();
       if (typeof refresh === 'function') refresh();
     } catch (e) {
+      // Nothing merged and lastCloudSync not updated, so the next auto-pull retries
       console.error('[FinTrack] Pull error:', e);
+      if (opts && opts.throwOnError) throw e;
     } finally {
       this.isSyncing = false;
     }
