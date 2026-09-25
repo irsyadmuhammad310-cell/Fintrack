@@ -87,9 +87,8 @@ function renderGoals(c) {
     const daysLeft = Math.ceil((dueDate - today) / (1000*60*60*24));
     const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
     const monthlyReq = remaining > 0 ? remaining / monthsLeft : 0;
-    const linkedCats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
-    const isSynced = linkedCats.length > 0;
-    const avgMonthlySav = isSynced ? (() => { const savTxns = TXN.filter(tx => tx.t === 'Savings' && linkedCats.includes(tx.c)); const months = new Set(savTxns.map(tx => tx.d.substring(0, 7))).size; return months > 0 ? g.c / months : 0; })() : 0;
+    const isSynced = ftGoalIsSynced(g);
+    const avgMonthlySav = isSynced ? ftGoalAvgMonthly(g) : 0;
     const estCompDate = avgMonthlySav > 0 && remaining > 0 ? (() => { const m = Math.ceil(remaining / avgMonthlySav); const d = new Date(); d.setMonth(d.getMonth() + m); return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); })() : (monthlyReq > 0 && remaining > 0 ? (() => { const m = Math.ceil(remaining / monthlyReq); const d = new Date(); d.setMonth(d.getMonth() + m); return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }); })() : '—');
 
     html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all 200ms var(--ease-out)">`;
@@ -119,7 +118,7 @@ function renderGoals(c) {
       html += `</div>`;
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_priority')}</div><div class="goal-detail-num" style="font-weight:700">Medium</div></div>`;
-      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + linkedCats.join(', ') : t('goal_manual')}</div></div>`;
+      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + ftGoalLinkLabel(g) : t('goal_manual')}</div></div>`;
       html += `</div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--text-tertiary);font-style:italic">${t('goal_no_notes')}</div>`;
       html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${g.id})">${t('goal_edit')}</button><button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${g.id})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${g.id})">${t('goal_delete')}</button></div>`;
@@ -271,25 +270,39 @@ function openGoalModal(editG) {
   const savCats = Object.keys(SCHEMA.Savings || {});
   const linkedArr = isEdit && editG.linkedCats ? editG.linkedCats : (isEdit && editG.linkedCat ? [editG.linkedCat] : []);
   const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + cat + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + cat + '</label>').join('');
+  // V2.0.5: optional account link. Progress = that account's live balance.
+  // Accounts already used by another goal are greyed out ("used by ...")
+  const selAccs = isEdit ? ftGoalAccs(editG) : [];
+  const accChecks = ACCOUNTS.filter(a => a.type === 'asset').map(a => {
+    const owner = ftAccOwnerGoal(a.id, isEdit ? editG.id : null);
+    const dis = !!owner && !selAccs.includes(a.id);
+    return '<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 0;cursor:' + (dis ? 'not-allowed;opacity:.45' : 'pointer') + '"><input type="checkbox" class="g_acc_chk" value="' + escapeHTML(String(a.id)) + '"' + (selAccs.includes(a.id) ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + escapeHTML(a.name) + ' <span style="color:var(--text-tertiary)">· ' + (dis ? 'used by ' + escapeHTML(owner.n || 'another goal') : escapeHTML(a.accountType || '')) + '</span></label>';
+  }).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No accounts yet</div>';
   const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
   const currentVal = isEdit ? (linkedArr.length ? (editG.base || 0) : editG.c) : '0';
-  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${currentVal}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Savings Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${currentVal}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = total balance of the accounts you tick. Money in goes up, money out goes down. One account can only belong to one goal. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:160px;overflow-y:auto">${accChecks}</div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
 
 function saveGoal(e, editId) {
   e.preventDefault();
-  const linkedCats = Array.from(document.querySelectorAll('.g_linked_chk:checked')).map(el => el.value);
+  const accIds = Array.from(document.querySelectorAll('.g_acc_chk:checked')).map(el => (ACCOUNTS.find(a => String(a.id) === el.value) || {}).id).filter(id => id !== undefined);
+  // One account = one goal (otherwise the same money is counted twice)
+  const clash = accIds.map(id => ({ id, g: ftAccOwnerGoal(id, editId) })).find(x => x.g);
+  if (clash) { toast('⚠️ ' + ACCOUNTS.find(a => a.id === clash.id).name + ' is already linked to "' + clash.g.n + '"'); return; }
+  const linkedCats = accIds.length ? [] : Array.from(document.querySelectorAll('.g_linked_chk:checked')).map(el => el.value);
   const isLinked = linkedCats.length > 0;
   const currentVal = parseFloat(document.getElementById('g_current').value) || 0;
-  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '' };
+  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '', acc: '', accs: accIds };
   // For linked goals, "Current Saved" field = base (initial untracked balance).
-  // Sync will set g.c = base + sum(savings txns) on next render.
-  if (isLinked) {
+  // Sync will set g.c = base + sum(transfers, with direction) on next render.
+  if (accIds.length) {
+    data.base = 0;
+    data.c = Math.max(0, ftGoalAccTotal({ accs: accIds }));
+  } else if (isLinked) {
     data.base = currentVal;
-    const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && linkedCats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
-    data.c = currentVal + totalFromTxn;
+    data.c = Math.max(0, currentVal + ftGoalCatTotal(linkedCats));
   } else {
     data.base = 0;
   }
@@ -311,7 +324,9 @@ function saveGoal(e, editId) {
 function addMoneyToGoal(id) {
   const g = GOALS.find(x => x.id === id);
   if (!g) return;
-  const cats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
+  // V2.0.5: account-linked goals follow the real balance, so money is added with a Transfer, not here
+  if (ftGoalAccOk(g)) { toast('🏦 This goal follows ' + ftGoalLinkLabel(g).replace('🏦 ', '') + '. Add a Transfer into one of those accounts.'); return; }
+  const cats = ftGoalCats(g);
   const isLinked = cats.length > 0;
   const label = isLinked
     ? 'Add initial/untracked balance to "' + g.n + '":\n(This won\'t be overwritten by sync)\nCurrent base: ' + fmt(g.base || 0)
@@ -323,8 +338,7 @@ function addMoneyToGoal(id) {
   if (isLinked) {
     g.base = (g.base || 0) + val;
     // Recalculate g.c with updated base + transaction total
-    const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && cats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
-    g.c = g.base + totalFromTxn;
+    g.c = Math.max(0, g.base + ftGoalCatTotal(cats));
   } else {
     g.c += val;
   }
@@ -449,16 +463,64 @@ function clearBudgetMonth(year, monthIdx) {
   else renderGoals(document.getElementById('cnt'));
 }
 
+// === V2.0.5 GOAL HELPERS ===
+// Goal modes: account-linked (g.acc: progress = live account balance), category-linked (g.linkedCats), or manual.
+function ftGoalCats(g) { return g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []); }
+// V2.0.5: g.accs = list of linked asset accounts (old single g.acc still read). Returns the real account ids.
+function ftGoalAccs(g) {
+  const ids = Array.isArray(g.accs) && g.accs.length ? g.accs : (g.acc ? [g.acc] : []);
+  return ids.map(id => (ACCOUNTS.find(a => a.type === 'asset' && String(a.id) === String(id)) || {}).id).filter(id => id !== undefined);
+}
+function ftGoalAccOk(g) { return ftGoalAccs(g).length > 0; }
+function ftGoalAccTotal(g) { return ftGoalAccs(g).reduce((s, id) => s + ftAccBalanceMYR(id), 0); }
+// One account = one goal, otherwise the same money is counted twice. Returns the goal that already uses it.
+function ftAccOwnerGoal(accId, exceptId) { return GOALS.find(g => g.id !== exceptId && ftGoalAccs(g).includes(accId)) || null; }
+// Category mode: transfers in the linked categories. Taking money back OUT of a savings account lowers the goal.
+function ftGoalCatTotal(cats) {
+  return TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).reduce((s, tx) => s + tx.a * ftXferSign(tx), 0);
+}
+function ftGoalLinkLabel(g) {
+  if (ftGoalAccOk(g)) return '🏦 ' + ftGoalAccs(g).map(id => ACCOUNTS.find(x => x.id === id).name).join(' + ');
+  const cats = ftGoalCats(g);
+  return cats.length ? '🔗 ' + cats.join(', ') : t('goal_manual');
+}
+function ftGoalIsSynced(g) { return ftGoalAccOk(g) || ftGoalCats(g).length > 0; }
+// Average money added per active month (used for "Est. completion" and "on track")
+function ftGoalAvgMonthly(g) {
+  if (ftGoalAccOk(g)) {
+    const set = ftGoalAccs(g);
+    const byMonth = {};
+    TXN.forEach(tx => {
+      if (!ftIsXfer(tx) && !set.includes(tx.acc)) return;
+      let d = 0;
+      // Moving money between two accounts of the same goal nets to 0
+      if (ftIsXfer(tx)) { if (set.includes(tx.toAcc)) d += tx.a; if (set.includes(tx.acc)) d -= tx.a; }
+      else if (tx.t === 'Income') d = tx.a; else if (tx.t === 'Expense') d = -tx.a;
+      if (d) byMonth[tx.d.substring(0, 7)] = (byMonth[tx.d.substring(0, 7)] || 0) + d;
+    });
+    const keys = Object.keys(byMonth);
+    return keys.length ? Math.max(0, keys.reduce((s, k) => s + byMonth[k], 0) / keys.length) : 0;
+  }
+  const cats = ftGoalCats(g);
+  if (!cats.length) return 0;
+  const months = new Set(TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).map(tx => tx.d.substring(0, 7))).size;
+  return months > 0 ? Math.max(0, ftGoalCatTotal(cats) / months) : 0;
+}
+
 // === GOAL-SAVINGS AUTO SYNC ===
-// For goals with linkedCats, calculate saved amount from all Savings transactions in those categories
+// V2.0.5: account-linked goals follow the account balance; category-linked goals sum their transfers (with direction)
 function syncGoalsWithSavings() {
   let changed = false;
   GOALS.forEach(g => {
-    const cats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
-    if (!cats.length) return;
-    const totalFromTxn = TXN.filter(tx => tx.t === 'Savings' && cats.includes(tx.c)).reduce((s, tx) => s + tx.a, 0);
-    // g.base = initial/untracked balance set by user (money already in account before tracking)
-    const newC = (g.base || 0) + totalFromTxn;
+    let newC;
+    if (ftGoalAccOk(g)) {
+      newC = Math.max(0, Math.round(ftGoalAccTotal(g) * 100) / 100);
+    } else {
+      const cats = ftGoalCats(g);
+      if (!cats.length) return;
+      // g.base = initial/untracked balance set by user (money already in account before tracking)
+      newC = Math.max(0, (g.base || 0) + ftGoalCatTotal(cats));
+    }
     if (g.c !== newC) {
       const oldC = g.c;
       g.c = newC;
@@ -647,31 +709,33 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   }
 
   // Header
-  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${overspentCat} is RM ${overAmountReal.toFixed(2)} over budget. Move money from another category.</div></div>`;
+  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${overspentCat} is ${fmtIn(overAmountReal, FT_BASE)} over budget. Move money from another category.</div></div>`;
 
   // Overspent amount display
-  h += `<div class="cover-overspent-display"><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Amount to cover</div><div style="font-size:24px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">-RM ${overAmountReal.toFixed(2)}</div></div>`;
+  h += `<div class="cover-overspent-display"><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Amount to cover</div><div style="font-size:24px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">-${fmtIn(overAmountReal, FT_BASE)}</div></div>`;
 
   // Source category selection
   h += `<div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 8px">Move from</div>`;
   h += `<div class="cover-options-list" id="coverOptions">`;
   availableCats.forEach((item, idx) => {
     const maxCoverReal = Math.min(item.remaining, overAmountReal);
-    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining="${item.remaining.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">RM ${item.remaining.toFixed(2)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
+    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining="${item.remaining.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">${fmtIn(item.remaining, FT_BASE)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
   });
   h += `</div>`;
 
   // Amount input (in real currency)
   const firstMaxReal = Math.min(availableCats[0].remaining, overAmountReal);
-  const currSymbol = (CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR).symbol;
+  // V2.0.4: budget numbers are stored in the base currency, so the input uses the base symbol
+  const currSymbol = (CURRENCY_CONFIG[FT_BASE] || CURRENCY_CONFIG.MYR).symbol;
+  const _bc = v => fmtIn(v, FT_BASE);
   h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${firstMaxReal.toFixed(2)}" max="${firstMaxReal.toFixed(2)}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
 
   // Transfer preview
   const firstCat = availableCats[0];
-  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">RM ${firstCat.remaining.toFixed(2)} → RM ${(firstCat.remaining - firstMaxReal).toFixed(2)} remaining</div></div><div class="cover-preview-amt negative">-RM ${firstMaxReal.toFixed(2)}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-RM ${overAmountReal.toFixed(2)} → ${overAmountReal <= firstMaxReal ? 'RM 0.00' : '-RM ' + (overAmountReal - firstMaxReal).toFixed(2)} remaining</div></div><div class="cover-preview-amt positive">+RM ${firstMaxReal.toFixed(2)}</div></div></div>`;
+  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${_bc(firstCat.remaining)} → ${_bc(firstCat.remaining - firstMaxReal)} remaining</div></div><div class="cover-preview-amt negative">-${_bc(firstMaxReal)}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${_bc(overAmountReal)} → ${overAmountReal <= firstMaxReal ? _bc(0) : '-' + _bc(overAmountReal - firstMaxReal)} remaining</div></div><div class="cover-preview-amt positive">+${_bc(firstMaxReal)}</div></div></div>`;
 
   // Action buttons
-  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover RM ${firstMaxReal.toFixed(2)}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
+  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${_bc(firstMaxReal)}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
 
   if (isMobile) {
     h += `</div></div>`;
@@ -703,8 +767,8 @@ function selectCoverSource(el) {
     if (rows[0]) {
       rows[0].querySelector('.cover-preview-emoji').textContent = emoji;
       rows[0].querySelector('.cover-preview-name').textContent = cat;
-      rows[0].querySelector('.cover-preview-after').textContent = 'RM ' + remaining.toFixed(2) + ' → RM ' + (remaining - amt).toFixed(2) + ' remaining';
-      rows[0].querySelector('.cover-preview-amt').textContent = '-RM ' + amt.toFixed(2);
+      rows[0].querySelector('.cover-preview-after').textContent = fmtIn(remaining, FT_BASE) + ' → ' + fmtIn(remaining - amt, FT_BASE) + ' remaining';
+      rows[0].querySelector('.cover-preview-amt').textContent = '-' + fmtIn(amt, FT_BASE);
     }
   }
 
@@ -712,7 +776,7 @@ function selectCoverSource(el) {
   const confirmBtn = document.getElementById('coverConfirmBtn');
   if (confirmBtn) {
     const amt = parseFloat(amtInput.value);
-    confirmBtn.textContent = 'Cover RM ' + amt.toFixed(2);
+    confirmBtn.textContent = 'Cover ' + fmtIn(amt, FT_BASE);
   }
 }
 
@@ -749,7 +813,7 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   plans[yearKey][monthKey] = plan;
   safeSave('ft_budget_plans', JSON.stringify(plans));
   closeCoverSheet();
-  toast(`✅ Moved RM ${actualAmt.toFixed(2)} from ${fromCat} → ${toCat}`);
+  toast(`✅ Moved ${fmtIn(actualAmt, FT_BASE)} from ${fromCat} → ${toCat}`);
   if (typeof render === 'function') render();
   else renderGoals(document.getElementById('cnt'));
 }
@@ -816,13 +880,7 @@ function renderMobileGoalsTab(MD, year) {
     const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
     const remaining = g.t - g.c;
     const monthlyReq = remaining / monthsLeft;
-    const linkedCats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
-    if (linkedCats.length) {
-      const savTxns = TXN.filter(tx => tx.t === 'Savings' && linkedCats.includes(tx.c));
-      const months = new Set(savTxns.map(tx => tx.d.substring(0, 7))).size;
-      const avg = months > 0 ? g.c / months : 0;
-      return avg >= monthlyReq * 0.8;
-    }
+    if (ftGoalIsSynced(g)) return ftGoalAvgMonthly(g) >= monthlyReq * 0.8;
     return true;
   }).length;
   const ringOffset = totalTarget > 0 ? (263.9 * (1 - totalSaved / totalTarget)).toFixed(1) : 263.9;
@@ -893,14 +951,13 @@ function renderMobileGoalsTab(MD, year) {
       if (expandedGoal === g.id) {
         const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
         const monthlyReq = remaining > 0 ? remaining / monthsLeft : 0;
-        const linkedCats = g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []);
-        const isSynced = linkedCats.length > 0;
+        const isSynced = ftGoalIsSynced(g);
         html += '<div style="padding:12px 0 14px;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260))">';
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_remaining') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(remaining) + '</div></div>';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_days_left') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\';color:' + (daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)') + '">' + (daysLeft > 0 ? daysLeft + 'd' : t('goal_overdue')) + '</div></div>';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_monthly_contrib') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(monthlyReq) + '/mo</div></div>';
-        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? '🔗 ' + linkedCats.join(', ') : t('goal_manual')) + '</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? ftGoalLinkLabel(g) : t('goal_manual')) + '</div></div>';
         html += '</div>';
         html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + g.id + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + g.id + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + g.id + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
         html += '</div>';
