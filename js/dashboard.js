@@ -106,7 +106,7 @@ function renderDashboard(c) {
   }
 
   // === BUILD HTML ===
-  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em" onclick="navigate('accounts')" style="cursor:pointer" title="Open Accounts"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
+  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em" data-nw-morph onclick="ftMorphNav('accounts', this)" style="cursor:pointer" title="Open Accounts"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
 ${overspentBannerHtml}
 ${safeBuildForecastHtml('desktop')}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
@@ -473,6 +473,7 @@ function renderMobileDashboard(c, year) {
   }
 
   const nw = getNetWorth();
+  const nwT = typeof ftNwTotals === 'function' ? ftNwTotals() : null; // V2.0.4: Assets / Liabilities line on the card
   const cf = ti - te;
   const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
   const budgetTotal = getYearlyBudgetTotal(year);
@@ -531,11 +532,13 @@ function renderMobileDashboard(c, year) {
   }).join('');
 
   c.innerHTML = `<div class="mob-dash">
-    <div class="mob-dash-balance" onclick="navigate('accounts')" style="cursor:pointer" role="button" aria-label="Open Accounts">
+    <div class="mob-dash-balance ft-nw-card" data-nw-morph onclick="ftMorphNav('accounts', this)" role="button" aria-label="Open Accounts">
       <div class="mob-dash-greeting">${getGreeting()}</div>
+      <div class="ft-nw-label">${t('dash_net_worth')}</div>
       <div class="mob-dash-amount">${fmt(nw)}</div>
+      ${nwT ? `<div class="ft-nw-sub">${t('acc_assets')} ${fmt(nwT.assets)} · ${t('acc_liabs')} -${fmt(nwT.liabs)}</div>` : ''}
       ${trendLabel ? `<div class="mob-dash-change ${trendClass}">${trendLabel}</div>` : ''}
-      <div style="font-size:9px;color:var(--text-tertiary);margin-top:4px">${t('acc_tap_hint')}</div>
+      <div class="ft-nw-hint">${t('acc_tap_hint')} ›</div>
     </div>
     <div class="mob-dash-stats">
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_income')}</div><div class="mob-dash-stat-val" style="color:var(--emerald)">${fmtD(ti)}</div></div>
