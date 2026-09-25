@@ -7,6 +7,11 @@ const I18N = {
     nav_insights: 'Insights', nav_analytics: 'Insights', nav_reports: 'Reports',
     nav_ai: 'AI Assistant', nav_system: 'System', nav_settings: 'Settings',
     hdr_total_year: 'Total Year',
+    // Accounts page (V2.0.4)
+    acc_title: 'Accounts', acc_add: 'Add', acc_assets: 'Assets', acc_liabs: 'Liabilities',
+    acc_drag_hint: 'Hold an account (or grab ⠿) and drag to change the order.',
+    acc_tap_hint: 'Tap to open Accounts', acc_empty_title: 'No accounts yet',
+    acc_empty_desc: 'Tap Add to create your first bank, e-wallet or loan account.',
     // Dashboard
     dash_subtitle: 'Financial overview',
     dash_balance: 'Balance', dash_income: 'Income', dash_expense: 'Expense',
@@ -158,6 +163,10 @@ const I18N = {
     mon_sep: 'Sep', mon_oct: 'Oct', mon_nov: 'Nov', mon_dec: 'Dec'
   },
   ms: {
+    acc_title: 'Akaun', acc_add: 'Tambah', acc_assets: 'Aset', acc_liabs: 'Hutang',
+    acc_drag_hint: 'Tekan lama akaun (atau pegang ⠿) dan seret untuk susun semula.',
+    acc_tap_hint: 'Tekan untuk buka Akaun', acc_empty_title: 'Tiada akaun lagi',
+    acc_empty_desc: 'Tekan Tambah untuk buat akaun bank, e-wallet atau pinjaman pertama anda.',
     nav_overview: 'Gambaran', nav_dashboard: 'Utama', nav_transactions: 'Transaksi',
     nav_wealth: 'Kekayaan', nav_investments: 'Pelaburan', nav_goals: 'Matlamat',
     nav_insights: 'Wawasan', nav_analytics: 'Wawasan', nav_reports: 'Laporan',
@@ -256,6 +265,10 @@ const I18N = {
     mon_sep: 'Sep', mon_oct: 'Okt', mon_nov: 'Nov', mon_dec: 'Dis'
   },
   zh: {
+    acc_title: '账户', acc_add: '添加', acc_assets: '资产', acc_liabs: '负债',
+    acc_drag_hint: '长按账户（或按住 ⠿）拖动以调整顺序。',
+    acc_tap_hint: '点击打开账户', acc_empty_title: '还没有账户',
+    acc_empty_desc: '点击添加，创建您的第一个银行、电子钱包或贷款账户。',
     nav_overview: '概览', nav_dashboard: '首页', nav_transactions: '交易',
     nav_wealth: '财富', nav_investments: '投资', nav_goals: '目标',
     nav_insights: '洞察', nav_analytics: '洞察', nav_reports: '报告',
@@ -331,6 +344,10 @@ const I18N = {
     mon_sep: '9月', mon_oct: '10月', mon_nov: '11月', mon_dec: '12月'
   },
   ja: {
+    acc_title: '口座', acc_add: '追加', acc_assets: '資産', acc_liabs: '負債',
+    acc_drag_hint: '口座を長押し（または ⠿ をつかんで）ドラッグして並べ替えます。',
+    acc_tap_hint: 'タップして口座を開く', acc_empty_title: '口座がありません',
+    acc_empty_desc: '「追加」をタップして、最初の銀行・電子マネー・ローン口座を作成しましょう。',
     nav_overview: '概要', nav_dashboard: 'ホーム', nav_transactions: '取引',
     nav_wealth: '資産', nav_investments: '投資', nav_goals: '目標',
     nav_insights: 'インサイト', nav_analytics: 'インサイト', nav_reports: 'レポート',
@@ -387,6 +404,10 @@ const I18N = {
     mon_sep: '9月', mon_oct: '10月', mon_nov: '11月', mon_dec: '12月'
   },
   id: {
+    acc_title: 'Akun', acc_add: 'Tambah', acc_assets: 'Aset', acc_liabs: 'Utang',
+    acc_drag_hint: 'Tahan akun (atau pegang ⠿) lalu seret untuk mengubah urutan.',
+    acc_tap_hint: 'Ketuk untuk buka Akun', acc_empty_title: 'Belum ada akun',
+    acc_empty_desc: 'Ketuk Tambah untuk membuat akun bank, e-wallet, atau pinjaman pertama Anda.',
     nav_overview: 'Ikhtisar', nav_dashboard: 'Beranda', nav_transactions: 'Transaksi',
     nav_wealth: 'Kekayaan', nav_investments: 'Investasi', nav_goals: 'Tujuan',
     nav_insights: 'Wawasan', nav_analytics: 'Wawasan', nav_reports: 'Laporan',
@@ -422,6 +443,10 @@ const I18N = {
     mon_sep: 'Sep', mon_oct: 'Okt', mon_nov: 'Nov', mon_dec: 'Des'
   },
   ko: {
+    acc_title: '계좌', acc_add: '추가', acc_assets: '자산', acc_liabs: '부채',
+    acc_drag_hint: '계좌를 길게 누르거나(또는 ⠿를 잡고) 드래그하여 순서를 바꿉니다.',
+    acc_tap_hint: '탭하여 계좌 열기', acc_empty_title: '계좌가 없습니다',
+    acc_empty_desc: '추가를 탭해 첫 번째 은행, 전자지갑 또는 대출 계좌를 만드세요.',
     nav_overview: '개요', nav_dashboard: '홈', nav_transactions: '거래',
     nav_wealth: '자산', nav_investments: '투자', nav_goals: '목표',
     nav_insights: '인사이트', nav_analytics: '인사이트', nav_reports: '보고서',
@@ -456,6 +481,10 @@ const I18N = {
     mon_sep: '9월', mon_oct: '10월', mon_nov: '11월', mon_dec: '12월'
   },
   ru: {
+    acc_title: 'Счета', acc_add: 'Добавить', acc_assets: 'Активы', acc_liabs: 'Долги',
+    acc_drag_hint: 'Удерживайте счёт (или возьмитесь за ⠿) и перетащите, чтобы изменить порядок.',
+    acc_tap_hint: 'Нажмите, чтобы открыть счета', acc_empty_title: 'Счетов пока нет',
+    acc_empty_desc: 'Нажмите «Добавить», чтобы создать первый банковский счёт, кошелёк или кредит.',
     nav_overview: 'Обзор', nav_dashboard: 'Главная', nav_transactions: 'Транзакции',
     nav_wealth: 'Богатство', nav_investments: 'Инвестиции', nav_goals: 'Цели',
     nav_insights: 'Аналитика', nav_analytics: 'Аналитика', nav_reports: 'Отчёты',
@@ -516,9 +545,11 @@ function setLang(lang) {
   navigate(curPage);
 }
 function updateNavLabels() {
-  const labels = document.querySelectorAll('.nlbl');
-  const keys = ['nav_dashboard','nav_transactions','nav_investments','nav_goals','nav_analytics','nav_reports','nav_settings'];
-  labels.forEach((el, i) => { if (keys[i]) el.textContent = t(keys[i]); });
+  // V2.0.4: map by data-page, not position (the Accounts link shifted every index)
+  document.querySelectorAll('.ni[data-page] .nlbl').forEach(el => {
+    const page = el.parentElement.getAttribute('data-page');
+    el.textContent = t(page === 'accounts' ? 'acc_title' : 'nav_' + page);
+  });
   const secs = document.querySelectorAll('.nsec');
   const secKeys = ['nav_overview','nav_wealth','nav_insights','nav_system'];
   secs.forEach((el, i) => { if (secKeys[i]) el.textContent = t(secKeys[i]); });
