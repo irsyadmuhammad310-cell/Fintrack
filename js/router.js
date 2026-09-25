@@ -112,6 +112,11 @@ window.addEventListener('popstate', function(e) {
 
   // If we have a previous page in state, go there
   if (e.state && e.state.page) {
+    // V2.0.4: Home <-> Accounts via the phone back button uses the same card morph
+    if (typeof ftMorphNav === 'function' && ((curPage === 'accounts' && e.state.page === 'dashboard') || (curPage === 'dashboard' && e.state.page === 'accounts'))) {
+      ftMorphNav(e.state.page);
+      return;
+    }
     curPage = e.state.page;
     syncBottomNav(curPage);
     updateMobileFAB(curPage);
