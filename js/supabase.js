@@ -223,14 +223,14 @@ const ftSync = {
             id: String(g.id),
             user_id: uid,
             name: g.name || g.n || '',
-            icon: g.icon || g.emoji || '',
+            icon: g.icon || g.e || g.emoji || '',
             target_amount: g.target || g.t || 0,
             current_amount: g.current || g.c || 0,
             currency: FT_BASE,
-            deadline: g.deadline || g.dl || null,
+            deadline: g.due || g.deadline || g.dl || null, // V2.0.5: app stores the deadline as g.due
             priority: g.priority || g.pri || 'medium',
             status: g.paused ? 'paused' : (g.completed ? 'completed' : 'active'),
-            note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '' })
+            note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '', acc: g.acc || '', accs: g.accs || [], base: g.base || 0, created: g.created || '' })
           };
         });
         ftCheck(await _supabase.from('goals').upsert(goalRows, { onConflict: 'id' }), 'Goals push');
@@ -384,19 +384,25 @@ const ftSync = {
           if (localGoalMap[String(cg.id)]) return;
           var meta = {};
           try { meta = JSON.parse(cg.note || '{}'); } catch(e) {}
+          // V2.0.5: rebuild in the app's own field names (n/t/c/due/e). Old code used name/target/current,
+          // which goals.js never reads, so pulled goals showed blank.
           localGoals.push({
             id: isNaN(Number(cg.id)) ? cg.id : Number(cg.id),
-            name: cg.name || '',
-            icon: cg.icon || '',
-            target: parseFloat(cg.target_amount) || 0,
-            current: parseFloat(cg.current_amount) || 0,
-            deadline: cg.deadline || '',
+            n: cg.name || '',
+            e: cg.icon || '🎯',
+            t: parseFloat(cg.target_amount) || 0,
+            c: parseFloat(cg.current_amount) || 0,
+            due: cg.deadline || '',
             priority: cg.priority || 'medium',
             paused: cg.status === 'paused',
             completed: cg.status === 'completed',
             linkedCats: meta.linkedCats || [],
             linkedCat: meta.linkedCat || '',
-            notes: meta.notes || ''
+            notes: meta.notes || '',
+            acc: meta.acc || '',
+            accs: meta.accs || [],
+            base: meta.base || 0,
+            created: meta.created || ''
           });
         });
         safeSave('ft_goals', JSON.stringify(localGoals));
@@ -440,13 +446,13 @@ const ftSync = {
         id: String(goal.id),
         user_id: ftAuth.uid(),
         name: goal.name || goal.n || '',
-        icon: goal.icon || goal.emoji || '',
+        icon: goal.icon || goal.e || goal.emoji || '',
         target_amount: goal.target || goal.t || 0,
         current_amount: goal.current || goal.c || 0,
-        deadline: goal.deadline || goal.dl || null,
+        deadline: goal.due || goal.deadline || goal.dl || null,
         priority: goal.priority || goal.pri || 'medium',
         status: goal.paused ? 'paused' : (goal.completed ? 'completed' : 'active'),
-        note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '' })
+        note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '', acc: goal.acc || '', accs: goal.accs || [], base: goal.base || 0, created: goal.created || '' })
       }, { onConflict: 'id' });
     } catch (e) {
       console.warn('[FinTrack] Goal sync failed:', e.message);
