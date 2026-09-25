@@ -6,7 +6,7 @@ var _ftDBReady = false;
 var _ftDB = null;
 
 // Keys that ALSO stay in localStorage (for pre-boot sync access)
-const FT_LS_KEEP = ['ft_app_lock','ft_pk_hash','ft_pk','ft_device_salt','ft_bio_cred','ft_recovery_hash','ft_security_questions','theme','ft_onboarded','ft_security_setup_done','ft_username','ft_user_title','ft_lang','ft_currency','ft_hide_amounts'];
+const FT_LS_KEEP = ['ft_app_lock','ft_pk_hash','ft_pin_lockout','ft_pk','ft_device_salt','ft_bio_cred','ft_recovery_hash','ft_security_questions','theme','ft_onboarded','ft_security_setup_done','ft_username','ft_user_title','ft_lang','ft_currency','ft_hide_amounts','ft_base_cur'];
 
 var ftDB = {
   DB_NAME: 'FinTrackDB',
@@ -22,7 +22,8 @@ var ftDB = {
           db.createObjectStore(ftDB.STORE, { keyPath: 'k' });
         }
       };
-      req.onsuccess = function(e) { _ftDB = e.target.result; _ftDBReady = true; resolve(_ftDB); };
+      // V2.0.4: _ftDBReady is set by ftLoadAll only after IDB data + pending saves are merged
+      req.onsuccess = function(e) { _ftDB = e.target.result; resolve(_ftDB); };
       req.onerror = function(e) { console.error('[FinTrack] IDB open failed:', e); reject(e); };
     });
   },
@@ -75,20 +76,56 @@ function safeGet(key) {
   try { return localStorage.getItem(key); } catch(e) { return null; }
 }
 
+// === V2.0.4 STORAGE: IndexedDB-first for big data ===
+// localStorage has a hard ~5 MB limit per site; IndexedDB can hold hundreds of MB.
+// Big keys (transactions, snapshots...) now live in IndexedDB only once it is ready.
+// Nothing is ever removed from localStorage: an old mirror copy simply stops updating.
+var FT_IDB_PRIMARY = ['ft_txn_data', 'ft_inv_snapshots', 'ft_inv_activities', 'ft_budget_plans', 'ft_cat_memory'];
+var FT_BIG_VALUE = 200000; // chars; any value bigger than this is treated as big data too
+var _ftPending = {};        // keys saved before IndexedDB finished loading
+var _ftIDBBroken = false;   // IndexedDB failed to open or write: fall back to localStorage
+var _ftFullWarned = false;
+
+function ftIsBigKey(key, val) {
+  return FT_IDB_PRIMARY.indexOf(key) !== -1 || (val && val.length > FT_BIG_VALUE);
+}
+
+function ftWarnFull() {
+  if (_ftFullWarned) return;
+  _ftFullWarned = true;
+  toast('🚨 Storage full! Export a JSON backup now.');
+  setTimeout(function() { _ftFullWarned = false; }, 60000);
+}
+
+function ftWriteLS(key, val) {
+  try { localStorage.setItem(key, val); return true; } catch(e) { return false; }
+}
+
 function safeSave(key, value) {
   var val = typeof value === 'string' ? value : JSON.stringify(value);
   _ftStore[key] = val;
-  // Always write to localStorage too (dual-write, no data loss)
-  try { localStorage.setItem(key, val); } catch(e) {
-    if (e.name === 'QuotaExceededError' || e.code === 22) {
-      toast('🚨 Storage full! Export your data now.');
-    }
-  }
-  // Persist to IndexedDB (fire-and-forget)
-  if (_ftDBReady) {
+  var big = ftIsBigKey(key, val);
+  var idbOk = _ftDBReady && !_ftIDBBroken;
+
+  // localStorage: small keys always (dual-write). Big keys only when IndexedDB can't be trusted yet.
+  var lsOk = true;
+  if (!big || !idbOk) lsOk = ftWriteLS(key, val);
+
+  if (idbOk) {
     ftDB.set(key, val).catch(function(e) {
       console.error('[FinTrack] IDB write failed:', key, e);
+      _ftIDBBroken = true;
+      // Last resort: try localStorage so this save is not only in memory
+      if (!ftWriteLS(key, val)) ftWarnFull();
     });
+  } else if (!_ftIDBBroken) {
+    // IndexedDB still loading: remember this save and flush it in ftLoadAll
+    _ftPending[key] = true;
+    if (!lsOk) console.warn('[FinTrack] Queued for IndexedDB (localStorage full):', key);
+  } else if (!lsOk) {
+    // IndexedDB broken AND localStorage full: this save only lives in memory
+    ftWarnFull();
+    return false;
   }
   return true;
 }
@@ -98,9 +135,16 @@ async function ftLoadAll() {
   try {
     await ftDB.open();
     var entries = await ftDB.getAll();
+    // Saves made while IndexedDB was loading are newer: keep them, don't let old IDB values overwrite
+    var pendingVals = {};
+    Object.keys(_ftPending).forEach(function(k) { pendingVals[k] = _ftStore[k]; });
     entries.forEach(function(entry) {
-      _ftStore[entry.k] = entry.v;
+      if (!pendingVals.hasOwnProperty(entry.k)) _ftStore[entry.k] = entry.v;
     });
+    Object.keys(pendingVals).forEach(function(k) {
+      if (pendingVals[k] !== undefined) ftDB.set(k, pendingVals[k]).catch(function(e) { console.error('[FinTrack] IDB flush failed:', k, e); });
+    });
+    _ftPending = {};
     // Backfill: if localStorage has keys that IDB doesn't, copy them in
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
@@ -113,8 +157,10 @@ async function ftLoadAll() {
     console.log('[FinTrack] IDB loaded. ' + entries.length + ' keys.');
   } catch(e) {
     console.warn('[FinTrack] IDB failed, using localStorage only.', e);
+    _ftIDBBroken = true;
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
+      if (_ftPending[k]) continue; // newer value already in memory
       _ftStore[k] = localStorage.getItem(k);
     }
   }
@@ -234,17 +280,55 @@ function loadACCOUNTS() {
   var nid = safeGet('ft_accNxId');
   if (nid) accNxId = parseInt(nid);
 }
-function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); safeSave('ft_accNxId', accNxId); }
+function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); safeSave('ft_accNxId', accNxId); if (typeof ftCloudAccountsDirty === 'function') ftCloudAccountsDirty(); }
+
+// === V2.0.4 MONEY RULES (one place, used everywhere) ===
+// 1. "Savings" is the one transfer type (the UI calls it Transfer). Old/imported "Transfer" rows become Savings on load.
+// 2. A transfer WITH a destination account (toAcc) only moves money between your own accounts: net change 0.
+//    A transfer WITHOUT toAcc (old entries, CSV imports) still counts as money leaving your tracked cash.
+// 3. Liability balance is CALCULATED: amount owed (initialBalance) minus every Expense linked to it (tx.liab).
+//    Editing or deleting a loan payment now updates the loan automatically. initialBalance is never mutated by payments.
+function ftIsXfer(tx) { return tx.t === 'Savings' || tx.t === 'Transfer'; }
+function ftTxnNet(tx) {
+  if (tx.t === 'Income') return tx.a;
+  if (tx.t === 'Expense') return -tx.a;
+  if (ftIsXfer(tx)) return tx.toAcc ? 0 : -tx.a;
+  return 0;
+}
+
+// Liability owed in its own currency. inRange(tx) optional: only count txns it accepts (for history charts).
+function ftLiabOwed(acc, inRange) {
+  const cur = acc.currency || FT_BASE;
+  const nat = a => cur === FT_BASE ? a : convertFromTo(a, FT_BASE, cur);
+  let owed = acc.initialBalance || 0;
+  TXN.forEach(tx => {
+    if (inRange && !inRange(tx)) return;
+    if (tx.liab === acc.id && tx.t === 'Expense') owed -= nat(tx.a);
+    else if (tx.acc === acc.id) {
+      // Legacy rows booked directly on a liability account (e.g. old CSV imports)
+      if (tx.t === 'Income') owed += nat(tx.a);
+      else if (tx.t === 'Expense') owed -= nat(tx.a);
+    }
+  });
+  return Math.max(0, owed);
+}
+
+// Total paid so far toward a liability (native currency), for display
+function ftLiabPaid(acc) {
+  const cur = acc.currency || FT_BASE;
+  return TXN.reduce((s, tx) => tx.liab === acc.id && tx.t === 'Expense' ? s + (cur === FT_BASE ? tx.a : convertFromTo(tx.a, FT_BASE, cur)) : s, 0);
+}
 
 function getAccountBalance(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
   if (!acc) return 0;
-  const cur = acc.currency || 'MYR';
+  if (acc.type === 'liability') return ftLiabOwed(acc);
+  const cur = acc.currency || FT_BASE;
   const txnTotal = TXN.filter(tx => tx.acc === accId || tx.toAcc === accId).reduce((sum, tx) => {
-    // tx.a is stored in MYR; convert back to native currency for correct balance
-    const nativeAmt = cur === 'MYR' ? tx.a : convertFromTo(tx.a, 'MYR', cur);
+    // tx.a is stored in the base currency; convert back to native currency for correct balance
+    const nativeAmt = cur === FT_BASE ? tx.a : convertFromTo(tx.a, FT_BASE, cur);
     // Transfer: debit source, credit destination
-    if (tx.t === 'Savings') {
+    if (ftIsXfer(tx)) {
       let delta = 0;
       if (tx.acc === accId) delta -= nativeAmt;
       if (tx.toAcc === accId) delta += nativeAmt;
@@ -259,27 +343,53 @@ function getAccountBalance(accId) {
   return acc.initialBalance + txnTotal;
 }
 
+// V2.0.4: balances in the BASE currency (FT_BASE; "MYR" in the name is historical).
+// fmt() converts base -> display currency exactly once.
+function ftAccBalanceMYR(accId) {
+  const acc = ACCOUNTS.find(a => a.id === accId);
+  return acc ? convertFromTo(getAccountBalance(accId), acc.currency || FT_BASE, FT_BASE) : 0;
+}
+function ftLiabilitiesMYR() {
+  return ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + convertFromTo(ftLiabOwed(a), a.currency || FT_BASE, FT_BASE), 0);
+}
+
+// One-time upgrade of liability accounts from the old model (payments were subtracted from initialBalance).
+// Adds existing linked payments back so the shown balance stays EXACTLY the same, then marks the account.
+// Accounts created after this device upgraded start in the new model (no add-back).
+function ftMigrateLiabilities() {
+  if (!TXN.length) return; // nothing to add back yet; don't mark anything
+  const doneAt = safeGet('ft_liab_v2_at');
+  let changed = false;
+  ACCOUNTS.forEach(acc => {
+    if (acc.type !== 'liability' || acc.liabV2) return;
+    const createdAfter = doneAt && acc.createdAt && acc.createdAt >= doneAt.slice(0, 10);
+    if (!createdAfter) acc.initialBalance = (acc.initialBalance || 0) + ftLiabPaid(acc);
+    acc.liabV2 = true;
+    changed = true;
+  });
+  if (!doneAt) safeSave('ft_liab_v2_at', new Date().toISOString());
+  if (changed) saveACCOUNTS();
+}
+
 // Get account balance converted to display currency (v15.1)
 function getAccountBalanceInDisplay(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
   if (!acc) return 0;
   const nativeBal = getAccountBalance(accId);
-  return convertToDisplay(nativeBal, acc.currency || 'MYR');
+  return convertToDisplay(nativeBal, acc.currency || FT_BASE);
 }
 
 // Get account's native currency (v15.1)
 function getAccountCurrency(accId) {
   const acc = ACCOUNTS.find(a => a.id === accId);
-  return acc ? (acc.currency || 'MYR') : 'MYR';
+  return acc ? (acc.currency || FT_BASE) : FT_BASE;
 }
 
+// V2.0.4: returns MYR (base) like every other total, so fmt(getNetWorth()) converts once.
+// (Old version returned display currency and fmt converted it AGAIN: wrong for non-MYR display.)
 function getNetWorth() {
-  const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + getAccountBalanceInDisplay(a.id), 0);
-  const liabilities = ACCOUNTS.filter(a => a.type === 'liability').reduce((sum, a) => {
-    const nativeBal = getAccountBalance(a.id);
-    return sum + convertToDisplay(Math.abs(nativeBal), a.currency || 'MYR');
-  }, 0);
-  return assets - liabilities;
+  const assets = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => sum + ftAccBalanceMYR(a.id), 0);
+  return assets - ftLiabilitiesMYR();
 }
 
 // === OPENING BALANCE & CARRY-FORWARD (v11.2) ===
@@ -295,11 +405,7 @@ function getCarryForwardBalance(year, month) {
     if (month === 'total') return d.getFullYear() <= year;
     return d.getFullYear() < year || (d.getFullYear() === year && d.getMonth() <= +month);
   });
-  filtered.forEach(tx => {
-    if (tx.t === 'Income') bal += tx.a;
-    else if (tx.t === 'Expense') bal -= tx.a;
-    else if (tx.t === 'Savings') bal -= tx.a;
-  });
+  filtered.forEach(tx => { bal += ftTxnNet(tx); });
   return bal;
 }
 
@@ -307,20 +413,11 @@ function getCarryForwardBalance(year, month) {
 function computeBalanceSeries(year) {
   // Get balance at end of previous year
   let carryover = INITIAL_DEPOSIT;
-  TXN.filter(tx => new Date(tx.d).getFullYear() < year).forEach(tx => {
-    if (tx.t === 'Income') carryover += tx.a;
-    else if (tx.t === 'Expense') carryover -= tx.a;
-    else if (tx.t === 'Savings') carryover -= tx.a;
-  });
+  TXN.filter(tx => new Date(tx.d).getFullYear() < year).forEach(tx => { carryover += ftTxnNet(tx); });
   const monthly = [];
   for (let m = 0; m < 12; m++) {
     const mTxns = TXN.filter(tx => { const d = new Date(tx.d); return d.getFullYear() === year && d.getMonth() === m; });
-    const mNet = mTxns.reduce((s, tx) => {
-      if (tx.t === 'Income') return s + tx.a;
-      if (tx.t === 'Expense') return s - tx.a;
-      if (tx.t === 'Savings') return s - tx.a;
-      return s;
-    }, 0);
+    const mNet = mTxns.reduce((s, tx) => s + ftTxnNet(tx), 0);
     carryover += mNet;
     monthly.push(carryover);
   }
@@ -333,20 +430,16 @@ function getNetWorthByPeriod(year, month) {
   // For trend/sparkline purposes: compute cumulative net flow up to the period
   // This gives a consistent time-series without double-counting
   let nw = INITIAL_DEPOSIT;
-  const filtered = TXN.filter(tx => {
+  const inRange = tx => {
     const d = new Date(tx.d);
     if (month === 'total') return d.getFullYear() <= year;
     return d.getFullYear() < year || (d.getFullYear() === year && d.getMonth() <= +month);
-  });
-  filtered.forEach(tx => {
-    if (tx.t === 'Income') nw += tx.a;
-    else if (tx.t === 'Expense') nw -= tx.a;
-    else if (tx.t === 'Savings') nw -= tx.a;
-  });
-  // Subtract INITIAL liability balances only (original debt amounts, not current)
-  // Payments already reduce nw via the Expense txns above (linked to liabilities)
+  };
+  TXN.forEach(tx => { if (inRange(tx)) nw += ftTxnNet(tx); });
+  // V2.0.4: subtract what was still OWED at the end of that period.
+  // A loan payment lowers cash AND lowers the debt by the same amount, so net worth stays level (correct).
   ACCOUNTS.filter(a => a.type === 'liability').forEach(a => {
-    nw -= convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR');
+    nw -= convertFromTo(ftLiabOwed(a, inRange), a.currency || FT_BASE, FT_BASE);
   });
   return nw;
 }
@@ -356,7 +449,7 @@ function getFinancialFreedomMonths(year, month) {
   // Both values in MYR for consistent division
   const totalAssetsMYR = ACCOUNTS.filter(a => a.type === 'asset').reduce((sum, a) => {
     const nativeBal = getAccountBalance(a.id);
-    return sum + convertFromTo(nativeBal, a.currency || 'MYR', 'MYR');
+    return sum + convertFromTo(nativeBal, a.currency || FT_BASE, FT_BASE);
   }, 0);
   let expenses, months;
   if (month === 'total') {
@@ -603,6 +696,10 @@ function saveTXN() {
 function loadTXN() {
   const raw = safeGet(STORAGE_KEY);
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
+  // V2.0.4: one transfer type. Imported "Transfer" rows become Savings (the app's transfer type).
+  let norm = 0;
+  TXN.forEach(tx => { if (tx && tx.t === 'Transfer') { tx.t = 'Savings'; norm++; } });
+  if (norm) safeSave(STORAGE_KEY, JSON.stringify(TXN));
   const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
   else nxId = TXN.length ? Math.max(...TXN.filter(t => typeof t.id === 'number').map(t => t.id), 99) + 1 : 100;
@@ -618,16 +715,20 @@ function loadAllModuleData() {
   if (typeof loadGOALS === 'function') loadGOALS();
   if (typeof loadINV === 'function') loadINV();
   loadTXN();
+  // V2.0.4: base currency. Anyone with existing data stays MYR; a fresh install takes the region currency.
+  if (typeof ftResolveBase === 'function') ftResolveBase(TXN.length > 0 || ACCOUNTS.length > 0 || !!safeGet('ft_goals') || !!safeGet('ft_investments'));
+  ftMigrateLiabilities(); // V2.0.4: needs both ACCOUNTS and TXN
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
 function getBANKS() {
   return ACCOUNTS.filter(a => a.type === 'asset').map(a => {
     const nativeBal = getAccountBalance(a.id);
-    const cur = a.currency || 'MYR';
-    const displayBal = convertToDisplay(nativeBal, cur);
+    const cur = a.currency || FT_BASE;
+    // V2.0.4: balance is in the base currency because every caller passes it to fmt(), which converts to display
+    const baseBal = convertFromTo(nativeBal, cur, FT_BASE);
     return {
-      name: a.name, type: a.accountType, balance: displayBal, nativeBalance: nativeBal, currency: cur,
+      name: a.name, type: a.accountType, balance: baseBal, displayBalance: convertToDisplay(nativeBal, cur), nativeBalance: nativeBal, currency: cur,
       updated: 'Live', cls: a.name.toLowerCase().includes('maybank') ? 'maybank' : a.name.toLowerCase().includes('cimb') ? 'cimb' : a.name.toLowerCase().includes('wise') ? 'wise' : 'cash',
       tag: a.name.split(' ')[0].substring(0, 4).toUpperCase()
     };
