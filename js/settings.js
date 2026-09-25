@@ -31,7 +31,7 @@ function ftArg(s) { return ftEsc(JSON.stringify(String(s === null || s === undef
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
-  c.innerHTML = `<div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories & Accounts</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories & Accounts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
+  c.innerHTML = `<div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
 }
@@ -40,13 +40,13 @@ function renderSettings(c) {
 function renderMobileSettings(c) {
   const name = getUserName() || 'User';
   const initials = getUserInitials();
-  c.innerHTML = `<div style="text-align:center;margin-bottom:24px"><div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),oklch(0.45 0.22 280));margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;box-shadow:0 4px 16px oklch(0.55 0.2 260/0.2)">${initials}</div><div style="font-size:16px;font-weight:700">${getUserTitle() ? getUserTitle().charAt(0).toUpperCase() + getUserTitle().slice(1) + ' ' : ''}${ftEsc(name)}</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">FinTrack Premium ${FINTRACK_VERSION}</div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Profile</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('profile')"><span class="mob-set-icon" style="background:var(--accent-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="16" height="16" style="color:var(--accent)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Profile & Appearance</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Name, title, theme, display mode</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">General</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('general')"><span class="mob-set-icon" style="background:var(--blue-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="sliders" width="16" height="16" style="color:var(--blue)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">General</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">AI, notifications, currency, language</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Categories & Accounts</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('cataccounts')"><span class="mob-set-icon" style="background:var(--emerald-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="layers" width="16" height="16" style="color:var(--emerald)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Categories & Accounts</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Categories, subcategories & accounts</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">System</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('system')"><span class="mob-set-icon" style="background:var(--gold-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="cpu" width="16" height="16" style="color:var(--gold)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">System</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Cloud sync, backup, storage, updates</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Security</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('security')"><span class="mob-set-icon" style="background:var(--rose-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="16" height="16" style="color:var(--rose)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Security</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">PIN lock, biometric, recovery methods</div></div><span class="mob-set-val">${FT_APP_LOCK ? 'On' : 'Off'} &#8250;</span></div></div>`;
+  c.innerHTML = `<div style="text-align:center;margin-bottom:24px"><div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),oklch(0.45 0.22 280));margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;box-shadow:0 4px 16px oklch(0.55 0.2 260/0.2)">${initials}</div><div style="font-size:16px;font-weight:700">${getUserTitle() ? getUserTitle().charAt(0).toUpperCase() + getUserTitle().slice(1) + ' ' : ''}${ftEsc(name)}</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">FinTrack Premium ${FINTRACK_VERSION}</div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Profile</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('profile')"><span class="mob-set-icon" style="background:var(--accent-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="16" height="16" style="color:var(--accent)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Profile & Appearance</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Name, title, theme, display mode</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">General</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('general')"><span class="mob-set-icon" style="background:var(--blue-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="sliders" width="16" height="16" style="color:var(--blue)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">General</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">AI, notifications, currency, language</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Categories</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('cataccounts')"><span class="mob-set-icon" style="background:var(--emerald-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="layers" width="16" height="16" style="color:var(--emerald)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Categories</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Categories, subcategories & liability mapping</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">System</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('system')"><span class="mob-set-icon" style="background:var(--gold-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="cpu" width="16" height="16" style="color:var(--gold)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">System</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Cloud sync, backup, storage, updates</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Security</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('security')"><span class="mob-set-icon" style="background:var(--rose-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="16" height="16" style="color:var(--rose)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Security</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">PIN lock, biometric, recovery methods</div></div><span class="mob-set-val">${FT_APP_LOCK ? 'On' : 'Off'} &#8250;</span></div></div>`;
   lucide.createIcons();
 }
 
 function mobSetOpen(tab) {
   const c = document.getElementById('cnt');
-  const tabNames = { profile: 'Profile & Appearance', general: 'General', cataccounts: 'Categories & Accounts', system: 'System', security: 'Security' };
+  const tabNames = { profile: 'Profile & Appearance', general: 'General', cataccounts: 'Categories', system: 'System', security: 'Security' };
   const tabIcons = { profile: 'user', general: 'sliders', cataccounts: 'layers', system: 'cpu', security: 'shield' };
   let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border)"><button style="border:none;background:none;padding:4px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center" onclick="renderSettings(document.getElementById('cnt'))"><i data-lucide="chevron-left" width="20" height="20"></i></button><div style="display:flex;align-items:center;gap:8px"><i data-lucide="${tabIcons[tab] || 'settings'}" width="16" height="16" style="color:var(--accent)"></i><span style="font-size:15px;font-weight:700">${tabNames[tab] || tab}</span></div></div><div id="setc"></div>`;
   c.innerHTML = html;
@@ -98,7 +98,7 @@ function renderCloudSyncUI() {
 }
 async function cloudSignIn() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signIn(e,p);toast('✅ Signed in!');renderSysSub('cloud');}catch(x){err.textContent=x.message||'Sign in failed';err.style.display='block';} }
 async function cloudSignUp() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} if(p.length<6){err.textContent='Password must be 6+ characters';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signUp(e,p);toast('✅ Account created! Check email to confirm.');}catch(x){err.textContent=x.message||'Sign up failed';err.style.display='block';} }
-async function cloudSyncNow(dir) { if(typeof ftSync==='undefined'){toast('❌ Cloud module not loaded');return;} toast('☁️ Syncing...'); try{if(dir==='push')await ftSync.fullPush();else await ftSync.fullPull();toast('✅ Sync complete!');renderSysSub('cloud');}catch(x){toast('❌ '+x.message);} }
+async function cloudSyncNow(dir) { if(typeof ftSync==='undefined'){toast('❌ Cloud module not loaded');return;} toast('☁️ Syncing...'); try{ftSync.lastPullAdded=0;if(dir==='push'){await ftSync.fullPush({throwOnError:true});toast('✅ Pushed to cloud');}else{await ftSync.fullPull({throwOnError:true});toast('✅ Pulled from cloud: '+(ftSync.lastPullAdded||0)+' new transactions');}renderSysSub('cloud');}catch(x){toast('❌ Sync failed: '+x.message);} }
 async function cloudSignOut() { if(!confirm('Sign out? Local data stays intact.'))return; try{await ftAuth.signOut();toast('👋 Signed out');renderSysSub('cloud');}catch(x){toast('❌ Sign out failed');} }
 
 // === CHECK FOR UPDATES (clears cache only, keeps data) ===
@@ -309,6 +309,9 @@ function renderAppearanceTab(c) {
 function renderCurrencyTab(c) {
   const rateInfo = ratesLastUpdated ? `Rates updated: ${new Date(ratesLastUpdated).toLocaleString()}` : 'Using fallback rates';
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:10px;color:var(--text-tertiary)">${rateInfo}</div><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');renderCurrencyTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
+  // V2.0.4: base currency = what your records are saved in (locked once you have transactions)
+  const baseCfg = CURRENCY_CONFIG[FT_BASE] || { name: FT_BASE };
+  html += `<div style="padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:12px;background:var(--bg-primary)"><div style="font-size:11px;font-weight:600">Base currency: ${FT_BASE} · ${baseCfg.name}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px;line-height:1.5">Your records are saved in ${FT_BASE}, so history never changes with exchange rates. The list below only changes how amounts are shown.${TXN.length ? '' : ' Base is set from your region and locks after your first transaction.'}</div></div>`;
   html += '<div style="display:flex;flex-direction:column;gap:2px">';
   Object.entries(CURRENCY_CONFIG).forEach(([code, cfg]) => {
     const isActive = code === displayCurrency;
@@ -368,6 +371,8 @@ function switchLang(lang) {
 
 // === CATEGORIES & ACCOUNTS TAB ===
 function renderCatAccountsTab(c) {
+  // V2.0.4: Accounts moved out of Settings into their own page (js/accounts.js, opened from Home).
+  // Settings keeps the setup-only parts: categories and liability mapping.
   let html = '<div style="margin-bottom:24px">';
   html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="tag" width="16" height="16" style="color:var(--accent)"></i> Categories</div>`;
   html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="display:flex;gap:4px">`;
@@ -393,9 +398,6 @@ function renderCatAccountsTab(c) {
     });
   }
   html += '</div>';
-  html += `<div style="border-top:2px solid var(--border);padding-top:20px">`;
-  html += renderAccountsSection();
-  html += `</div>`;
   // Liability Mapping Section (V2.0.2)
   var liabilities = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
   var loanSubs = SCHEMA.Expense && SCHEMA.Expense['Loan'] ? SCHEMA.Expense['Loan'] : [];
@@ -414,61 +416,11 @@ function renderCatAccountsTab(c) {
   lucide.createIcons();
 }
 
-function renderAccountsSection() {
-  const assets = ACCOUNTS.filter(a => a.type === 'asset');
-  const liabilities = ACCOUNTS.filter(a => a.type === 'liability');
-  let html = '';
-  const hasMultiCurrency = ACCOUNTS.some(a => (a.currency || 'MYR') !== displayCurrency);
-  if (hasMultiCurrency) {
-    const rateTime = ratesLastUpdated ? new Date(ratesLastUpdated).toLocaleString() : 'Never';
-    html += `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;background:var(--bg-primary)"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px">💱</span><div><div style="font-size:11px;font-weight:500">Multi-currency active · Display: ${displayCurrency}</div><div style="font-size:9px;color:var(--text-tertiary)">Rates updated: ${rateTime}</div></div></div><button class="btn bs" style="font-size:9px;padding:3px 8px" onclick="fetchExchangeRates().then(()=>{toast('✅ Rates refreshed');renderCatAccountsTab(document.getElementById('setc'))})">↻ Refresh</button></div>`;
-  }
-  html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px"><i data-lucide="building-2" width="16" height="16" style="color:var(--accent)"></i> Accounts</div><button class="btn bp" style="font-size:11px;padding:5px 12px" onclick="openAccountModal()"><i data-lucide="plus" width="11" height="11"></i> Add</button></div>`;
-  if (assets.length) {
-    const totalAssetDisplay = assets.reduce((s, a) => s + getAccountBalanceInDisplay(a.id), 0);
-    html += `<div style="font-size:10px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><span>Assets</span><span style="font-size:11px;font-feature-settings:'tnum'">${fmt(totalAssetDisplay)}</span></div>`;
-    assets.forEach((a, idx) => {
-      const bal = getAccountBalance(a.id);
-      const cur = a.currency || 'MYR';
-      const showDual = cur !== displayCurrency;
-      const displayBal = showDual ? convertToDisplay(bal, cur) : bal;
-      const nativeBalStr = fmtIn(bal, cur);
-      const displayBalStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(displayBal)}</div>` : '';
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${ftEsc(a.name)}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}${a.notes ? ' · ' + ftEsc(a.notes) : ''}</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Starting: ${fmtIn(a.initialBalance, cur)}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;font-feature-settings:'tnum';color:${bal >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${nativeBalStr}</div>${displayBalStr}<div style="font-size:9px;color:var(--text-tertiary)">Current</div></div><div style="display:flex;gap:3px">${idx > 0 ? '<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount(\'' + a.id + '\',-1)" title="Move up">↑</button>' : ''}<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount('${a.id}',1)" title="Move down">↓</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')" title="Edit">✏️</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="adjustAccountBalance('${a.id}')" title="Adjust">⚖️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')" title="Delete">🗑</button></div></div></div>`;
-    });
-  }
-  if (liabilities.length) {
-    const totalLiabDisplay = liabilities.reduce((s, a) => s + convertToDisplay(Math.abs(getAccountBalance(a.id)), a.currency || 'MYR'), 0);
-    html += `<div style="font-size:10px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px;display:flex;justify-content:space-between;align-items:center"><span>Liabilities</span><span style="font-size:11px;font-feature-settings:'tnum'">-${fmt(totalLiabDisplay)}</span></div>`;
-    liabilities.forEach((a, idx) => {
-      const cur = a.currency || 'MYR';
-      const bal = getAccountBalance(a.id);
-      const showDual = cur !== displayCurrency;
-      const nativeStr = fmtIn(-Math.abs(bal), cur);
-      const displayStr = showDual ? `<div style="font-size:10px;color:var(--text-tertiary)">≈ ${fmt(-convertToDisplay(Math.abs(bal), cur))}</div>` : '';
-      html += `<div style="border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;font-weight:600;margin-bottom:2px">${ftEsc(a.name)}</div><div style="font-size:10px;color:var(--text-tertiary)">${a.accountType} · ${cur}</div></div><div style="display:flex;align-items:center;gap:12px"><div style="text-align:right"><div style="font-size:15px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${nativeStr}</div>${displayStr}</div><div style="display:flex;gap:3px">${idx > 0 ? '<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount(\'' + a.id + '\',-1)" title="Move up">↑</button>' : ''}<button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="moveAccount('${a.id}',1)" title="Move down">↓</button><button class="abtn" style="width:22px;height:22px;font-size:9px" onclick="openEditAccount('${a.id}')">✏️</button><button class="abtn del" style="width:22px;height:22px;font-size:9px" onclick="deleteAccount('${a.id}')">🗑</button></div></div></div>`;
-    });
-  }
-  html += `<div style="margin-top:18px;padding:14px 16px;background:var(--accent-light);border-radius:10px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:600">Net Worth</span><span style="font-size:17px;font-weight:800;font-feature-settings:'tnum'">${fmt(getNetWorth())}</span></div>`;
-  return html;
-}
+// (renderAccountsSection removed: see js/accounts.js renderAccounts)
 
-function moveAccount(accId, direction) {
-  const idx = ACCOUNTS.findIndex(a => a.id === accId);
-  if (idx < 0) return;
-  const acc = ACCOUNTS[idx];
-  const sameType = ACCOUNTS.filter(a => a.type === acc.type);
-  const typeIdx = sameType.findIndex(a => a.id === accId);
-  const newTypeIdx = typeIdx + direction;
-  if (newTypeIdx < 0 || newTypeIdx >= sameType.length) return;
-  // Swap within same type group
-  const targetAcc = sameType[newTypeIdx];
-  const globalIdx1 = ACCOUNTS.findIndex(a => a.id === accId);
-  const globalIdx2 = ACCOUNTS.findIndex(a => a.id === targetAcc.id);
-  [ACCOUNTS[globalIdx1], ACCOUNTS[globalIdx2]] = [ACCOUNTS[globalIdx2], ACCOUNTS[globalIdx1]];
-  saveACCOUNTS();
-  renderCatAccountsTab(document.getElementById('setc'));
-}
+// === ACCOUNTS PAGE + DRAG REORDER ===
+// Moved to js/accounts.js (V2.0.4). Account add/edit/delete/adjust below are unchanged.
+// Re-render calls that used to be renderCatAccountsTab(...) are now ftRerenderAccounts().
 
 // === CATEGORIES (helpers) ===
 let catTypeFilter = 'Income';
@@ -559,7 +511,7 @@ function handleRemoveYear(year) {
 function openAccountModal(editAcc) {
   const isEdit = !!editAcc;
   const typeOptions = [...ACCOUNT_TYPES.asset.map(tp => `<option value="asset|${tp}"${isEdit && editAcc.type === 'asset' && editAcc.accountType === tp ? ' selected' : ''}>[Asset] ${tp}</option>`), ...ACCOUNT_TYPES.liability.map(tp => `<option value="liability|${tp}"${isEdit && editAcc.type === 'liability' && editAcc.accountType === tp ? ' selected' : ''}>[Liability] ${tp}</option>`)].join('');
-  const h = `<div class="mo show" id="maccadd" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'Add'} Account</div><div class="mds">Account details</div></div><button class="mx" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveAccount(event,'${isEdit ? editAcc.id : ''}')"><div class="fg"><label class="fl">Account Name *</label><input class="fi" id="acc_name" required value="${isEdit ? ftEsc(editAcc.name) : ''}" placeholder="e.g. Maybank Savings"></div><div class="fg"><label class="fl">Account Type *</label><select class="fi" id="acc_type" required>${typeOptions}</select></div><div class="fr"><div class="fg"><label class="fl">Account Currency</label><select class="fi" id="acc_cur">${Object.keys(CURRENCY_CONFIG).map(cx => `<option value="${cx}"${(isEdit ? editAcc.currency : 'MYR') === cx ? ' selected' : ''}>${cx}</option>`).join('')}</select></div><div class="fg"><label class="fl">Starting Account Balance</label><input class="fi" type="number" step="0.01" id="acc_bal" value="${isEdit ? editAcc.initialBalance : '0'}" placeholder="0.00">${isEdit && editAcc.type === 'asset' ? '<div style="font-size:9px;color:var(--text-tertiary);margin-top:3px;line-height:1.4">Corrects the starting point. To record a balance change today, use ⚖️ Adjust.</div>' : ''}</div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="acc_notes" value="${isEdit ? ftEsc(editAcc.notes || '') : ''}" placeholder="Optional"></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="maccadd" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'Add'} Account</div><div class="mds">Account details</div></div><button class="mx" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveAccount(event,'${isEdit ? editAcc.id : ''}')"><div class="fg"><label class="fl">Account Name *</label><input class="fi" id="acc_name" required value="${isEdit ? ftEsc(editAcc.name) : ''}" placeholder="e.g. Maybank Savings"></div><div class="fg"><label class="fl">Account Type *</label><select class="fi" id="acc_type" required>${typeOptions}</select></div><div class="fr"><div class="fg"><label class="fl">Account Currency</label><select class="fi" id="acc_cur">${Object.keys(CURRENCY_CONFIG).map(cx => `<option value="${cx}"${(isEdit ? (editAcc.currency || FT_BASE) : FT_BASE) === cx ? ' selected' : ''}>${cx}</option>`).join('')}</select></div><div class="fg"><label class="fl">${isEdit && editAcc.type === 'liability' ? 'Total Amount Owed (before payments)' : 'Starting Account Balance'}</label><input class="fi" type="number" step="0.01" id="acc_bal" value="${isEdit ? editAcc.initialBalance : '0'}" placeholder="0.00">${isEdit && editAcc.type === 'asset' ? '<div style="font-size:9px;color:var(--text-tertiary);margin-top:3px;line-height:1.4">Corrects the starting point. To record a balance change today, use ⚖️ Adjust.</div>' : ''}${isEdit && editAcc.type === 'liability' ? '<div style="font-size:9px;color:var(--text-tertiary);margin-top:3px;line-height:1.4">Payments linked to this debt are subtracted automatically. Paid so far: ' + fmtIn(ftLiabPaid(editAcc), editAcc.currency || FT_BASE) + ' · Still owed: ' + fmtIn(ftLiabOwed(editAcc), editAcc.currency || FT_BASE) + '</div>' : ''}${!isEdit ? '<div style="font-size:9px;color:var(--text-tertiary);margin-top:3px;line-height:1.4">For a loan or card debt: enter the full amount owed today.</div>' : ''}</div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="acc_notes" value="${isEdit ? ftEsc(editAcc.notes || '') : ''}" placeholder="Optional"></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('maccadd').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
@@ -585,12 +537,13 @@ function saveAccount(e, editId) {
     toast('✅ Account updated');
   } else {
     const id = 'acc_' + (accNxId++);
-    ACCOUNTS.push({ id, name, type, accountType, currency, initialBalance: newInitialBalance, notes, createdAt: new Date().toISOString().split('T')[0] });
+    // V2.0.4: liabV2 = starts in the new model (owed = starting amount minus linked payments)
+    ACCOUNTS.push({ id, name, type, accountType, currency, initialBalance: newInitialBalance, notes, createdAt: new Date().toISOString().split('T')[0], liabV2: true });
     toast('✅ Account created');
   }
   saveACCOUNTS(); saveTXN();
   document.getElementById('maccadd').remove(); document.body.style.overflow = '';
-  renderCatAccountsTab(document.getElementById('setc'));
+  ftRerenderAccounts();
 }
 
 function openEditAccount(id) { const acc = ACCOUNTS.find(a => a.id === id); if (acc) openAccountModal(acc); }
@@ -666,21 +619,23 @@ function ftFinishDeleteAccount(id, mode, targetId) {
   saveACCOUNTS();
   saveTXN();
   toast('🗑 Account deleted' + (moved ? ' · ' + moved + ' transactions moved' : '') + (removed ? ' · ' + removed + ' transactions deleted' : ''));
-  renderCatAccountsTab(document.getElementById('setc'));
+  ftRerenderAccounts();
 }
 
 function adjustAccountBalance(id) {
   const acc = ACCOUNTS.find(a => a.id === id);
   if (!acc || acc.type !== 'asset') return;
   const currentBal = getAccountBalance(id);
-  const cur = acc.currency || 'MYR';
+  const cur = acc.currency || FT_BASE;
   const newBalStr = prompt(`Current balance: ${fmtIn(currentBal, cur)}\nEnter new balance (in ${cur}):`, currentBal);
   if (newBalStr === null) return;
   const newBal = parseFloat(newBalStr);
   if (isNaN(newBal) || newBal === currentBal) return;
-  createBalanceAdjustment(id, currentBal, newBal, 'Manual Balance Adjustment');
+  // V2.0.4: txn amounts are stored in the base currency, so convert the account-currency difference
+  const toBase = v => Math.round(convertFromTo(v, cur, FT_BASE) * 100) / 100;
+  createBalanceAdjustment(id, toBase(currentBal), toBase(newBal), 'Manual Balance Adjustment');
   toast('✅ Balance adjusted');
-  renderCatAccountsTab(document.getElementById('setc'));
+  ftRerenderAccounts();
 }
 
 // === SECURITY TAB (v15.7) ===
@@ -714,12 +669,14 @@ function renderSecurityTabRefresh() { renderSecurityTab(document.getElementById(
 
 // === REGENERATE RECOVERY CODE (v15.7) ===
 async function regenerateRecoveryCode() {
-  var hasPK = getPKHash();
-  if (hasPK) {
+  if (ftHasPIN()) {
+    var wait = ftLockoutRemaining();
+    if (wait > 0) { toast(ftLockMsg(wait)); return; }
     var pin = prompt('Enter your current PIN to regenerate recovery code:');
     if (!pin) return;
-    var valid = await verifyPIN(pin);
-    if (!valid) { toast('❌ Incorrect PIN'); return; }
+    var valid = await ftVerifyPINStrict(pin);
+    if (!valid) { var w = ftRegisterFail(); toast(w > 0 ? ftLockMsg(w) : '❌ Incorrect PIN. ' + ftTriesLeftMsg()); return; }
+    ftRegisterSuccess();
   }
   var code = await setupRecoveryCode();
   showRecoveryCodeDisplay(code);
@@ -811,7 +768,7 @@ function ftResetProceed() {
   var btn = document.getElementById('reset_go');
   if (!btn || btn.disabled) return;
   closeResetWarning();
-  var hasPIN = typeof getPKHash === 'function' && !!getPKHash();
+  var hasPIN = typeof ftHasPIN === 'function' && ftHasPIN();
   var hasBio = !!localStorage.getItem('ft_bio_cred');
   if (hasPIN || hasBio) showResetAuthModal('all');
   else executeReset('all');
@@ -857,16 +814,18 @@ function showResetAuthModal(resetType) {
 }
 
 function verifyResetPin(resetType) {
-  var pin = document.getElementById('reset_pin').value;
+  var pinEl = document.getElementById('reset_pin');
+  var pin = pinEl ? pinEl.value : '';
+  if (!pin || ftLockGuard('resetPinErr')) { if (pinEl) pinEl.value = ''; return; }
   verifyPIN(pin).then(function(valid) {
     if (valid) {
+      ftRegisterSuccess();
       document.getElementById('mresetauth').remove();
       document.body.style.overflow = '';
       executeReset(resetType);
     } else {
-      var err = document.getElementById('resetPinErr');
-      if (err) { err.textContent = '❌ Incorrect PIN. Try again.'; err.classList.add('show'); }
-      document.getElementById('reset_pin').value = '';
+      ftFailMsg('resetPinErr', '❌ Incorrect PIN.');
+      if (pinEl) pinEl.value = '';
     }
   });
 }
@@ -939,7 +898,7 @@ function fallbackDownload(blob, filename) {
 // === FULL BACKUP (V2.0.4): snapshot every ft_ data key, restore by safe merge ===
 // Security data (PIN, salt, biometric, recovery, API keys) is NEVER written to the backup file.
 var FT_BACKUP_CORE = ['ft_txn_data', 'ft_nxId', 'ft_accounts', 'ft_accNxId', 'ft_schema'];
-var FT_BACKUP_SKIP = /(^ft_pk|salt|bio_cred|recovery|security|app_lock|api_key|apikey|gemini|groq|ai_key|ai_cooldown|desktop_mode|last_backup|hide_recovery|onboarded)/i;
+var FT_BACKUP_SKIP = /(^ft_pk|pin_lockout|salt|bio_cred|recovery|security|app_lock|api_key|apikey|gemini|groq|ai_key|ai_cooldown|desktop_mode|last_backup|hide_recovery|onboarded)/i;
 
 function ftBackupKeyAllowed(k) {
   return typeof k === 'string' && k.indexOf('ft_') === 0 && FT_BACKUP_CORE.indexOf(k) < 0 && !FT_BACKUP_SKIP.test(k);
@@ -991,7 +950,7 @@ function ftMergeStoreValue(key, incoming) {
 function exportJSON() {
   var store = {};
   ftBackupKeys().forEach(function(k) { var v = safeGet(k); if (v !== null && v !== undefined) store[k] = v; });
-  const data = { version: 'fintrack-' + FINTRACK_VERSION, format: 2, exportedAt: new Date().toISOString(), transactions: TXN, schema: SCHEMA, accounts: ACCOUNTS, goals: GOALS, settings: { currency: displayCurrency, language: currentLang, theme: document.documentElement.dataset.theme }, store: store };
+  const data = { version: 'fintrack-' + FINTRACK_VERSION, format: 2, exportedAt: new Date().toISOString(), transactions: TXN, schema: SCHEMA, accounts: ACCOUNTS, goals: GOALS, settings: { currency: displayCurrency, baseCurrency: FT_BASE, language: currentLang, theme: document.documentElement.dataset.theme }, store: store };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   triggerDownload(blob, `fintrack-backup-${new Date().toISOString().split('T')[0]}.json`);
   toast('📥 Full backup exported (' + Object.keys(store).length + ' data sets)');
@@ -1072,7 +1031,7 @@ function importExcel(input) {
           amtStr = amtStr.replace(/[^\d.\-\(\)]/g, ''); if (amtStr.includes('(') && amtStr.includes(')')) amtStr = '-' + amtStr.replace(/[\(\)]/g, ''); const parsedAmt = parseFloat(amtStr); if (!parsedAmt || parsedAmt === 0) { skipped++; return; }
           if (d) { if (/^\d{4}-\d{2}-\d{2}/.test(d)) { d = d.substring(0, 10); } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{5}$/.test(d)) { const excelEpoch = new Date(1899, 11, 30); const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000); d = parsed.toISOString().split('T')[0]; } else { const parsed = new Date(d); if (!isNaN(parsed.getTime())) d = parsed.toISOString().split('T')[0]; else { skipped++; return; } } } else { skipped++; return; }
           if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { skipped++; return; }
-          let normalizedType = tp; const tpLower = tp.toLowerCase(); if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income'; else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung')) normalizedType = 'Savings'; else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense'; else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
+          let normalizedType = tp; const tpLower = tp.toLowerCase(); if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income'; else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung') || tpLower.includes('transfer') || tpLower.includes('pindah')) normalizedType = 'Savings'; else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense'; else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
           const accMatch = accName ? ACCOUNTS.find(a => a.name.toLowerCase() === accName.toLowerCase()) : null;
           TXN.push({ id: nxId++, d, t: normalizedType, c: cat || 'Uncategorized', s: sub, a: Math.abs(parsedAmt), dt: desc, acc: accMatch ? accMatch.id : undefined }); added++;
         });
@@ -1109,9 +1068,16 @@ function importJSON(input) {
       const hasStore = data.store && typeof data.store === 'object';
       const extras = hasStore ? ', plus goals, budget plans, investments & reminders' : (Array.isArray(data.goals) && data.goals.length ? ', ' + data.goals.length + ' goals' : '');
       if (!confirm(`Import ${count} transactions${skipped ? ' (' + skipped + ' invalid skipped)' : ''}${data.accounts ? ', ' + data.accounts.length + ' accounts' : ''}${extras}? This will MERGE with existing data (nothing you already have is overwritten).`)) return;
+      // V2.0.4 base currency: old backups are MYR. Empty phone adopts the backup's base;
+      // a phone with data converts the imported amounts into its own base.
+      const bBase = (data.store && data.store.ft_base_cur) || (data.settings && data.settings.baseCurrency) || 'MYR';
+      const wasEmpty = !TXN.length;
+      if (wasEmpty) ftSetBase(bBase, true);
+      const needConv = !wasEmpty && CURRENCY_CONFIG[bBase] && bBase !== FT_BASE;
       const existingIds = new Set(TXN.map(tx => tx.id));
       let added = 0;
-      validTxns.forEach(tx => { if (!existingIds.has(tx.id)) { TXN.push(tx); added++; } });
+      validTxns.forEach(tx => { if (!existingIds.has(tx.id)) { if (needConv) tx.a = Math.round(convertFromTo(tx.a, bBase, FT_BASE) * 100) / 100; TXN.push(tx); added++; } });
+      if (needConv) toast('💱 Backup amounts converted ' + bBase + ' → ' + FT_BASE);
       if (data.accounts && Array.isArray(data.accounts)) { const existingAccIds = new Set(ACCOUNTS.map(a => a.id)); ftStripTags(data.accounts).forEach(acc => { if (!existingAccIds.has(acc.id)) ACCOUNTS.push(acc); }); saveACCOUNTS(); }
       if (data.schema) { Object.entries(ftStripTags(data.schema)).forEach(([type, cats]) => { if (!SCHEMA[type]) SCHEMA[type] = {}; Object.entries(cats).forEach(([cat, subs]) => { if (!SCHEMA[type][cat]) SCHEMA[type][cat] = []; subs.forEach(sub => { if (!SCHEMA[type][cat].includes(sub)) SCHEMA[type][cat].push(sub); }); }); }); saveSCHEMA(); }
       // V2.0.4: restore everything else (goals, budget plans, investments, reminders, mappings, opening balance...)
@@ -1165,7 +1131,7 @@ function ftCsvType(tp) {
   var s = String(tp || '').toLowerCase();
   if (/income|pendapatan|gaji/.test(s)) return 'Income';
   if (/saving|simpanan|tabung/.test(s)) return 'Savings';
-  if (/transfer|pindah/.test(s)) return 'Transfer';
+  if (/transfer|pindah/.test(s)) return 'Savings'; // V2.0.4: one transfer type
   if (/expense|belanja|perbelanjaan/.test(s)) return 'Expense';
   return null;
 }
@@ -1234,10 +1200,19 @@ async function handleCurrencyChange(currency) {
 
 async function chgPK() {
   const cur = document.getElementById('spkc')?.value, nw = document.getElementById('spkn')?.value;
-  const valid = await verifyPIN(cur);
-  if (!valid) { toast(t('set_pk_wrong')); return; }
-  if (!nw || nw.length < 4) { toast(t('set_pk_min')); return; }
+  // V2.0.4: new PINs need 6+ characters (existing shorter PINs still unlock fine)
+  if (!nw || nw.length < 6) { toast('❌ New PIN must be at least 6 characters'); return; }
+  if (ftHasPIN()) {
+    const wait = ftLockoutRemaining();
+    if (wait > 0) { toast(ftLockMsg(wait)); return; }
+    const valid = await ftVerifyPINStrict(cur || '');
+    if (!valid) { const w = ftRegisterFail(); toast(w > 0 ? ftLockMsg(w) : t('set_pk_wrong') + ' ' + ftTriesLeftMsg()); return; }
+    ftRegisterSuccess();
+  }
   await setPINSecure(nw);
+  var spkc = document.getElementById('spkc'), spkn = document.getElementById('spkn');
+  if (spkc) spkc.value = '';
+  if (spkn) spkn.value = '';
   toast(t('set_pk_ok'));
   // Prompt recovery setup if not done
   if (!hasRecoverySetup() && !hasSecurityQuestions()) {
@@ -1259,14 +1234,8 @@ function forgotPINFromSettings() {
   if (hasCode || hasQ) {
     showForgotPIN();
   } else {
-    // No recovery: direct emergency reset
-    if (!confirm('No recovery method set up. Reset PIN now?\n\nYour financial data will NOT be deleted.')) return;
-    localStorage.removeItem('ft_pk_hash');
-    localStorage.removeItem('ft_pk');
-    safeSave('ft_pk_hash', '');
-    safeSave('ft_pk', '');
-    toast('✅ PIN cleared. You can set a new one now.');
-    renderSecurityTab(document.getElementById('setc'));
+    // V2.0.4: no free reset. Cloud password, or erase this phone.
+    ftShowPinResetNoRecovery();
   }
 }
 
