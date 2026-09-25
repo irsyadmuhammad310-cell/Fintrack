@@ -37,28 +37,8 @@ function renderDashboard(c) {
 
   // Pre-compute sparkline series
   const balSpark = computeBalanceSeries(year);
-  const nwSpark = (() => {
-    const monthly = Array(12).fill(0);
-    TXN.forEach(tx => {
-      const d = new Date(tx.d);
-      if (d.getFullYear() === year) {
-        const mi = d.getMonth();
-        if (tx.t === 'Income') monthly[mi] += tx.a;
-        else if (tx.t === 'Expense') monthly[mi] -= tx.a;
-        else if (tx.t === 'Savings') monthly[mi] -= tx.a;
-      }
-    });
-    const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'), 0);
-    const base = INITIAL_DEPOSIT - liabTotal;
-    const priorYears = TXN.filter(tx => new Date(tx.d).getFullYear() < year).reduce((s, tx) => {
-      if (tx.t === 'Income') return s + tx.a;
-      if (tx.t === 'Expense') return s - tx.a;
-      if (tx.t === 'Savings') return s - tx.a;
-      return s;
-    }, 0);
-    let cumulative = base + priorYears;
-    return monthly.map(v => { cumulative += v; return cumulative; });
-  })();
+  // V2.0.4: one net-worth rule (data.js): own-account transfers = 0, debt = amount still owed at month end
+  const nwSpark = Array.from({ length: 12 }, (_, i) => getNetWorthByPeriod(year, String(i)));
   const series = {
     networth: nwSpark,
     balance: balSpark,
@@ -126,7 +106,7 @@ function renderDashboard(c) {
   }
 
   // === BUILD HTML ===
-  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
+  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em" onclick="navigate('accounts')" style="cursor:pointer" title="Open Accounts"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
 ${overspentBannerHtml}
 ${safeBuildForecastHtml('desktop')}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
@@ -551,10 +531,11 @@ function renderMobileDashboard(c, year) {
   }).join('');
 
   c.innerHTML = `<div class="mob-dash">
-    <div class="mob-dash-balance">
+    <div class="mob-dash-balance" onclick="navigate('accounts')" style="cursor:pointer" role="button" aria-label="Open Accounts">
       <div class="mob-dash-greeting">${getGreeting()}</div>
       <div class="mob-dash-amount">${fmt(nw)}</div>
       ${trendLabel ? `<div class="mob-dash-change ${trendClass}">${trendLabel}</div>` : ''}
+      <div style="font-size:9px;color:var(--text-tertiary);margin-top:4px">${t('acc_tap_hint')}</div>
     </div>
     <div class="mob-dash-stats">
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_income')}</div><div class="mob-dash-stat-val" style="color:var(--emerald)">${fmtD(ti)}</div></div>
@@ -611,7 +592,7 @@ function renderMobileDashboard(c, year) {
 function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
   let html = '';
   const banks = getBANKS();
-  const liabTotal = ACCOUNTS.filter(a => a.type === 'liability').reduce((s, a) => s + convertFromTo(Math.abs(a.initialBalance), a.currency || 'MYR', 'MYR'), 0);
+  const liabTotal = ftLiabilitiesMYR(); // V2.0.4: what you still owe (was the stored starting amount)
   const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
   const netWorthLive = getNetWorth();
 
@@ -706,7 +687,7 @@ const LIQUIDITY_LOW = ['Investment Account'];
 
 function getHighLiquidityAssets() {
   return ACCOUNTS.filter(a => a.type === 'asset' && LIQUIDITY_HIGH.includes(a.accountType))
-    .reduce((s, a) => s + convertFromTo(getAccountBalance(a.id), a.currency || 'MYR', 'MYR'), 0);
+    .reduce((s, a) => s + convertFromTo(getAccountBalance(a.id), a.currency || FT_BASE, FT_BASE), 0);
 }
 
 function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf) {
