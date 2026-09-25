@@ -160,6 +160,9 @@ async function initWithPasskey(passkey) {
 function showUnlockScreen() {
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = 'none';
+  // V2.0.4: remove any old lock/recovery overlay first (stacked overlays kept the lock screen stuck after unlock)
+  var oldEl;
+  while ((oldEl = document.getElementById('ftUnlock'))) oldEl.remove();
   var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 260),oklch(0.45 0.22 280));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="lock" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">FinTrack Locked</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Enter your PIN to access your data</div><div style="position:relative;margin-bottom:12px"><input id="ftUnlockInput" type="password" style="width:100%;padding:12px 44px 12px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="PIN"><button id="ftUnlockEye" type="button" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);border:none;background:none;cursor:pointer;font-size:16px;padding:4px;line-height:1">👁</button></div><button id="ftUnlockBtn" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 260);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Unlock</button><div id="ftUnlockErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none">Wrong PIN. Try again.</div><div style="margin-top:16px"><button onclick="showForgotPIN()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot PIN?</button></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -178,6 +181,9 @@ function showUnlockScreen() {
     if (eye) {
       eye.addEventListener('click', function(e) { e.preventDefault(); if (inp.type === 'password') { inp.type = 'text'; eye.textContent = '🙈'; } else { inp.type = 'password'; eye.textContent = '👁'; } });
     }
+    // V2.0.4: still locked out from earlier wrong tries? say so right away
+    var lockWait = ftLockoutRemaining();
+    if (lockWait > 0) ftShowErr('ftUnlockErr', ftLockMsg(lockWait));
     // Try biometric auth automatically on mobile
     if ('ontouchstart' in window) { ftTryBiometric(); }
   }, 200);
@@ -300,12 +306,17 @@ document.addEventListener('resume', function() {
   }
 });
 
+var _ftPinBusy = false; // stops double taps counting as 2 wrong tries while PBKDF2 runs
 async function ftDoUnlock() {
   var input = document.getElementById('ftUnlockInput');
   var passkey = input ? input.value : '';
-  if (!passkey) return;
-  var valid = await verifyPIN(passkey);
+  if (!passkey || _ftPinBusy) return;
+  if (ftLockGuard('ftUnlockErr')) { if (input) input.value = ''; return; }
+  _ftPinBusy = true;
+  var valid = false;
+  try { valid = await verifyPIN(passkey); } finally { _ftPinBusy = false; }
   if (valid) {
+    ftRegisterSuccess();
     ftIsUnlocked = true;
     await ftLoadAll();
     loadAllModuleData();
@@ -315,35 +326,129 @@ async function ftDoUnlock() {
     var appEl = document.getElementById('app');
     if (appEl) appEl.style.display = '';
   } else {
-    var err = document.getElementById('ftUnlockErr');
-    if (err) err.style.display = 'block';
+    ftFailMsg('ftUnlockErr', 'Wrong PIN.');
     if (input) { input.value = ''; input.focus(); }
   }
 }
 
-// Emergency PIN reset: clears PIN hash and disables lock (data preserved)
-async function emergencyPINReset() {
-  var input = document.getElementById('ftEmergencyInput');
-  var val = input ? input.value.trim().toUpperCase() : '';
-  if (val !== 'RESET') { toast('❌ Type RESET to confirm'); return; }
-  // Clear all PIN-related keys
-  localStorage.removeItem('ft_pk_hash');
-  localStorage.removeItem('ft_pk');
-  localStorage.removeItem('ft_app_lock');
-  safeSave('ft_app_lock', 'false');
-  safeSave('ft_pk_hash', '');
-  safeSave('ft_pk', '');
-  FT_APP_LOCK = false;
-  ftIsUnlocked = true;
-  // Boot the app
-  await ftLoadAll();
-  loadAllModuleData();
-  initApp();
-  var unlockEl = document.getElementById('ftUnlock');
-  if (unlockEl) unlockEl.remove();
-  var appEl = document.getElementById('app');
-  if (appEl) appEl.style.display = '';
-  toast('✅ PIN cleared. Set a new one in Settings → Security');
+// V2.0.4: the old "type RESET" bypass is gone (anyone holding the phone could clear the PIN).
+// Kept as a name so old buttons still work: routes to the safe flow below.
+function emergencyPINReset() { ftShowPinResetNoRecovery(); }
+
+// === FORGOT PIN, NO RECOVERY METHOD (V2.0.4, option C) ===
+// Signed in to cloud -> prove it's you with the cloud password, data kept, set a new PIN.
+// No cloud -> the only way in is erasing FinTrack data on this phone (big warning + type DELETE).
+function ftCloudEmail() {
+  try { if (typeof ftAuth !== 'undefined' && ftAuth.user && ftAuth.user.email) return ftAuth.user.email; } catch (e) {}
+  // Lock screen: cloud not started yet, read the saved Supabase session instead
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!/^sb-.+-auth-token$/.test(k)) continue;
+      var s = JSON.parse(localStorage.getItem(k) || 'null');
+      var u = s && (s.user || (s.currentSession && s.currentSession.user));
+      if (u && u.email) return u.email;
+    }
+  } catch (e) {}
+  return null;
+}
+
+function ftAppVisible() {
+  var a = document.getElementById('app');
+  return !!(a && a.style.display !== 'none' && window._ftAppBooted);
+}
+
+function ftPinResetBack() {
+  if (ftAppVisible()) { var el = document.getElementById('ftUnlock'); if (el) el.remove(); document.body.style.overflow = ''; }
+  else showUnlockScreen();
+}
+
+function ftPinResetShell(inner) {
+  ['ftUnlock', 'mauth', 'mauthReset'].forEach(function(id) { var el; while ((el = document.getElementById(id))) el.remove(); });
+  document.body.style.overflow = '';
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center;overflow-y:auto"><div style="text-align:center;max-width:380px;width:90%;padding:24px 0">' + inner + '<div style="margin-top:14px"><button onclick="ftPinResetBack()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Back</button></div></div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  if (typeof lucide !== 'undefined') lucide.createIcons();
+}
+
+function ftShowPinResetNoRecovery() {
+  var email = ftCloudEmail();
+  if (!email) { ftShowPinResetWipe(); return; }
+  var inp = 'width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:15px;text-align:center;outline:none';
+  ftPinResetShell('<div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.15 220),oklch(0.5 0.18 250));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="cloud" width="24" height="24" style="color:#fff"></i></div>' +
+    '<div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Reset PIN with Cloud</div>' +
+    '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:18px;line-height:1.5">You are signed in to FinTrack Cloud as <b>' + escapeHTML(email) + '</b>. Enter your cloud password to prove it\'s you. Your data is kept.</div>' +
+    '<input id="ftCloudPw" type="password" autocomplete="current-password" style="' + inp + '" placeholder="Cloud password">' +
+    '<button id="ftCloudPwBtn" onclick="ftPinResetCloudVerify()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.18 250);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-top:12px">Verify & Set New PIN</button>' +
+    '<div id="ftCloudPwErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none"></div>' +
+    '<div style="font-size:10px;color:var(--text-tertiary);margin-top:14px">Needs internet.</div>' +
+    '<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)"><button onclick="ftShowPinResetWipe()" style="border:none;background:none;color:oklch(0.6 0.2 15);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot your cloud password too? Erase this phone instead</button></div>');
+  var pw = document.getElementById('ftCloudPw');
+  if (pw) { pw.focus(); pw.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); ftPinResetCloudVerify(); } }); }
+  var w = ftLockoutRemaining();
+  if (w > 0) ftShowErr('ftCloudPwErr', ftLockMsg(w));
+}
+
+async function ftPinResetCloudVerify() {
+  var pwEl = document.getElementById('ftCloudPw');
+  var pw = pwEl ? pwEl.value : '';
+  if (!pw || _ftPinBusy) return;
+  if (ftLockGuard('ftCloudPwErr')) return;
+  var email = ftCloudEmail();
+  if (!email || typeof _supabase === 'undefined') { ftShowErr('ftCloudPwErr', '❌ Cloud is not available right now.'); return; }
+  if (navigator.onLine === false) { ftShowErr('ftCloudPwErr', '📶 No internet. Connect and try again.'); return; }
+  var btn = document.getElementById('ftCloudPwBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking...'; }
+  _ftPinBusy = true;
+  try {
+    var res = await _supabase.auth.signInWithPassword({ email: email, password: pw });
+    if (res.error) throw res.error;
+    ftRegisterSuccess();
+    if (typeof ftAuth !== 'undefined' && res.data) { ftAuth.user = res.data.user; ftAuth.session = res.data.session; }
+    _ftPinBusy = false;
+    promptNewPINAfterRecovery();
+    return;
+  } catch (e) {
+    var msg = String((e && e.message) || e || '');
+    // Only a wrong password counts as a failed try. Network / rate-limit errors don't.
+    if (/invalid login|invalid credentials|invalid.*password/i.test(msg)) ftFailMsg('ftCloudPwErr', '❌ Wrong cloud password.');
+    else ftShowErr('ftCloudPwErr', '❌ Could not check: ' + msg);
+    if (pwEl) { pwEl.value = ''; pwEl.focus(); }
+  } finally {
+    _ftPinBusy = false;
+    if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Verify & Set New PIN'; }
+  }
+}
+
+function ftShowPinResetWipe() {
+  var email = ftCloudEmail();
+  ftPinResetShell('<div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 15),oklch(0.5 0.2 30));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="alert-triangle" width="24" height="24" style="color:#fff"></i></div>' +
+    '<div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Erase this phone to get in</div>' +
+    '<div style="font-size:12px;color:var(--text-secondary);margin-bottom:16px;line-height:1.5">There is no recovery code or security questions' + (email ? '' : ', and no cloud account') + ' to prove it\'s you. The only way back in is to <b>erase all FinTrack data on this phone</b> and start fresh.</div>' +
+    '<div style="padding:12px 14px;background:var(--rose-light);border:1px solid var(--rose);border-radius:10px;margin-bottom:14px;text-align:left;font-size:11px;line-height:1.6;color:var(--text-primary)"><b style="color:var(--rose)">Will be deleted forever:</b> transactions, accounts, goals, budgets, investments, reminders and settings.<br>' +
+    (email ? '☁️ Your cloud copy is <b>not</b> deleted. Sign in again after to restore it.' : '💾 No cloud copy. If you have an exported JSON backup, you can import it after.') + '</div>' +
+    '<label style="display:flex;align-items:flex-start;gap:8px;margin-bottom:12px;cursor:pointer;text-align:left"><input type="checkbox" id="ftWipeAck" onchange="ftPinWipeValidate()" style="width:15px;height:15px;margin-top:1px;accent-color:var(--rose);cursor:pointer"><span style="font-size:12px;color:var(--text-primary)">I understand everything on this phone will be erased.</span></label>' +
+    '<input id="ftWipeWord" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="ftPinWipeValidate()" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:14px;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase" placeholder="Type DELETE">' +
+    '<button id="ftWipeBtn" disabled onclick="ftPinWipeExecute()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.2 15);color:#fff;font-size:14px;font-weight:600;cursor:not-allowed;opacity:.4;margin-top:12px">Erase Everything & Start Fresh</button>');
+}
+
+function ftPinWipeValidate() {
+  var ack = document.getElementById('ftWipeAck');
+  var word = document.getElementById('ftWipeWord');
+  var btn = document.getElementById('ftWipeBtn');
+  var ok = !!(ack && ack.checked) && !!word && word.value.trim().toUpperCase() === 'DELETE';
+  if (btn) { btn.disabled = !ok; btn.style.opacity = ok ? '1' : '.4'; btn.style.cursor = ok ? 'pointer' : 'not-allowed'; }
+  return ok;
+}
+
+async function ftPinWipeExecute() {
+  if (!ftPinWipeValidate()) return;
+  if (!confirm('LAST CHANCE: erase ALL FinTrack data on this phone? This cannot be undone.')) return;
+  var btn = document.getElementById('ftWipeBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Erasing...'; }
+  // Same wipe as Settings → Reset All Data (IndexedDB + localStorage)
+  if (typeof ftWipeAllData === 'function') await ftWipeAllData();
+  location.reload();
 }
 
 // === FORGOT PIN (v15.7 — Recovery Code + Security Questions) ===
@@ -351,18 +456,12 @@ function showForgotPIN() {
   var hasCode = hasRecoverySetup();
   var hasQuestions = hasSecurityQuestions();
   if (!hasCode && !hasQuestions) {
-    // No recovery method: show emergency reset option instead of useless alert
-    var unlockEl = document.getElementById('ftUnlock');
-    if (unlockEl) unlockEl.remove();
-    var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 15),oklch(0.5 0.2 30));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="alert-triangle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">No Recovery Method</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px;line-height:1.5">No recovery code or security questions were set up. You can reset the PIN to regain access. Your financial data will NOT be deleted.</div><div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:10px;margin-bottom:12px;text-align:left"><div style="font-size:11px;font-weight:600;margin-bottom:6px">To confirm reset, type RESET below:</div><input id="ftEmergencyInput" type="text" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-primary);color:var(--text-primary);font-size:14px;text-align:center;outline:none;letter-spacing:2px;text-transform:uppercase" placeholder="Type RESET"></div><button onclick="emergencyPINReset()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.6 0.2 15);color:#fff;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:10px">Reset PIN & Unlock</button><button onclick="showUnlockScreen()" style="width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font)">Back to PIN</button></div></div>';
-    document.body.insertAdjacentHTML('beforeend', html);
-    if (typeof lucide !== 'undefined') lucide.createIcons();
-    var inp = document.getElementById('ftEmergencyInput');
-    if (inp) { inp.focus(); inp.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); emergencyPINReset(); } }); }
+    // V2.0.4: no recovery method -> cloud password, or erase this phone (no free RESET)
+    ftShowPinResetNoRecovery();
     return;
   }
-  var unlockEl = document.getElementById('ftUnlock');
-  if (unlockEl) unlockEl.remove();
+  var unlockEl;
+  while ((unlockEl = document.getElementById('ftUnlock'))) unlockEl.remove();
   // Show method selection if both available
   var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.18 155),oklch(0.5 0.18 180));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="key" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">PIN Recovery</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:24px">Choose your recovery method</div><div id="ftRecoveryMethods" style="display:flex;flex-direction:column;gap:10px">';
   if (hasCode) {
@@ -405,12 +504,15 @@ async function verifyQuestionsAndReset() {
   var a1 = document.getElementById('ftSQ1') ? document.getElementById('ftSQ1').value : '';
   var a2 = document.getElementById('ftSQ2') ? document.getElementById('ftSQ2').value : '';
   if (!a1 || !a2) { toast('Please answer both questions'); return; }
-  var valid = await verifySecurityAnswers(a1, a2);
+  if (_ftPinBusy || ftLockGuard('ftSQErr')) return;
+  _ftPinBusy = true;
+  var valid = false;
+  try { valid = await verifySecurityAnswers(a1, a2); } finally { _ftPinBusy = false; }
   if (valid) {
+    ftRegisterSuccess();
     promptNewPINAfterRecovery();
   } else {
-    var err = document.getElementById('ftSQErr');
-    if (err) { err.textContent = 'Incorrect answers. Try again.'; err.style.display = 'block'; }
+    ftFailMsg('ftSQErr', 'Incorrect answers.');
   }
 }
 
@@ -418,12 +520,15 @@ async function verifyAndResetPIN() {
   var input = document.getElementById('ftRecoveryInput');
   var code = input ? input.value : '';
   if (!code) return;
-  var valid = await verifyRecoveryCode(code);
+  if (_ftPinBusy || ftLockGuard('ftRecoveryErr')) return;
+  _ftPinBusy = true;
+  var valid = false;
+  try { valid = await verifyRecoveryCode(code); } finally { _ftPinBusy = false; }
   if (valid) {
+    ftRegisterSuccess();
     promptNewPINAfterRecovery();
   } else {
-    var err = document.getElementById('ftRecoveryErr');
-    if (err) err.style.display = 'block';
+    ftFailMsg('ftRecoveryErr', 'Invalid recovery code.');
     if (input) { input.value = ''; input.focus(); }
   }
 }
@@ -431,7 +536,7 @@ async function verifyAndResetPIN() {
 function promptNewPINAfterRecovery() {
   var unlockEl = document.getElementById('ftUnlock');
   if (unlockEl) unlockEl.remove();
-  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 155),oklch(0.5 0.2 130));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="check-circle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Create New PIN</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Recovery verified. Set your new PIN below.</div><div style="margin-bottom:10px"><input id="ftNewPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="New PIN (min 4)"></div><div style="margin-bottom:16px"><input id="ftConfirmPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="Confirm PIN"></div><button onclick="saveNewPINAfterRecovery()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Set New PIN</button><div id="ftNewPinErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none"></div></div></div>';
+  var html = '<div id="ftUnlock" style="position:fixed;inset:0;background:var(--bg-primary);z-index:10000;display:flex;align-items:center;justify-content:center"><div style="text-align:center;max-width:360px;width:90%"><div style="width:56px;height:56px;background:linear-gradient(135deg,oklch(0.6 0.2 155),oklch(0.5 0.2 130));border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px"><i data-lucide="check-circle" width="24" height="24" style="color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-bottom:6px;color:var(--text-primary)">Create New PIN</div><div style="font-size:12px;color:var(--text-secondary);margin-bottom:20px">Recovery verified. Set your new PIN below.</div><div style="margin-bottom:10px"><input id="ftNewPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="New PIN (min 6)"></div><div style="margin-bottom:16px"><input id="ftConfirmPin" type="password" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font-size:18px;text-align:center;outline:none;letter-spacing:4px" placeholder="Confirm PIN"></div><button onclick="saveNewPINAfterRecovery()" style="width:100%;padding:12px;border:none;border-radius:8px;background:oklch(0.55 0.2 155);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Set New PIN</button><div id="ftNewPinErr" style="font-size:11px;color:oklch(0.6 0.2 15);margin-top:10px;display:none"></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   if (typeof lucide !== 'undefined') lucide.createIcons();
   var inp = document.getElementById('ftNewPin');
@@ -442,13 +547,21 @@ async function saveNewPINAfterRecovery() {
   var pin = document.getElementById('ftNewPin') ? document.getElementById('ftNewPin').value : '';
   var confirm = document.getElementById('ftConfirmPin') ? document.getElementById('ftConfirmPin').value : '';
   var err = document.getElementById('ftNewPinErr');
-  if (!pin || pin.length < 4) { if (err) { err.textContent = 'PIN must be at least 4 characters.'; err.style.display = 'block'; } return; }
+  if (!pin || pin.length < 6) { if (err) { err.textContent = 'PIN must be at least 6 characters.'; err.style.display = 'block'; } return; }
   if (pin !== confirm) { if (err) { err.textContent = 'PINs do not match.'; err.style.display = 'block'; } return; }
+  var wasRunning = ftAppVisible();
   await setPINSecure(pin);
+  ftRegisterSuccess();
   toast('✅ PIN reset successfully');
-  var unlockEl = document.getElementById('ftUnlock');
-  if (unlockEl) unlockEl.remove();
+  var unlockEl;
+  while ((unlockEl = document.getElementById('ftUnlock'))) unlockEl.remove();
   ftIsUnlocked = true;
+  // V2.0.4: reset from inside the app (Settings / edit PIN) -> app already running, don't boot twice
+  if (wasRunning) {
+    document.body.style.overflow = '';
+    if (typeof curPage !== 'undefined' && curPage === 'settings' && document.getElementById('setc') && typeof renderSecurityTabRefresh === 'function') { try { renderSecurityTabRefresh(); } catch (e) {} }
+    return;
+  }
   await ftLoadAll();
   loadAllModuleData();
   initApp();
@@ -458,12 +571,13 @@ async function saveNewPINAfterRecovery() {
 
 // === FIRST-TIME SECURITY SETUP (v15.7) ===
 function showFirstTimeSecuritySetup() {
-  var html = '<div class="mo show" id="mSecSetup" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}"><div class="ml" style="max-width:420px" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">🔐 Secure Your FinTrack</div><div class="mds">Set up a PIN and recovery method to protect your data</div></div><button class="mx" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">✕</button></div><div style="padding:4px 0"><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Create a PIN (min 4 characters)</label><input class="fi" type="password" id="setup_pin" placeholder="Enter PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Confirm PIN</label><input class="fi" type="password" id="setup_pin_confirm" placeholder="Confirm PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 1</div><select class="fi" id="setup_sq1" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '">' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa1" placeholder="Your answer" style="font-size:12px"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 2</div><select class="fi" id="setup_sq2" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '"' + (i === 1 ? ' selected' : '') + '>' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa2" placeholder="Your answer" style="font-size:12px"></div></div><div class="ma"><button class="btn bs" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">Skip for now</button><button class="btn bp" onclick="completeFirstTimeSetup()">Secure My Data</button></div></div></div>';
+  var html = '<div class="mo show" id="mSecSetup" onclick="if(event.target===this){this.remove();document.body.style.overflow=\'\'}"><div class="ml" style="max-width:420px" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">🔐 Secure Your FinTrack</div><div class="mds">Set up a PIN and recovery method to protect your data</div></div><button class="mx" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">✕</button></div><div style="padding:4px 0"><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Create a PIN (min 6 characters)</label><input class="fi" type="password" id="setup_pin" placeholder="Enter PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="margin-bottom:16px"><label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px">Confirm PIN</label><input class="fi" type="password" id="setup_pin_confirm" placeholder="Confirm PIN" style="font-size:14px;letter-spacing:2px;text-align:center"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 1</div><select class="fi" id="setup_sq1" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '">' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa1" placeholder="Your answer" style="font-size:12px"></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:16px"><div style="font-size:11px;font-weight:600;margin-bottom:6px;color:var(--text-secondary)">Security Question 2</div><select class="fi" id="setup_sq2" style="font-size:12px;margin-bottom:8px">' + SECURITY_QUESTIONS.map(function(q, i) { return '<option value="' + i + '"' + (i === 1 ? ' selected' : '') + '>' + q + '</option>'; }).join('') + '</select><input class="fi" id="setup_sa2" placeholder="Your answer" style="font-size:12px"></div></div><div class="ma"><button class="btn bs" onclick="document.getElementById(\'mSecSetup\').remove();document.body.style.overflow=\'\'">Skip for now</button><button class="btn bp" onclick="completeFirstTimeSetup()">Secure My Data</button></div></div></div>';
   document.body.insertAdjacentHTML('beforeend', html);
   document.body.style.overflow = 'hidden';
 }
 
 function initApp() {
+  window._ftAppBooted = true;
   const st = safeGet('theme');
   if (st) {
     document.documentElement.dataset.theme = st;
@@ -471,7 +585,9 @@ function initApp() {
   }
   // Load language + currency preferences
   currentLang = safeGet('ft_lang') || 'en';
-  displayCurrency = safeGet('ft_currency') || 'USD';
+  displayCurrency = safeGet('ft_currency') || ftDetectCurrency();
+  // V2.0.4: never picked a currency? Save the region default once, so it stays put (user can change it in Settings)
+  if (!safeGet('ft_currency')) safeSave('ft_currency', displayCurrency);
   // Apply CJK font if needed
   if (currentLang === 'zh') document.body.style.fontFamily = "'Noto Sans SC', 'Inter', system-ui, sans-serif";
   else if (currentLang === 'ja') document.body.style.fontFamily = "'Noto Sans JP', 'Inter', system-ui, sans-serif";
@@ -546,8 +662,9 @@ function showQuickStartTips() {
   html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">🏠</span><div><div style="font-size:12px;font-weight:600">Home</div><div style="font-size:10px;color:var(--text-tertiary)">Your financial snapshot at a glance</div></div></div>';
   html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">📝</span><div><div style="font-size:12px;font-weight:600">Transactions</div><div style="font-size:10px;color:var(--text-tertiary)">Log income, expenses, savings here</div></div></div>';
   html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">🎯</span><div><div style="font-size:12px;font-weight:600">Goals</div><div style="font-size:10px;color:var(--text-tertiary)">Set budgets + savings targets</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">🏦</span><div><div style="font-size:12px;font-weight:600">Accounts</div><div style="font-size:10px;color:var(--text-tertiary)">Balances, debts, hold and drag to reorder</div></div></div>';
   html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">📊</span><div><div style="font-size:12px;font-weight:600">Insights</div><div style="font-size:10px;color:var(--text-tertiary)">Health score, trends, AI advice</div></div></div>';
-  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">⚙️</span><div><div style="font-size:12px;font-weight:600">Settings</div><div style="font-size:10px;color:var(--text-tertiary)">Accounts, categories, security, backup</div></div></div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg-primary);border-radius:10px"><span style="font-size:20px">⚙️</span><div><div style="font-size:12px;font-weight:600">Settings</div><div style="font-size:10px;color:var(--text-tertiary)">Categories, security, backup</div></div></div>';
   html += '</div>';
   html += '<div style="margin-top:14px;padding:10px 12px;background:var(--accent-light);border-radius:8px;text-align:center"><div style="font-size:11px;font-weight:600;color:var(--accent)">💡 Start by adding your first transaction!</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">Tap the purple + button at the bottom right</div></div>';
   html += '<button class="btn bp" style="width:100%;margin-top:14px;justify-content:center" onclick="dismissQuickStart()">Got it, let\'s go!</button>';
@@ -569,8 +686,8 @@ function showOnboarding() {
   var steps = [
     { title: 'Hey there! 👋', desc: 'FinTrack keeps your money data private, offline, and always in your control. No cloud, no ads, no tracking. Let\'s get you set up in under 3 minutes.', icon: '👋', hasInput: true },
     { title: 'Pick Your Currency', desc: 'What currency do you think in? We\'ll display everything in this. You can still have accounts in other currencies, they auto-convert.\n\n→ Settings → General → Currency', icon: '💱' },
-    { title: 'Where\'s Your Money?', desc: 'Add your real accounts: bank savings, current account, e-wallets, cash stash. Set the starting balance so we know where you\'re starting from.\n\n→ Settings → Categories & Accounts → Accounts', icon: '🏦' },
-    { title: 'How Do You Spend?', desc: 'Create categories that match YOUR life. Salary, freelance gigs for income. Food, transport, subscriptions for expenses. Emergency fund, travel fund for savings.\n\n→ Settings → Categories & Accounts', icon: '🏷️' },
+    { title: 'Where\'s Your Money?', desc: 'Add your real accounts: bank savings, current account, e-wallets, cash stash. Set the starting balance so we know where you\'re starting from.\n\n→ Accounts in the sidebar (or tap Net Worth on Home)', icon: '🏦' },
+    { title: 'How Do You Spend?', desc: 'Create categories that match YOUR life. Salary, freelance gigs for income. Food, transport, subscriptions for expenses. Emergency fund, travel fund for savings.\n\n→ Settings → Categories', icon: '🏷️' },
     { title: 'Set Your Limits', desc: 'Tell us how much you WANT to spend per category each month. We\'ll alert you before you overshoot. Copy one month to all 12 for instant setup.\n\n→ Goals → Budget Planner', icon: '🎯' },
     { title: 'Log Your First Transaction', desc: 'Tap the purple + button. Pick type, category, account, amount. Done. Every transaction auto-updates your dashboard, goals, and insights.\n\n→ Tap + anywhere', icon: '✍️' },
     { title: 'Dream Bigger', desc: 'Want a Japan trip? Emergency fund? New laptop? Create a goal, link it to a Savings category. Every time you save, the progress bar moves automatically.\n\n→ Goals → + New Goal', icon: '🚀' },
@@ -679,7 +796,7 @@ async function completeFirstTimeSetup() {
   var sa1 = document.getElementById('setup_sa1') ? document.getElementById('setup_sa1').value.trim() : '';
   var sq2 = document.getElementById('setup_sq2') ? parseInt(document.getElementById('setup_sq2').value) : 1;
   var sa2 = document.getElementById('setup_sa2') ? document.getElementById('setup_sa2').value.trim() : '';
-  if (!pin || pin.length < 4) { toast('❌ PIN must be at least 4 characters'); return; }
+  if (!pin || pin.length < 6) { toast('❌ PIN must be at least 6 characters'); return; }
   if (pin !== confirm) { toast('❌ PINs do not match'); return; }
   if (!sa1 || !sa2) { toast('❌ Please answer both security questions'); return; }
   if (sq1 === sq2) { toast('❌ Choose two different questions'); return; }
@@ -753,7 +870,7 @@ const FINTRACK_CHANGELOG = {
     date: '11 Aug 2026',
     changes: [
       'IndexedDB dual-write engine (safeGet/safeSave across all modules)',
-      'PBKDF2 PIN hashing (100K iterations) + per-device salt',
+      'SHA-256 PIN hashing (real PBKDF2 arrived in V2.0.4)',
       'Session idle auto-lock (5 min)',
       'XSS sanitization (escapeHTML) on all inputs',
       'Backup reminder every 50 transactions',
@@ -807,6 +924,32 @@ const FINTRACK_CHANGELOG = {
       'Auto-categorization integrated into quick-add description field',
       'Supabase sync: fixed category mapping, merge-on-pull, UUID IDs, 72h auto-push',
       'Desktop keeps full form modal (unchanged)'
+    ]
+  },
+  'fintrack-v2.0.4': {
+    version: 'V2.0.4',
+    date: '24 Sep 2026',
+    changes: [
+      'PIN security: PBKDF2 (100,000 rounds) + random salt. Old PINs upgrade automatically on next unlock',
+      'Wrong PIN lockout: 5 tries, then 30s up to 15 min. Survives app restart',
+      'Forgot PIN with no recovery: verify with your cloud password, or erase this phone (old RESET bypass removed)',
+      'New PINs need at least 6 characters',
+      'Recovery reminder: Later asks again next launch, or pick Do not show again',
+      'Transfers: one transfer type. Moving money between your own accounts no longer changes net worth',
+      'Transfer fee now updates or disappears when you edit or delete the transfer. Same From and To account blocked',
+      'Liabilities: amount owed is calculated from your payments, so edits never subtract twice',
+      'Net worth fixed for non-MYR display currency (no more double conversion)',
+      'Default currency picked from your region on first launch (change anytime in Settings)',
+      'Base currency per user: new users store amounts in their own currency. Existing data stays MYR',
+      'Reset All Data: 3-step warning, clears storage fully',
+      'Full JSON backup (goals, budgets, investments, reminders, base currency) + fixed CSV import',
+      'Big data lives in IndexedDB, no more 5 MB limit',
+      'Cloud sync downloads everything (not just first 1,000 rows), shows real errors, keeps transfer and liability links',
+      'Data Health Check in Settings → System',
+      'Delete account: move or delete its transactions',
+      'Smaller, tidier buttons in Settings',
+      'Accounts: hold and drag to reorder (arrow buttons removed)',
+      'New Accounts page: tap Net Worth on Home (or Accounts in the sidebar). Categories stay in Settings'
     ]
   }
 };
