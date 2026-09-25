@@ -289,6 +289,30 @@ function saveACCOUNTS() { safeSave('ft_accounts', JSON.stringify(ACCOUNTS)); saf
 // 3. Liability balance is CALCULATED: amount owed (initialBalance) minus every Expense linked to it (tx.liab).
 //    Editing or deleting a loan payment now updates the loan automatically. initialBalance is never mutated by payments.
 function ftIsXfer(tx) { return tx.t === 'Savings' || tx.t === 'Transfer'; }
+
+// === V2.0.5 SAVINGS RULES ===
+// 4. Savings = Income - Expense (money you kept, whatever account it sits in). Transfers never count as savings.
+// 5. "Set aside" = money moved INTO a Savings/Investment account (minus money taken back out). Shown separately.
+//    Old transfers without a destination (KWSP, ASB rows from imports) count as set aside.
+var FT_SAVE_ACC_TYPES = ['Savings Account', 'Investment Account'];
+function ftIsSaveAcc(accId) {
+  if (!accId) return false;
+  var a = ACCOUNTS.find(function(x) { return x.id === accId; });
+  return !!a && FT_SAVE_ACC_TYPES.indexOf(a.accountType) !== -1;
+}
+// +a = set aside, -a = taken back out of savings, 0 = just moving money around
+function ftSetAsideNet(tx) {
+  if (!ftIsXfer(tx)) return 0;
+  if (!tx.toAcc) return tx.a;
+  var fromSave = ftIsSaveAcc(tx.acc), toSave = ftIsSaveAcc(tx.toAcc);
+  if (toSave && !fromSave) return tx.a;
+  if (fromSave && !toSave) return -tx.a;
+  return 0;
+}
+// Direction for category-linked goals: a withdrawal out of a savings account lowers the goal
+function ftXferSign(tx) {
+  return tx.toAcc && ftIsSaveAcc(tx.acc) && !ftIsSaveAcc(tx.toAcc) ? -1 : 1;
+}
 function ftTxnNet(tx) {
   if (tx.t === 'Income') return tx.a;
   if (tx.t === 'Expense') return -tx.a;
@@ -464,15 +488,15 @@ function getFinancialFreedomMonths(year, month) {
   return parseFloat((totalAssetsMYR / avgMonthlyExpense).toFixed(1));
 }
 
-// Compute savings categories from TXN for any year/month
+// Compute savings categories from TXN for any year/month (V2.0.5: set-aside money only, withdrawals subtract)
 function computeSavingsCategories(year, month) {
   const cats = {};
   TXN.filter(tx => {
     const d = new Date(tx.d);
-    if (tx.t !== 'Savings') return false;
+    if (!ftIsXfer(tx) || ftSetAsideNet(tx) === 0) return false;
     if (month === 'total') return d.getFullYear() === year;
     return d.getFullYear() === year && d.getMonth() === +month;
-  }).forEach(tx => { if (!cats[tx.c]) cats[tx.c] = 0; cats[tx.c] += tx.a; });
+  }).forEach(tx => { if (!cats[tx.c]) cats[tx.c] = 0; cats[tx.c] += ftSetAsideNet(tx); });
   return Object.entries(cats).map(([n, a]) => ({ n, a: Math.round(a * 100) / 100 })).sort((a, b) => b.a - a.a);
 }
 
@@ -738,23 +762,28 @@ function getBANKS() {
 // === COMPUTED DATA (derived from TXN) ===
 // NOTE: tx.a is already in MYR (base currency, converted at save time). No further conversion needed.
 
-// Transfer detection: exclude from income/expense totals
+// Transfer detection: exclude from income/expense totals (V2.0.5: now matches the real transfer type)
 function isTransfer(tx) {
-  return tx.t === 'Transfer';
+  return ftIsXfer(tx);
 }
 
+// V2.0.5: s = Income - Expense (real savings, can be negative). sa = set aside into Savings/Investment accounts.
 function computeMonthlyData(year) {
   const months = [];
   for (let m = 0; m < 12; m++) {
-    const mTxns = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m && !isTransfer(t); });
+    const all = TXN.filter(t => { const d = new Date(t.d); return d.getFullYear() === year && d.getMonth() === m; });
+    const mTxns = all.filter(t => !isTransfer(t));
     const adj = mTxns.filter(t => t.c === 'Balance Adjustment');
     const adjUp = adj.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0);
     const adjDown = adj.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0);
+    const i = mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0);
+    const e = mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0);
     months.push({
       m: MONTH_NAMES[m],
-      i: mTxns.filter(t => t.t === 'Income').reduce((s, t) => s + t.a, 0),
-      e: mTxns.filter(t => t.t === 'Expense').reduce((s, t) => s + t.a, 0),
-      s: mTxns.filter(t => t.t === 'Savings').reduce((s, t) => s + t.a, 0),
+      i: i,
+      e: e,
+      s: i - e,
+      sa: all.reduce((s, t) => s + ftSetAsideNet(t), 0),
       adj: adjUp - adjDown
     });
   }
