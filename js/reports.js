@@ -131,8 +131,10 @@ function rptGeneratePreview() {
 function rptGetSummaryCards(txns) {
   var inc = txns.filter(function(t){return t.t==='Income';}).reduce(function(s,t){return s+t.a;},0);
   var exp = txns.filter(function(t){return t.t==='Expense';}).reduce(function(s,t){return s+t.a;},0);
-  var sav = txns.filter(function(t){return t.t==='Savings';}).reduce(function(s,t){return s+t.a;},0);
-  var net = inc - exp - sav;
+  // V2.0.5: savings = income - expense. Set aside = moved into Savings/Investment accounts.
+  var sav = inc - exp;
+  var setAside = txns.reduce(function(s,t){return s+ftSetAsideNet(t);},0);
+  var net = txns.reduce(function(s,t){return s+ftTxnNet(t);},0); // V2.0.4: own-account transfers don't count
 
   if (rptType === 'financial' || rptType === 'cashflow') {
     var pv = typeof getPortfolioValue === 'function' ? getPortfolioValue() : 0;
@@ -149,7 +151,7 @@ function rptGetSummaryCards(txns) {
     return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Expense</div><div class="rpt-kpi-value" style="color:var(--rose)">' + fmt(exp) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Expense';}).length + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Top Category</div><div class="rpt-kpi-value">' + (topCat ? topCat[0] : '-') + '</div></div></div>';
   }
   if (rptType === 'savings') {
-    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Savings</div><div class="rpt-kpi-value" style="color:var(--blue)">' + fmt(sav) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Savings Rate</div><div class="rpt-kpi-value">' + (inc > 0 ? (sav/inc*100).toFixed(1) + '%' : '0%') + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Savings';}).length + '</div></div></div>';
+    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Savings</div><div class="rpt-kpi-value" style="color:var(--blue)">' + fmt(sav) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Savings Rate</div><div class="rpt-kpi-value">' + (inc > 0 ? (sav/inc*100).toFixed(1) + '%' : '0%') + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Set Aside</div><div class="rpt-kpi-value" style="color:var(--blue)">' + fmt(setAside) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transfers</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Savings';}).length + '</div></div></div>';
   }
   if (rptType === 'budget') {
     var budgetYear = getSelectedYear();
@@ -172,8 +174,8 @@ function rptGetSummaryCards(txns) {
   }
   if (rptType === 'networth') {
     var nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
-    var assets = ACCOUNTS.filter(function(a){return a.type==='asset';}).reduce(function(s,a){return s+getAccountBalance(a.id);},0);
-    var liab = ACCOUNTS.filter(function(a){return a.type==='liability';}).reduce(function(s,a){return s+Math.abs(a.initialBalance);},0);
+    var assets = ACCOUNTS.filter(function(a){return a.type==='asset';}).reduce(function(s,a){return s+ftAccBalanceMYR(a.id);},0);
+    var liab = ftLiabilitiesMYR();
     return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Net Worth</div><div class="rpt-kpi-value" style="color:var(--accent)">' + fmt(nw) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Total Assets</div><div class="rpt-kpi-value" style="color:var(--emerald)">' + fmt(assets) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Total Liabilities</div><div class="rpt-kpi-value" style="color:var(--rose)">' + fmt(liab) + '</div></div></div>';
   }
   return '';
@@ -236,12 +238,12 @@ function rptNetWorthTable() {
   var html = '<table class="rpt-tbl"><thead><tr><th>Account</th><th>Type</th><th style="text-align:right">Balance</th></tr></thead><tbody>';
   var totalA = 0, totalL = 0;
   ACCOUNTS.filter(function(a){return a.type==='asset';}).forEach(function(a) {
-    var bal = getAccountBalance(a.id); totalA += bal;
+    var bal = ftAccBalanceMYR(a.id); totalA += bal;
     html += '<tr><td>' + a.name + '</td><td style="color:var(--emerald)">' + a.accountType + '</td><td style="text-align:right;font-weight:600">' + fmt(bal) + '</td></tr>';
   });
   ACCOUNTS.filter(function(a){return a.type==='liability';}).forEach(function(a) {
-    totalL += Math.abs(a.initialBalance);
-    html += '<tr><td>' + a.name + '</td><td style="color:var(--rose)">' + a.accountType + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">-' + fmt(Math.abs(a.initialBalance)) + '</td></tr>';
+    var owed = convertFromTo(ftLiabOwed(a), a.currency || FT_BASE, FT_BASE); totalL += owed;
+    html += '<tr><td>' + a.name + '</td><td style="color:var(--rose)">' + a.accountType + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">-' + fmt(owed) + '</td></tr>';
   });
   html += '</tbody><tfoot><tr><td colspan="2" style="font-weight:700">Net Worth</td><td style="text-align:right;font-weight:700;font-size:14px">' + fmt(totalA - totalL) + '</td></tr></tfoot></table>';
   return html;
@@ -267,10 +269,14 @@ function rptCashFlowTable(txns) {
   var incCats = {};
   var expCats = {};
   var savCats = {};
+  var internalMoves = 0; // V2.0.4: transfers between your own accounts (not money out)
   txns.forEach(function(tx) {
     if (tx.t === 'Income') { if (!incCats[tx.c]) incCats[tx.c] = 0; incCats[tx.c] += tx.a; }
     if (tx.t === 'Expense') { if (!expCats[tx.c]) expCats[tx.c] = 0; expCats[tx.c] += tx.a; }
-    if (tx.t === 'Savings') { if (!savCats[tx.c]) savCats[tx.c] = 0; savCats[tx.c] += tx.a; }
+    if (tx.t === 'Savings') {
+      if (tx.toAcc) { internalMoves += tx.a; return; }
+      if (!savCats[tx.c]) savCats[tx.c] = 0; savCats[tx.c] += tx.a;
+    }
   });
 
   var totalInc = Object.values(incCats).reduce(function(s,v){return s+v;},0);
@@ -308,6 +314,9 @@ function rptCashFlowTable(txns) {
     });
     html += '<tr class="rpt-pnl-subtotal"><td style="font-weight:700">Total Savings</td><td style="text-align:right;font-weight:800;color:var(--blue)">(' + fmt(totalSav) + ')</td></tr>';
     html += '</tbody>';
+  }
+  if (internalMoves > 0) {
+    html += '<tbody><tr><td style="padding-left:24px;color:var(--text-tertiary)">Moved between your own accounts (not counted)</td><td style="text-align:right;color:var(--text-tertiary)">' + fmt(internalMoves) + '</td></tr></tbody>';
   }
 
   // NET CASH FLOW
