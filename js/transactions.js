@@ -67,7 +67,7 @@ function renderMobileTransactions(c) {
 
     // v15.8.2: Calculate daily total expense for this date
     const dayExpense = txns.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
-    const dayExpLabel = dayExpense > 0 ? `<span class="mob-txn-day-total">-${fmtD(dayExpense)}</span>` : '';
+    const dayExpLabel = dayExpense > 0 ? `<span class="mob-txn-day-total ft-amt">-${fmtD(dayExpense)}</span>` : '';
 
     listHtml += `<div class="mob-txn-date-header">${dateLabel}${dayExpLabel}</div>`;
     txns.forEach(tx => {
@@ -78,13 +78,15 @@ function renderMobileTransactions(c) {
       const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
       const toAccName = tx.toAcc ? (ACCOUNTS.find(a => a.id === tx.toAcc)?.name || '') : '';
       const meta = tx.t === 'Savings' && accName && toAccName ? accName + ' → ' + toAccName : [tx.c, tx.s, accName].filter(Boolean).join(' · ');
-      listHtml += `<div class="mob-txn-row" data-type="${tx.t}" onclick="doAuth('edit','${String(tx.id).replace(/'/g, "\\'")}')">
+      // V2.0.5: type limited to the 3 real values, id passed safely (a backslash in an id could break out before)
+      const typeAttr = (tx.t === 'Income' || tx.t === 'Expense' || tx.t === 'Savings') ? tx.t : 'Expense';
+      listHtml += `<div class="mob-txn-row" data-type="${typeAttr}" onclick="doAuth('edit',${ftArg(tx.id)})">
         <div class="mob-txn-cat-dot" style="background:${bgColor}">${emoji}</div>
         <div class="mob-txn-info">
-          <div class="mob-txn-name">${tx.dt || tx.c}</div>
-          <div class="mob-txn-meta">${meta}</div>
+          <div class="mob-txn-name">${ftEsc(tx.dt || tx.c)}</div>
+          <div class="mob-txn-meta">${ftEsc(meta)}</div>
         </div>
-        <div class="mob-txn-amount" style="color:${amtColor}">${sign}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : tx.cur + ' ') + tx.origAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</div>
+        <div class="mob-txn-amount" style="color:${amtColor}">${sign}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : ftEsc(tx.cur) + ' ') + (Number(tx.origAmt) || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</div>
       </div>`;
     });
   });
@@ -157,8 +159,8 @@ function renderTxnTable() {
       const _fromAcc = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
       const _toAcc = tx.toAcc ? (ACCOUNTS.find(a => a.id === tx.toAcc)?.name || '') : '';
       const detailText = tx.t === 'Savings' && _fromAcc && _toAcc ? _fromAcc + ' → ' + _toAcc + (tx.dt ? ' · ' + tx.dt : '') : (tx.dt || '-');
-      const txIdEsc = String(tx.id).replace(/'/g, "\\'");
-      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${typeLabel}</span></td><td>${tx.c}</td><td>${tx.s || '-'}</td><td style="color:var(--text-tertiary)">${detailText}</td><td class="${acl}" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : tx.cur + ' ') + tx.origAmt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit','${txIdEsc}')">✏️</button><button class="abtn del" style="background:var(--rose-light);border-radius:6px;min-width:28px;min-height:28px" onclick="doAuth('delete','${txIdEsc}')">🗑</button></div></td></tr>`;
+      const txIdArg = ftArg(tx.id); // V2.0.5: safe id inside onclick
+      return `<tr><td>${new Date(tx.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</td><td><span class="tb ${cl}">${ftEsc(typeLabel)}</span></td><td>${ftEsc(tx.c)}</td><td>${ftEsc(tx.s || '-')}</td><td style="color:var(--text-tertiary)">${ftEsc(detailText)}</td><td class="${acl} ft-amt" style="text-align:right">${tx.t === 'Expense' ? '-' : ''}${tx.origAmt && tx.cur ? (CURRENCY_CONFIG[tx.cur] ? CURRENCY_CONFIG[tx.cur].symbol : ftEsc(tx.cur) + ' ') + (Number(tx.origAmt) || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}) : fmtD(tx.a)}</td><td><div class="ab"><button class="abtn" onclick="doAuth('edit',${txIdArg})">✏️</button><button class="abtn del" style="background:var(--rose-light);border-radius:6px;min-width:28px;min-height:28px" onclick="doAuth('delete',${txIdArg})">🗑</button></div></td></tr>`;
     }).join('');
   }
   document.getElementById('txinfo').textContent = f.length ? `${start + 1}-${Math.min(start + pp, f.length)} of ${f.length}` : '';
@@ -167,15 +169,46 @@ function renderTxnTable() {
 // === ADD/EDIT MODAL ===
 function openAdd() {
   const isEdit = editId !== null;
-  const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
-  const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+  const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${ftEsc(a.id)}">${ftEsc(a.name)}</option>`).join('');
+  const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${ftEsc(a.id)}">${ftEsc(a.name)}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',\'' + String(editId).replace(/[^\w-]/g, '') + '\')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr" id="catRow"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl" id="accLabel">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="toAccRow" style="display:none"><label class="fl">To Account *</label><select class="fi" id="f_toAcc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><div style="display:flex;gap:6px;align-items:center"><span id="feeCurLabel" style="font-size:12px;font-weight:700;color:var(--text-tertiary);min-width:30px"></span><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)" style="flex:1"></div></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',\'' + String(editId).replace(/[^\w-]/g, '') + '\')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${ftLocalISO()}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr" id="catRow"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl" id="accLabel">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="toAccRow" style="display:none"><label class="fl">To Account *</label><select class="fi" id="f_toAcc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><div style="display:flex;gap:6px;align-items:center"><span id="feeCurLabel" style="font-size:12px;font-weight:700;color:var(--text-tertiary);min-width:30px"></span><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)" style="flex:1"></div></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px" onchange="this.dataset.touched='1';ftUpdateConvHint()">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1" oninput="ftUpdateConvHint()"></div><div id="f_conv" style="display:none;font-size:10px;color:var(--text-tertiary);margin-top:4px"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   lucide.createIcons();
   // Bootstrap category memory on first modal open
   if (typeof bootstrapCatMemory === 'function') bootstrapCatMemory();
+}
+
+// === FOREIGN CURRENCY ESTIMATE (V2.0.5) ===
+// Value in your default currency (the one shown across the app), using the same rounding as Save.
+function ftDefaultEstimate(amt, cur) {
+  const base = cur === FT_BASE ? amt : Math.round(convertFromTo(amt, cur, FT_BASE) * 100) / 100;
+  return convertFromTo(base, FT_BASE, displayCurrency);
+}
+// Live line under the amount: "≈ RM 470.81 in MYR (your default)". Also keeps the fee symbol in step.
+function ftUpdateConvHint() {
+  const curEl = document.getElementById('f_cur');
+  const aEl = document.getElementById('f_a');
+  const hint = document.getElementById('f_conv');
+  const feeLbl = document.getElementById('feeCurLabel');
+  if (feeLbl && curEl) { const cfg = CURRENCY_CONFIG[curEl.value] || CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR; feeLbl.textContent = cfg.symbol; }
+  if (!hint || !curEl) return;
+  const cur = curEl.value;
+  const amt = parseFloat(aEl ? aEl.value : '');
+  if (cur === displayCurrency || !CURRENCY_CONFIG[cur]) { hint.style.display = 'none'; hint.textContent = ''; return; }
+  const mask = typeof ftMaskAmounts === 'function' ? ftMaskAmounts : (s => s);
+  hint.style.display = 'block';
+  hint.textContent = Number.isFinite(amt) && amt > 0
+    ? mask('≈ ' + fmtIn(ftDefaultEstimate(amt, cur), displayCurrency) + ' in ' + displayCurrency + ' (your default)')
+    : 'Saved in ' + cur + '. Type the amount to see it in ' + displayCurrency + '.';
+}
+// Text added to the "saved" message: " · $100.00 ≈ RM 470.81" (empty when you used your default currency)
+function ftEstimateNote(tx, cur) {
+  if (!cur || cur === displayCurrency || !CURRENCY_CONFIG[cur]) return '';
+  const entered = cur === FT_BASE ? tx.a : Number(tx.origAmt);
+  if (!(entered > 0)) return '';
+  return ' · ' + fmtIn(entered, cur) + ' ≈ ' + fmtIn(convertFromTo(tx.a, FT_BASE, displayCurrency), displayCurrency);
 }
 
 function qaClose() {
@@ -200,7 +233,7 @@ function cascType() {
   c.innerHTML = `<option value="">${t('txn_select')}</option>`;
   s.innerHTML = '<option value="">-</option>';
   if (tp && tp !== 'Savings' && SCHEMA[tp]) {
-    Object.keys(SCHEMA[tp]).forEach(k => { c.innerHTML += '<option value="' + k + '">' + k + '</option>'; });
+    c.innerHTML += Object.keys(SCHEMA[tp]).map(k => '<option value="' + ftEsc(k) + '">' + ftEsc(k) + '</option>').join('');
   }
   // Show/hide account rows based on type
   const accRow = document.getElementById('accRow');
@@ -211,14 +244,15 @@ function cascType() {
     accRow.style.display = (tp === 'Income' || tp === 'Expense' || tp === 'Savings') ? 'block' : 'none';
     const accSel = document.getElementById('f_acc');
     if (accSel) {
-      accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || FT_BASE) + ')</option>').join('');
-      // Auto-sync currency when account is selected
+      accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + ftEsc(a.id) + '">' + ftEsc(a.name) + ' (' + ftEsc(a.currency || FT_BASE) + ')</option>').join('');
+      // V2.0.5: the currency YOU pick always wins. The account only pre-fills it while you haven't
+      // touched the currency box and no amount is typed yet (before, picking a MYR account turned USD 100 into RM 100).
       accSel.onchange = function() {
         const acc = ACCOUNTS.find(a => a.id === accSel.value);
-        if (acc && acc.currency) {
-          const curEl = document.getElementById('f_cur');
-          if (curEl) curEl.value = acc.currency;
-        }
+        const curEl = document.getElementById('f_cur');
+        const aEl = document.getElementById('f_a');
+        if (acc && acc.currency && CURRENCY_CONFIG[acc.currency] && curEl && curEl.dataset.touched !== '1' && !(aEl && aEl.value)) curEl.value = acc.currency;
+        ftUpdateConvHint();
       };
     }
   }
@@ -226,7 +260,7 @@ function cascType() {
     liabRow.style.display = tp === 'Expense' ? 'block' : 'none';
     const liabSel = document.getElementById('f_liab');
     if (liabSel) {
-      liabSel.innerHTML = '<option value="">None (regular expense)</option>' + ACCOUNTS.filter(a => a.type === 'liability').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+      liabSel.innerHTML = '<option value="">None (regular expense)</option>' + ACCOUNTS.filter(a => a.type === 'liability').map(a => '<option value="' + ftEsc(a.id) + '">' + ftEsc(a.name) + '</option>').join('');
       liabSel.dataset.need = ''; liabSel.style.border = ''; // V2.0.5: reset the "pick a loan" rule on type change
     }
   }
@@ -236,7 +270,7 @@ function cascType() {
     toAccRow.style.display = tp === 'Savings' ? 'block' : 'none';
     const toAccSel = document.getElementById('f_toAcc');
     if (toAccSel) {
-      toAccSel.innerHTML = '<option value="">Select destination</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || FT_BASE) + ')</option>').join('');
+      toAccSel.innerHTML = '<option value="">Select destination</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + ftEsc(a.id) + '">' + ftEsc(a.name) + ' (' + ftEsc(a.currency || FT_BASE) + ')</option>').join('');
     }
   }
   // Show fee field for Transfers only
@@ -258,7 +292,7 @@ function cascCat() {
   const s = document.getElementById('f_s');
   s.innerHTML = '<option value="">-</option>';
   if (tp && cat && SCHEMA[tp] && SCHEMA[tp][cat] && SCHEMA[tp][cat].length) {
-    SCHEMA[tp][cat].forEach(v => { s.innerHTML += '<option value="' + v + '">' + v + '</option>'; });
+    s.innerHTML += SCHEMA[tp][cat].map(v => '<option value="' + ftEsc(v) + '">' + ftEsc(v) + '</option>').join('');
   }
   // Smart liability auto-link when subcategory changes
   if (s) {
@@ -295,6 +329,11 @@ function saveTxn(e) {
   e.preventDefault();
   const txType = document.getElementById('f_t').value;
   const data = { d: document.getElementById('f_d').value, t: txType, c: txType === 'Savings' ? 'Transfer' : document.getElementById('f_c').value, s: txType === 'Savings' ? '' : (document.getElementById('f_s').value || ''), a: parseFloat(document.getElementById('f_a').value), dt: document.getElementById('f_dt').value || '' };
+  // V2.0.5: amount must be a real number above 0 (a minus Expense would ADD money)
+  if (!Number.isFinite(data.a) || data.a <= 0) { toast('❌ Amount must be more than 0'); document.getElementById('f_a').focus(); return; }
+  if (data.a > 1e9) { toast('❌ Amount too large, check the number'); document.getElementById('f_a').focus(); return; }
+  const _feeRaw = document.getElementById('f_fee') ? document.getElementById('f_fee').value : '';
+  if (txType === 'Savings' && _feeRaw !== '' && (!Number.isFinite(parseFloat(_feeRaw)) || parseFloat(_feeRaw) < 0)) { toast('❌ Fee cannot be negative'); return; }
   // Currency for this transaction
   const curEl = document.getElementById('f_cur');
   const txnCurrency = curEl ? curEl.value : displayCurrency;
@@ -305,6 +344,15 @@ function saveTxn(e) {
     data.origAmt = parseFloat(document.getElementById('f_a').value); // Store original amount
   }
   else { data.cur = undefined; data.origAmt = undefined; } // V2.0.4: editing back to base clears the old foreign amount
+  // V2.0.5: an edit that keeps the same amount + currency keeps the ORIGINAL key-in rate
+  // (before, every edit re-priced it at today's rate). A new amount or currency = a new key-in:
+  // data.fx is cleared so saveTXN saves the rate of right now.
+  if (editId) {
+    const old = TXN.find(tx => tx.id === editId);
+    const same = !!old && (data.cur ? (old.cur === data.cur && Number(old.origAmt) === data.origAmt) : (!old.cur && Number(old.a) === data.a));
+    if (same && data.cur && Number.isFinite(Number(old.a)) && Number(old.a) > 0) data.a = Number(old.a);
+    if (!same) data.fx = undefined;
+  }
   // Account linking. V2.0.4: always set every link field, so an edit can also REMOVE a link
   // (old code kept the previous liab/fee when you changed type, e.g. Expense -> Transfer).
   const accEl = document.getElementById('f_acc');
@@ -321,14 +369,15 @@ function saveTxn(e) {
   const feeAmt = feeEl ? parseFloat(feeEl.value) : 0;
   data.fee = (feeAmt > 0 && data.t === 'Savings') ? feeAmt : undefined;
   let saved;
+  const estNote = ftEstimateNote(data, txnCurrency); // V2.0.5: " · $100.00 ≈ RM 470.81"
   if (editId) {
     const i = TXN.findIndex(tx => tx.id === editId);
     if (i >= 0) { const before = { ...TXN[i] }; TXN[i] = { ...TXN[i], ...data }; saved = TXN[i]; ftSyncFeeTxn(saved, before, txnCurrency); }
-    toast(t('txn_updated'));
+    toast(t('txn_updated') + estNote, estNote ? 5000 : 0);
   } else {
     data.id = generateTxnId(); TXN.push(data); saved = data;
     ftSyncFeeTxn(saved, null, txnCurrency);
-    toast(t('txn_added'));
+    toast(t('txn_added') + estNote, estNote ? 5000 : 0);
   }
   // V2.0.4: liability payments are NOT subtracted from the loan here any more.
   // The loan balance is calculated from linked payments (data.js ftLiabOwed), so edit/delete stay correct.
@@ -480,13 +529,13 @@ function verifyPK() {
 function doEdit(id) {
   const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
   editId = tx.id; openAdd();
-  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || FT_BASE; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.toAcc) { const toAccEl = document.getElementById('f_toAcc'); if (toAccEl) toAccEl.value = tx.toAcc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } if (tx.fee) { const feeEl = document.getElementById('f_fee'); if (feeEl) feeEl.value = tx.fee; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
+  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) { curEl.value = tx.cur || FT_BASE; curEl.dataset.touched = '1'; } if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.toAcc) { const toAccEl = document.getElementById('f_toAcc'); if (toAccEl) toAccEl.value = tx.toAcc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } if (tx.fee) { const feeEl = document.getElementById('f_fee'); if (feeEl) feeEl.value = tx.fee; } document.querySelector('.mti').textContent = t('txn_edit_title'); ftUpdateConvHint(); }, 30);
 }
 
 function doDelConfirm(id) {
   const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
   pendAct = { action: 'delete', id: tx.id };
-  const h = `<div class="mo show" id="mdel" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('del_title')}</div><div class="mds">${t('del_desc')}</div></div></div><div style="padding:12px;background:var(--rose-light);border-radius:8px;font-size:12px;margin-bottom:16px"><b>${tx.c}</b> ${tx.s ? '/ ' + tx.s : ''} - ${fmtD(tx.a)}</div><div class="ma"><button class="btn bs" onclick="document.getElementById('mdel').remove();document.body.style.overflow=''">${t('del_cancel')}</button><button class="btn bd" onclick="execDel()">${t('del_delete')}</button></div></div></div>`;
+  const h = `<div class="mo show" id="mdel" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('del_title')}</div><div class="mds">${t('del_desc')}</div></div></div><div style="padding:12px;background:var(--rose-light);border-radius:8px;font-size:12px;margin-bottom:16px"><b>${ftEsc(tx.c)}</b> ${tx.s ? '/ ' + ftEsc(tx.s) : ''} - <span class="ft-amt">${fmtD(tx.a)}</span></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mdel').remove();document.body.style.overflow=''">${t('del_cancel')}</button><button class="btn bd" onclick="execDel()">${t('del_delete')}</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
@@ -516,10 +565,14 @@ function ftSyncFeeTxn(tx, before, txnCurrency) {
   fee.d = tx.d;
   fee.dt = 'Fee for transfer: ' + (tx.dt || tx.c);
   if (txnCurrency && txnCurrency !== FT_BASE) {
-    fee.a = Math.round(convertFromTo(tx.fee, txnCurrency, FT_BASE) * 100) / 100; fee.cur = txnCurrency; fee.origAmt = tx.fee;
-  } else { fee.a = tx.fee; delete fee.cur; delete fee.origAmt; }
+    // V2.0.5: same fee + currency as before = keep the key-in rate (old code re-priced it on every edit)
+    const keep = idx >= 0 && fee.cur === txnCurrency && Number(fee.origAmt) === Number(tx.fee) && Number(fee.a) > 0;
+    if (!keep) { fee.a = Math.round(convertFromTo(tx.fee, txnCurrency, FT_BASE) * 100) / 100; delete fee.fx; }
+    fee.cur = txnCurrency; fee.origAmt = tx.fee;
+  } else { if (fee.cur || Number(fee.a) !== Number(tx.fee)) delete fee.fx; fee.a = tx.fee; delete fee.cur; delete fee.origAmt; }
   if (tx.acc) fee.acc = tx.acc; else delete fee.acc;
   if (idx < 0) TXN.push(fee);
+  if (typeof ftStampFx === 'function') ftStampFx(); // save the key-in rate before it goes to the cloud
   if (canSync && ftSync.pushTransaction) ftSync.pushTransaction(fee);
 }
 
