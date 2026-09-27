@@ -45,6 +45,7 @@ function render() {
       case 'analytics': renderAnalytics(c); break;
       case 'reports': renderReports(c); break;
       case 'settings': renderSettings(c); break;
+      default: curPage = 'dashboard'; syncBottomNav('dashboard'); renderDashboard(c); break;
     }
   } catch (e) {
     console.error('[FinTrack] Page render error:', curPage, e);
@@ -62,7 +63,13 @@ function refresh() { render(); }
 // Back button pops history → navigates back. Double-back on Home exits app.
 let _lastBackTime = 0;
 
+// V2.0.5 (UI-15): only real pages. A typo / old saved page goes to Home instead of a half-broken screen
+var FT_PAGES = ['dashboard', 'transactions', 'investments', 'goals', 'accounts', 'analytics', 'reports', 'settings'];
+function ftSafePage(p) { return FT_PAGES.indexOf(p) === -1 ? 'dashboard' : p; }
+
 function navigate(page) {
+  page = ftSafePage(page);
+  var npn = document.getElementById('notifPanel'); if (npn) npn.remove();
   curPage = page;
   // Push to browser history so hardware back button works
   if (history.state?.page !== page) {
@@ -101,7 +108,13 @@ function navigate(page) {
 // Listen for popstate (hardware back button)
 window.addEventListener('popstate', function(e) {
   // Close any open modals first
-  const modal = document.querySelector('.mo.show') || document.querySelector('.bsheet.show') || document.getElementById('coverSheet') || document.getElementById('mobTxnSheet');
+  // V2.0.5: notification panel and the AI chat also close on Back first
+  const modal = document.querySelector('.mo.show') || document.querySelector('.bsheet.show') || document.getElementById('coverSheet') || document.getElementById('mobTxnSheet') || document.getElementById('notifPanel');
+  if (!modal && typeof aiOpen !== 'undefined' && aiOpen && typeof toggleAIChat === 'function') {
+    toggleAIChat();
+    history.pushState({ page: curPage }, '', '');
+    return;
+  }
   if (modal) {
     modal.remove();
     document.body.style.overflow = '';
@@ -112,6 +125,7 @@ window.addEventListener('popstate', function(e) {
 
   // If we have a previous page in state, go there
   if (e.state && e.state.page) {
+    e.state.page === ftSafePage(e.state.page) || (e = { state: { page: 'dashboard' } });
     // V2.0.4: Home <-> Accounts via the phone back button uses the same card morph
     if (typeof ftMorphNav === 'function' && ((curPage === 'accounts' && e.state.page === 'dashboard') || (curPage === 'dashboard' && e.state.page === 'accounts'))) {
       ftMorphNav(e.state.page);
