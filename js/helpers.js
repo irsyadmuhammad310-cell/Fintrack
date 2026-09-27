@@ -45,6 +45,7 @@ function applyHideAmounts() {
   // Target all money-displaying elements across all tabs
   const selectors = [
     '.mob-dash-amount',          // Mobile dashboard NW
+    '.ft-nw-sub',                // V2.0.5: Assets / Liabilities line under Net Worth (Home)
     '.mob-dash-stat-val',        // Mobile dashboard stats
     '.mob-txn-amount',           // Mobile transaction amounts
     '.mob-txn-pill-val',         // Transaction summary pills
@@ -60,6 +61,15 @@ function applyHideAmounts() {
     '.an-health-score',          // Health score number
     '.cover-alert-meta',         // Overspent amounts
     '.budget-prog-amt',          // Budget progress amounts
+    // V2.0.5 hidden-mode sweep: leaks found on Accounts, Home, Insights, Goals, Reports
+    '.ft-amt',                   // Generic money tag (Accounts: Starting / ≈ / Owed · Paid lines)
+    '.ft-acc-nw-val',            // Accounts page Net Worth number
+    '.mob-overspent-meta', '.mob-overspent-amt', '.dash-overspent-over', // Overspent alerts
+    '.an-goal-meta span',        // Insights goal saved / target
+    '.an-insight', '.ix',        // AI insight texts (they quote RM amounts)
+    '.cover-opt-avail', '.cover-preview-after', '.cover-preview-amt', '.cover-amt-input', // Goals cover sheet
+    '.rpt-kpi-value', '.rpt-tbl td', // Reports KPIs + table
+    '#cnt canvas',               // Charts (axes + tooltips show amounts)
     '[style*="font-feature-settings"]' // Any element with tnum (money formatting)
   ];
   document.querySelectorAll(selectors.join(',')).forEach(el => {
