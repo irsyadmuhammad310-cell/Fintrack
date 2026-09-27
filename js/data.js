@@ -569,6 +569,8 @@ function renameSubcategory(type, category, oldName, newName) {
   if (idx < 0) return false;
   SCHEMA[type][category][idx] = newName;
   TXN.forEach(tx => { if (tx.t === type && tx.c === category && tx.s === oldName) tx.s = newName; });
+  // V2.0.5: keep loan links when an Expense subcategory is renamed
+  if (type === 'Expense') { var lm = getLiabMap(); if (lm[oldName] !== undefined && lm[newName] === undefined) { lm[newName] = lm[oldName]; delete lm[oldName]; saveLiabMap(lm); } }
   // Sync Investment txnLinks if Savings subcategory renamed
   if (type === 'Savings' && typeof INVESTMENTS !== 'undefined') {
     INVESTMENTS.forEach(inv => { if (inv.txnLink && inv.txnLink.category === category && inv.txnLink.subcategory === oldName) inv.txnLink.subcategory = newName; });
@@ -692,13 +694,33 @@ function getMatchingLiabilities(category, subcategory) {
     var result = ids.map(id => liabs.find(a => a.id === id)).filter(Boolean);
     if (result.length) return result;
   }
-  // 2. Smart keyword matching: find liabilities whose name matches subcategory or category
-  var keywords = [subcategory, category].filter(Boolean).map(s => s.toLowerCase());
-  var matches = liabs.filter(a => {
-    var name = a.name.toLowerCase();
-    return keywords.some(kw => name.includes(kw) || kw.includes(name.split(' ')[0]));
-  });
-  return matches;
+  // 2. Fallback guess (V2.0.5): only loans NOT linked anywhere, and only by subcategory name.
+  //    (Old version also matched the category word "Loan", so every "... Loan" account matched every payment.)
+  var kw = String(subcategory || '').toLowerCase().trim();
+  if (!kw) return [];
+  return liabs.filter(a => !ftLiabOwnerSub(a.id) && a.name.toLowerCase().includes(kw));
+}
+
+// === V2.0.5 LOAN LINKS: one loan = one subcategory, many loans can share a subcategory ===
+// All loan ids linked to a subcategory (always an array, deleted accounts skipped)
+function ftLiabIdsForSub(sub) {
+  var v = sub ? getLiabMap()[sub] : null;
+  var ids = !v ? [] : Array.isArray(v) ? v : [v];
+  return ids.filter(function(id) { return ACCOUNTS.some(function(a) { return a.id === id && a.type === 'liability'; }); });
+}
+// Which subcategory a loan is linked to ('' = not linked)
+function ftLiabOwnerSub(accId) {
+  var map = getLiabMap(), keys = Object.keys(map);
+  for (var i = 0; i < keys.length; i++) {
+    var v = map[keys[i]];
+    if (v === accId || (Array.isArray(v) && v.indexOf(accId) !== -1)) return keys[i];
+  }
+  return '';
+}
+// Link a loan to ONE subcategory (moves it if it was linked elsewhere). sub '' = unlink.
+function ftSetLiabSub(accId, sub) {
+  Object.keys(getLiabMap()).forEach(function(k) { removeLiabFromSub(k, accId); });
+  if (sub) addLiabToSub(sub, accId);
 }
 
 let TXN = [];
