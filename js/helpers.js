@@ -86,7 +86,30 @@ function applyHideAmounts() {
   }
 }
 
-// MutationObserver: re-apply blur whenever #cnt content changes (covers all tab switches)
+// === AUTO-FIT NUMBERS (V2.0.5) ===
+// Any element with class "ft-fit" stays on ONE line and shrinks its font until it fits its box
+// (e.g. RM 123,456 in a small Cash Flow cell). Min 9px. Style-only, so it never re-triggers the observer.
+function ftFitText(root) {
+  (root || document).querySelectorAll('.ft-fit').forEach(function(el) {
+    if (!el.dataset.fitBase) el.dataset.fitBase = parseFloat(getComputedStyle(el).fontSize) || 16;
+    var size = parseFloat(el.dataset.fitBase);
+    el.style.whiteSpace = 'nowrap';
+    el.style.overflow = 'hidden';
+    el.style.textOverflow = 'clip';
+    el.style.fontSize = size + 'px';
+    if (!el.clientWidth) return; // hidden/not laid out yet
+    while (el.scrollWidth > el.clientWidth && size > 9) {
+      size -= 0.5;
+      el.style.fontSize = size + 'px';
+    }
+  });
+}
+var _ftFitTimer = null;
+function ftFitSoon() { clearTimeout(_ftFitTimer); _ftFitTimer = setTimeout(function() { ftFitText(); }, 60); }
+window.addEventListener('resize', ftFitSoon);
+window.addEventListener('orientationchange', ftFitSoon);
+
+// MutationObserver: re-apply blur + auto-fit whenever #cnt content changes (covers all tab switches)
 document.addEventListener('DOMContentLoaded', () => {
   const cnt = document.getElementById('cnt');
   if (cnt) {
@@ -94,11 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
       if (safeGet('ft_hide_amounts') === 'true') {
         setTimeout(applyHideAmounts, 50);
       }
+      ftFitSoon();
     });
     observer.observe(cnt, { childList: true, subtree: true });
   }
   // Initial apply
   setTimeout(applyHideAmounts, 200);
+  setTimeout(ftFitText, 250);
 });
 
 // === PIN SECURITY (V2.0.4: PBKDF2 100k + random salt; old SHA-256 hashes upgrade on next unlock) ===
