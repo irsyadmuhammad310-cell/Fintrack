@@ -276,7 +276,7 @@ const ftSync = {
             deadline: g.due || g.deadline || g.dl || null, // V2.0.5: app stores the deadline as g.due
             priority: g.priority || g.pri || 'medium',
             status: g.paused ? 'paused' : (g.completed ? 'completed' : 'active'),
-            note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '', acc: g.acc || '', accs: g.accs || [], base: g.base || 0, created: g.created || '' })
+            note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '', acc: g.acc || '', accs: g.accs || [], shares: g.shares || {}, base: g.base || 0, created: g.created || '' }) // V2.0.5: shares = % of each shared account
           };
         });
         ftCheck(await _supabase.from('goals').upsert(goalRows, { onConflict: 'id' }), 'Goals push');
@@ -455,6 +455,7 @@ const ftSync = {
             notes: meta.notes || '',
             acc: meta.acc || '',
             accs: meta.accs || [],
+            shares: (meta.shares && typeof meta.shares === 'object' && !Array.isArray(meta.shares)) ? meta.shares : {},
             base: meta.base || 0,
             created: meta.created || ''
           });
@@ -527,7 +528,7 @@ const ftSync = {
         deadline: goal.due || goal.deadline || goal.dl || null,
         priority: goal.priority || goal.pri || 'medium',
         status: goal.paused ? 'paused' : (goal.completed ? 'completed' : 'active'),
-        note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '', acc: goal.acc || '', accs: goal.accs || [], base: goal.base || 0, created: goal.created || '' })
+        note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '', acc: goal.acc || '', accs: goal.accs || [], shares: goal.shares || {}, base: goal.base || 0, created: goal.created || '' })
       }, { onConflict: 'id' }), 'Goal push');
     } catch (e) {
       console.warn('[FinTrack] Goal sync failed (next full push retries):', e.message);
