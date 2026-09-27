@@ -1,4 +1,12 @@
 // === GOALS & BUDGET (V2.0.0) ===
+// V2.0.5 (GOAL-CRASH): goals.js must still work when settings.js is an older copy or failed to load
+// ("ftRemArg is not defined"). These backups only fill in when missing; the settings.js versions always win.
+if (typeof ftEsc !== 'function') window.ftEsc = function(s) {
+  var M = { '&': '&' + 'amp;', '<': '&' + 'lt;', '>': '&' + 'gt;', '"': '&' + 'quot;', "'": '&' + '#39;' };
+  return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function(ch) { return M[ch]; });
+};
+if (typeof ftArg !== 'function') window.ftArg = function(s) { return ftEsc(JSON.stringify(String(s === null || s === undefined ? '' : s))); };
+if (typeof ftRemArg !== 'function') window.ftRemArg = function(id) { return (typeof id === 'number' && isFinite(id)) ? String(id) : ftArg(id); };
 let expandedGoal = null;
 let expandedCat = null;
 let goalBudgetYear = null;
