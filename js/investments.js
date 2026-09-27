@@ -26,6 +26,9 @@ function loadINV() {
   if (raw2) { try { INV_ACTIVITIES = JSON.parse(raw2); } catch(e) {} }
   var raw3 = safeGet(INV_WL_STORAGE);
   if (raw3) { try { INV_WATCHLIST = JSON.parse(raw3); } catch(e) {} }
+  // V2.0.5: corrupt storage must not crash the Investments page
+  var okList = function(v) { return Array.isArray(v) ? v.filter(function(x) { return x && typeof x === 'object'; }) : []; };
+  INVESTMENTS = okList(INVESTMENTS); INV_ACTIVITIES = okList(INV_ACTIVITIES); INV_WATCHLIST = okList(INV_WATCHLIST);
   var n1 = safeGet('ft_invNxId'); if (n1) invNxId = parseInt(n1);
   var n2 = safeGet('ft_invActNxId'); if (n2) invActNxId = parseInt(n2);
   var n3 = safeGet('ft_invWlNxId'); if (n3) invWlNxId = parseInt(n3);
@@ -48,7 +51,12 @@ function syncInvestmentsFromTXN() {
       if (tx.t !== 'Savings') return false;
       if (link.subcategory) return tx.c === link.category && tx.s === link.subcategory;
       return tx.c === link.category;
-    }).reduce(function(sum, tx) { return sum + tx.a; }, 0);
+    }).reduce(function(sum, tx) {
+      // V2.0.5: withdrawals subtract, savings→savings moves count 0
+      var sg = (typeof ftXferSign === 'function') ? ftXferSign(tx) : 1;
+      return sum + invNum(tx.a) * (isFinite(sg) ? sg : 1);
+    }, 0);
+    total = Math.max(0, total);
     if (inv.costBasis !== total) { inv.costBasis = total; inv.avgCost = inv.quantity > 0 ? total / inv.quantity : total; changed = true; }
   });
   if (changed) saveINV();
@@ -84,36 +92,41 @@ function txnLinkToValue(link) {
 }
 
 // === PORTFOLIO CALCULATIONS (sync: Dashboard/Analytics/Reports) ===
-function getPortfolioValue() { return INVESTMENTS.reduce((s, i) => s + i.currentValue, 0); }
-function getTotalInvested() { syncInvestmentsFromTXN(); return INVESTMENTS.reduce((s, i) => s + i.costBasis, 0); }
+// V2.0.5: bad numbers count as 0 so totals never become NaN
+function invNum(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+function getPortfolioValue() { return INVESTMENTS.reduce((s, i) => s + invNum(i.currentValue), 0); }
+function getTotalInvested() { syncInvestmentsFromTXN(); return INVESTMENTS.reduce((s, i) => s + invNum(i.costBasis), 0); }
 function getPortfolioPnL() { return getPortfolioValue() - getTotalInvested(); }
 function getPortfolioReturn() { const inv = getTotalInvested(); return inv > 0 ? ((getPortfolioPnL() / inv) * 100) : 0; }
 function getTotalDividends() { return INVESTMENTS.reduce((s, i) => s + (i.dividendReceived || 0), 0); }
 function getAssetAllocation() {
   const alloc = {};
   const total = getPortfolioValue();
-  INVESTMENTS.forEach(i => { if (!alloc[i.type]) alloc[i.type] = 0; alloc[i.type] += i.currentValue; });
+  INVESTMENTS.forEach(i => { if (!alloc[i.type]) alloc[i.type] = 0; alloc[i.type] += invNum(i.currentValue); });
   return Object.entries(alloc).map(([type, value]) => ({ type, value, pct: total > 0 ? (value / total * 100) : 0 })).sort((a, b) => b.value - a.value);
 }
 function getInvestmentsByPerformance() {
   return INVESTMENTS.map(i => {
-    const pnl = i.currentValue - i.costBasis;
-    const ret = i.costBasis > 0 ? (pnl / i.costBasis * 100) : 0;
+    const pnl = invNum(i.currentValue) - invNum(i.costBasis);
+    // V2.0.5: no cost recorded = return unknown (null), not a fake 0%
+    const cb = Number(i.costBasis);
+    const ret = isFinite(cb) && cb > 0 ? (pnl / cb * 100) : null;
     return { ...i, pnl, returnPct: ret };
-  }).sort((a, b) => b.returnPct - a.returnPct);
+  }).sort((a, b) => (b.returnPct === null ? -Infinity : b.returnPct) - (a.returnPct === null ? -Infinity : a.returnPct));
 }
 
 function getPortfolioSnapshots() {
-  const snaps = JSON.parse(safeGet(INV_SNAP_STORAGE) || '[]');
+  let snaps = (typeof ftJSON === 'function') ? ftJSON(INV_SNAP_STORAGE, []) : JSON.parse(safeGet(INV_SNAP_STORAGE) || '[]');
+    if (!Array.isArray(snaps)) snaps = [];
   if (snaps.length === 0) {
     const today = new Date();
     const generated = [];
     for (let i = 11; i >= 0; i--) {
       const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
       const factor = 1 - (i * 0.008) + (Math.random() * 0.02 - 0.01);
-      generated.push({ date: d.toISOString().split('T')[0], value: Math.round(getPortfolioValue() * factor), invested: Math.round(getTotalInvested() * (1 - i * 0.005)) });
+      generated.push({ date: ftLocalISO(d), value: Math.round(getPortfolioValue() * factor), invested: Math.round(getTotalInvested() * (1 - i * 0.005)) });
     }
-    generated.push({ date: today.toISOString().split('T')[0], value: getPortfolioValue(), invested: getTotalInvested() });
+    generated.push({ date: ftLocalISO(today), value: getPortfolioValue(), invested: getTotalInvested() });
     return generated;
   }
   return snaps;
@@ -142,12 +155,12 @@ function renderInvestments(c) {
       '<div class="kc pk"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="coins" width="14" height="14"></i></div><div class="kl">' + t('ai_investment') + '</div></div><div class="kv">' + fmt(dividends) + '</div></div></div>' +
     '</div></div>' +
     '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">' + t('inv_portfolio') + ' — Watchlist</div><div class="cs"></div></div><button class="btn bs" onclick="invShowWLModal()"><i data-lucide="plus" width="14" height="14"></i> ' + t('txn_add') + '</button></div><div class="inv-watchlist" id="invWatchlist">' + renderWatchlist() + '</div></div>' +
-    '<div class="inv-section"><div class="cc inv-perf-card"><div class="inv-perf-hdr"><div><div class="ct">' + t('inv_portfolio') + '</div><div class="cs"></div></div><div class="inv-perf-ctrls"><div class="seg inv-metric-seg"><button class="active" onclick="invSwitchMetric(\'value\')">Value</button><button onclick="invSwitchMetric(\'pnl\')">P&L</button></div><div class="seg inv-time-seg"><button onclick="invSwitchTime(\'1m\')">1M</button><button onclick="invSwitchTime(\'3m\')">3M</button><button onclick="invSwitchTime(\'6m\')">6M</button><button class="active" onclick="invSwitchTime(\'1y\')">1Y</button><button onclick="invSwitchTime(\'all\')">All</button></div></div></div><div style="height:220px;margin-top:12px"><canvas id="invPerfChart"></canvas></div></div></div>' +
+    '<div class="inv-section"><div class="cc inv-perf-card"><div class="inv-perf-hdr"><div><div class="ct">' + t('inv_portfolio') + '</div><div class="cs"></div></div><div class="inv-perf-ctrls"><div class="seg inv-metric-seg"><button class="active" onclick="invSwitchMetric(\'value\',this)">Value</button><button onclick="invSwitchMetric(\'pnl\',this)">P&L</button></div><div class="seg inv-time-seg"><button onclick="invSwitchTime(\'1m\',this)">1M</button><button onclick="invSwitchTime(\'3m\',this)">3M</button><button onclick="invSwitchTime(\'6m\',this)">6M</button><button class="active" onclick="invSwitchTime(\'1y\',this)">1Y</button><button onclick="invSwitchTime(\'all\',this)">All</button></div></div></div><div style="height:220px;margin-top:12px"><canvas id="invPerfChart"></canvas></div></div></div>' +
     '<div class="inv-section"><div class="inv-alloc-grid"><div class="cc"><div class="ct">' + t('inv_allocation') + '</div><div class="cs"></div><div style="height:220px;margin-top:8px"><canvas id="invAllocChart"></canvas></div></div><div class="cc"><div class="ct">' + t('inv_portfolio') + '</div><div class="cs"></div><div class="inv-alloc-list" id="invAllocList">' + renderPortfolioBreakdown() + '</div></div></div></div>' +
     '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">' + t('inv_holdings') + '</div><div class="cs">' + INVESTMENTS.length + ' ' + t('inv_assets') + '</div></div></div><div class="inv-holdings" id="invHoldings">' + renderHoldings() + '</div></div>' +
     '<div class="inv-section"><div class="inv-sec-hdr"><div><div class="ct">Recent Activities</div><div class="cs">Latest investment transactions</div></div></div><div class="inv-activities" id="invActivities">' + renderActivities() + '</div></div>' +
   '</div>' +
-  '<div class="mo" id="invModal"><div class="ml" style="max-width:520px"><div class="mh"><div><div class="mti" id="invModalTitle">Add Investment</div><div class="mds">Enter investment details</div></div><button class="mx" onclick="invCloseModal()"><i data-lucide="x" width="14" height="14"></i></button></div><form id="invForm" onsubmit="invSaveHolding(event)"><div class="fr"><div class="fg"><label class="fl">Investment Name *</label><input class="fi" id="invName" required></div><div class="fg"><label class="fl">Category *</label><select class="fi" id="invType" required>' + INV_CATEGORIES.map(function(ct){return '<option value="'+ct+'">'+ct+'</option>';}).join('') + '</select></div></div><div class="fg"><label class="fl">Link to Savings TXN</label><select class="fi" id="invTxnLink" onchange="invOnLinkChange()">' + getSavingsLinkOptions().map(function(o){return '<option value="'+o.value+'">'+o.label+'</option>';}).join('') + '</select><div style="font-size:10px;color:var(--text-tertiary);margin-top:3px">Linked = cost basis auto-synced from Savings transactions</div></div><div class="fr"><div class="fg"><label class="fl">Total Cost Basis</label><input class="fi" id="invCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Value</label><input class="fi" id="invValue" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Quantity / Units</label><input class="fi" id="invQty" type="number" step="0.0001" min="0" value="1"></div><div class="fg"><label class="fl">Purchase Date</label><input class="fi" id="invDate" type="date"></div></div><div class="fr"><div class="fg"><label class="fl">Avg Cost per Unit</label><input class="fi" id="invAvgCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Price per Unit</label><input class="fi" id="invUnitPrice" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Dividends Received</label><input class="fi" id="invDiv" type="number" step="0.01" min="0" value="0"></div><div class="fg"></div></div><div class="fg"><label class="fl">Notes</label><textarea class="fi" id="invNotes" rows="2" style="resize:vertical"></textarea></div><input type="hidden" id="invEditId"><div class="ma"><button type="button" class="btn bs" onclick="invCloseModal()">Cancel</button><button type="submit" class="btn bp" id="invSubmitBtn">Add Investment</button></div></form></div></div>' +
+  '<div class="mo" id="invModal"><div class="ml" style="max-width:520px"><div class="mh"><div><div class="mti" id="invModalTitle">Add Investment</div><div class="mds">Enter investment details</div></div><button class="mx" onclick="invCloseModal()"><i data-lucide="x" width="14" height="14"></i></button></div><form id="invForm" onsubmit="invSaveHolding(event)"><div class="fr"><div class="fg"><label class="fl">Investment Name *</label><input class="fi" id="invName" required></div><div class="fg"><label class="fl">Category *</label><select class="fi" id="invType" required>' + INV_CATEGORIES.map(function(ct){return '<option value="'+ftEsc(ct)+'">'+ftEsc(ct)+'</option>';}).join('') + '</select></div></div><div class="fg"><label class="fl">Link to Savings TXN</label><select class="fi" id="invTxnLink" onchange="invOnLinkChange()">' + getSavingsLinkOptions().map(function(o){return '<option value="'+ftEsc(o.value)+'">'+ftEsc(o.label)+'</option>';}).join('') + '</select><div style="font-size:10px;color:var(--text-tertiary);margin-top:3px">Linked = cost basis auto-synced from Savings transactions</div></div><div class="fr"><div class="fg"><label class="fl">Total Cost Basis</label><input class="fi" id="invCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Value</label><input class="fi" id="invValue" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Quantity / Units</label><input class="fi" id="invQty" type="number" step="0.0001" min="0" value="1"></div><div class="fg"><label class="fl">Purchase Date</label><input class="fi" id="invDate" type="date"></div></div><div class="fr"><div class="fg"><label class="fl">Avg Cost per Unit</label><input class="fi" id="invAvgCost" type="number" step="0.01" min="0"></div><div class="fg"><label class="fl">Current Price per Unit</label><input class="fi" id="invUnitPrice" type="number" step="0.01" min="0"></div></div><div class="fr"><div class="fg"><label class="fl">Dividends Received</label><input class="fi" id="invDiv" type="number" step="0.01" min="0" value="0"></div><div class="fg"></div></div><div class="fg"><label class="fl">Notes</label><textarea class="fi" id="invNotes" rows="2" style="resize:vertical"></textarea></div><input type="hidden" id="invEditId"><div class="ma"><button type="button" class="btn bs" onclick="invCloseModal()">Cancel</button><button type="submit" class="btn bp" id="invSubmitBtn">Add Investment</button></div></form></div></div>' +
   '<div class="mo" id="invBuyModal"><div class="ml" style="max-width:420px"><div class="mh"><div><div class="mti">Buy More</div><div class="mds" id="invBuySubtitle">Add to position</div></div><button class="mx" onclick="invCloseBuyModal()"><i data-lucide="x" width="14" height="14"></i></button></div><form onsubmit="invProcessBuy(event)"><div class="fr"><div class="fg"><label class="fl">Amount</label><input class="fi" id="invBuyAmt" type="number" step="0.01" min="0.01" required></div><div class="fg"><label class="fl">Units</label><input class="fi" id="invBuyQty" type="number" step="0.0001" min="0.0001" value="1"></div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="invBuyNotes"></div><input type="hidden" id="invBuyId"><div class="ma"><button type="button" class="btn bs" onclick="invCloseBuyModal()">Cancel</button><button type="submit" class="btn bp">Confirm Buy</button></div></form></div></div>' +
   '<div class="mo" id="invSellModal"><div class="ml" style="max-width:420px"><div class="mh"><div><div class="mti">Sell Investment</div><div class="mds" id="invSellSubtitle">Reduce position</div></div><button class="mx" onclick="invCloseSellModal()"><i data-lucide="x" width="14" height="14"></i></button></div><form onsubmit="invProcessSell(event)"><div class="fr"><div class="fg"><label class="fl">Amount</label><input class="fi" id="invSellAmt" type="number" step="0.01" min="0.01" required></div><div class="fg"><label class="fl">Units</label><input class="fi" id="invSellQty" type="number" step="0.0001" min="0.0001" value="1"></div></div><div class="fg"><label class="fl">Notes</label><input class="fi" id="invSellNotes"></div><input type="hidden" id="invSellId"><div class="ma"><button type="button" class="btn bs" onclick="invCloseSellModal()">Cancel</button><button type="submit" class="btn bd">Confirm Sell</button></div></form></div></div>' +
   '<div class="mo" id="invWLModal"><div class="ml" style="max-width:520px;max-height:80vh;overflow:hidden;display:flex;flex-direction:column"><div class="mh"><div><div class="mti" id="invWLModalTitle">Add to Watchlist</div><div class="mds">Search for any stock, crypto, commodity, forex, or index</div></div><button class="mx" onclick="invCloseWLModal()"><i data-lucide="x" width="14" height="14"></i></button></div><div style="padding:0 24px 12px"><div class="sb2" style="width:100%"><i data-lucide="search" width="14" height="14"></i><input id="invWLSearch" placeholder="Search symbol or name (e.g. AAPL, Bitcoin, Gold)" oninput="invSearchSymbol(this.value)" autocomplete="off" style="font-size:13px"></div></div><div id="invWLResults" style="flex:1;overflow-y:auto;padding:0 24px 16px;max-height:400px"></div></div></div>';
@@ -167,24 +180,26 @@ function renderHoldings() {
     var pnl = inv.pnl;
     var ret = inv.returnPct;
     var isGain = pnl >= 0;
-    var html = '<div class="inv-hold-card ' + (isExpanded ? 'expanded' : '') + '" onclick="invToggleExpand(\'' + inv.id + '\')">' +
+    var retShort = ret === null ? '<span title="No cost recorded">—</span>' : (isGain ? '+' : '') + ret.toFixed(1) + '%';
+    var retLong = ret === null ? 'No cost recorded' : (isGain ? '+' : '') + ret.toFixed(2) + '%';
+    var html = '<div class="inv-hold-card ' + (isExpanded ? 'expanded' : '') + '" onclick="invToggleExpand(' + ftArg(inv.id) + ')">' +
       '<div class="inv-hold-row">' +
-        '<div class="inv-hold-name"><div class="inv-hold-title">' + inv.name + '</div><div class="inv-hold-type">' + inv.type + '</div></div>' +
-        '<div class="inv-hold-val">' + fmt(inv.currentValue) + '</div>' +
-        '<div class="inv-hold-pnl ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</div>' +
-        '<div class="inv-hold-ret ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + ret.toFixed(1) + '%</div>' +
+        '<div class="inv-hold-name"><div class="inv-hold-title">' + ftEsc(inv.name) + '</div><div class="inv-hold-type">' + ftEsc(inv.type) + '</div></div>' +
+        '<div class="inv-hold-val ft-amt">' + fmt(inv.currentValue) + '</div>' +
+        '<div class="inv-hold-pnl ft-amt ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</div>' +
+        '<div class="inv-hold-ret ' + (ret === null ? '' : (isGain ? 'pos' : 'neg')) + '">' + retShort + '</div>' +
         '<div class="inv-hold-chevron"><i data-lucide="' + (isExpanded ? 'chevron-up' : 'chevron-down') + '" width="16" height="16"></i></div>' +
       '</div>';
     if (isExpanded) {
       html += '<div class="inv-hold-detail" onclick="event.stopPropagation()">' +
-        (inv.txnLink ? '<div style="margin-bottom:10px"><span class="tb s" style="font-size:10px">⛓ Synced from Savings: ' + inv.txnLink.category + (inv.txnLink.subcategory ? ' → ' + inv.txnLink.subcategory : '') + '</span></div>' : '') +
+        (inv.txnLink ? '<div style="margin-bottom:10px"><span class="tb s" style="font-size:10px">⛓ Synced from Savings: ' + ftEsc(inv.txnLink.category) + (inv.txnLink.subcategory ? ' → ' + ftEsc(inv.txnLink.subcategory) : '') + '</span></div>' : '') +
         '<div class="inv-detail-grid">' +
-          '<div class="inv-detail-item"><span class="inv-detail-label">Purchase Date</span><span class="inv-detail-value">' + (inv.purchaseDate || 'N/A') + '</span></div>' +
-          '<div class="inv-detail-item"><span class="inv-detail-label">Total Deposit</span><span class="inv-detail-value">' + fmt(inv.costBasis) + '</span></div>' +
-          '<div class="inv-detail-item"><span class="inv-detail-label">Current Value</span><span class="inv-detail-value">' + fmt(inv.currentValue) + '</span></div>' +
-          '<div class="inv-detail-item"><span class="inv-detail-label">Profit / Loss</span><span class="inv-detail-value ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</span></div>' +
-          '<div class="inv-detail-item"><span class="inv-detail-label">Return</span><span class="inv-detail-value ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + ret.toFixed(2) + '%</span></div>' +
-          (inv.notes ? '<div class="inv-detail-item full"><span class="inv-detail-label">Notes</span><span class="inv-detail-value">' + inv.notes + '</span></div>' : '') +
+          '<div class="inv-detail-item"><span class="inv-detail-label">Purchase Date</span><span class="inv-detail-value">' + ftEsc(inv.purchaseDate || 'N/A') + '</span></div>' +
+          '<div class="inv-detail-item"><span class="inv-detail-label">Total Deposit</span><span class="inv-detail-value ft-amt">' + fmt(inv.costBasis) + '</span></div>' +
+          '<div class="inv-detail-item"><span class="inv-detail-label">Current Value</span><span class="inv-detail-value ft-amt">' + fmt(inv.currentValue) + '</span></div>' +
+          '<div class="inv-detail-item"><span class="inv-detail-label">Profit / Loss</span><span class="inv-detail-value ft-amt ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</span></div>' +
+          '<div class="inv-detail-item"><span class="inv-detail-label">Return</span><span class="inv-detail-value ' + (ret === null ? '' : (isGain ? 'pos' : 'neg')) + '">' + retLong + '</span></div>' +
+          (inv.notes ? '<div class="inv-detail-item full"><span class="inv-detail-label">Notes</span><span class="inv-detail-value">' + ftEsc(inv.notes) + '</span></div>' : '') +
         '</div></div>';
     }
     html += '</div>';
@@ -199,14 +214,14 @@ function renderPortfolioBreakdown() {
   if (alloc.length === 0) return '<div class="es"><p>' + t('misc_no_data') + '</p></div>';
   // Calculate invested per type
   var investedByType = {};
-  INVESTMENTS.forEach(function(inv) { if (!investedByType[inv.type]) investedByType[inv.type] = 0; investedByType[inv.type] += inv.costBasis; });
+  INVESTMENTS.forEach(function(inv) { if (!investedByType[inv.type]) investedByType[inv.type] = 0; investedByType[inv.type] += invNum(inv.costBasis); });
   return '<div class="inv-breakdown-tbl">' +
     '<div class="inv-bk-hdr"><span>Asset Type</span><span style="text-align:right">Invested</span><span style="text-align:right">Value</span><span style="text-align:right">P&L</span><span style="text-align:right">Alloc</span></div>' +
     alloc.map(function(a, i) {
       var invested = investedByType[a.type] || 0;
       var pnl = a.value - invested;
       var isGain = pnl >= 0;
-      return '<div class="inv-bk-row"><div class="inv-bk-type"><div class="inv-alloc-dot" style="background:' + colors[i % colors.length] + '"></div><span>' + a.type + '</span></div><span class="inv-bk-num">' + fmt(invested) + '</span><span class="inv-bk-num">' + fmt(a.value) + '</span><span class="inv-bk-num ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</span><span class="inv-bk-num">' + a.pct.toFixed(1) + '%</span></div>';
+      return '<div class="inv-bk-row"><div class="inv-bk-type"><div class="inv-alloc-dot" style="background:' + colors[i % colors.length] + '"></div><span>' + ftEsc(a.type) + '</span></div><span class="inv-bk-num ft-amt">' + fmt(invested) + '</span><span class="inv-bk-num ft-amt">' + fmt(a.value) + '</span><span class="inv-bk-num ft-amt ' + (isGain ? 'pos' : 'neg') + '">' + (isGain ? '+' : '') + fmt(pnl) + '</span><span class="inv-bk-num">' + a.pct.toFixed(1) + '%</span></div>';
     }).join('') +
   '</div>';
 }
@@ -219,7 +234,7 @@ function renderActivities() {
   var labels = { buy: 'Bought', sell: 'Sold', dividend: 'Dividend', add: 'Added' };
   var cls = { buy: 'act-buy', sell: 'act-sell', dividend: 'act-div', add: 'act-add' };
   return sorted.map(function(a) {
-    return '<div class="inv-act-row"><div class="inv-act-icon ' + (cls[a.action] || '') + '"><i data-lucide="' + (icons[a.action] || 'circle') + '" width="16" height="16"></i></div><div class="inv-act-info"><div class="inv-act-title">' + (labels[a.action] || a.action) + ' ' + a.investmentName + '</div><div class="inv-act-date">' + (typeof fmtD === 'function' ? fmtD(a.date) : a.date) + (a.notes ? ' · ' + a.notes : '') + '</div></div><div class="inv-act-amt ' + (a.action === 'sell' ? 'neg' : '') + '">' + (a.action === 'sell' ? '-' : '+') + fmt(a.amount) + '</div></div>';
+    return '<div class="inv-act-row"><div class="inv-act-icon ' + (cls[a.action] || '') + '"><i data-lucide="' + (icons[a.action] || 'circle') + '" width="16" height="16"></i></div><div class="inv-act-info"><div class="inv-act-title">' + ftEsc(labels[a.action] || a.action) + ' ' + ftEsc(a.investmentName) + '</div><div class="inv-act-date">' + ftEsc(typeof fmtD === 'function' ? fmtD(a.date) : a.date) + (a.notes ? ' · ' + ftEsc(a.notes) : '') + '</div></div><div class="inv-act-amt ft-amt ' + (a.action === 'sell' ? 'neg' : '') + '">' + (a.action === 'sell' ? '-' : '+') + fmt(a.amount) + '</div></div>';
   }).join('');
 }
 
@@ -228,7 +243,7 @@ function renderWatchlist() {
   if (INV_WATCHLIST.length === 0) return '<div class="es"><p>' + t('misc_no_data') + '</p></div>';
   return '<div class="inv-wl-wrap"><div class="inv-wl-sidebar"><div class="inv-wl-sidebar-title">Symbols</div>' +
     INV_WATCHLIST.map(function(w) {
-      return '<div class="inv-wl-item"><span class="inv-wl-item-sym">' + w.symbol.split(':').pop() + '</span><button class="inv-wl-item-rm" onclick="invDeleteWL(\'' + w.id + '\')" title="Remove">×</button></div>';
+      return '<div class="inv-wl-item"><span class="inv-wl-item-sym">' + ftEsc(String(w.symbol || '').split(':').pop()) + '</span><button class="inv-wl-item-rm" onclick="invDeleteWL(' + ftArg(w.id) + ')" title="Remove">×</button></div>';
     }).join('') +
     '</div><div class="inv-wl-widget"><div id="tradingview-widget-container" style="width:100%;height:100%"></div></div></div>';
 }
@@ -261,17 +276,17 @@ function invLoadTVWidget() {
 var invCurrentMetric = 'value';
 var invCurrentTime = '1y';
 
-function invSwitchMetric(metric) {
+function invSwitchMetric(metric, btn) {
   invCurrentMetric = metric;
   document.querySelectorAll('.inv-metric-seg button').forEach(function(b) { b.classList.remove('active'); });
-  if (event && event.target) event.target.classList.add('active');
+  var _b = btn || (window.event && window.event.target); if (_b && _b.classList) _b.classList.add('active');
   invRenderPerfChart(metric, invCurrentTime);
 }
 
-function invSwitchTime(time) {
+function invSwitchTime(time, btn) {
   invCurrentTime = time;
   document.querySelectorAll('.inv-time-seg button').forEach(function(b) { b.classList.remove('active'); });
-  if (event && event.target) event.target.classList.add('active');
+  var _b = btn || (window.event && window.event.target); if (_b && _b.classList) _b.classList.add('active');
   invRenderPerfChart(invCurrentMetric, time);
 }
 
@@ -385,9 +400,9 @@ function invSaveHolding(e) {
     var idx = INVESTMENTS.findIndex(function(i) { return i.id === editId; });
     if (idx >= 0) INVESTMENTS[idx] = Object.assign({}, INVESTMENTS[idx], { name:name, type:type, txnLink:txnLink, costBasis:costBasis, currentValue:currentValue, quantity:quantity, purchaseDate:purchaseDate, avgCost:avgCost, unitPrice:unitPrice, dividendReceived:dividendReceived, notes:notes });
   } else {
-    var newInv = { id: 'inv_' + (invNxId++), name:name, type:type, txnLink:txnLink, costBasis:costBasis, currentValue:currentValue, quantity:quantity, purchaseDate:purchaseDate, avgCost:avgCost, unitPrice:unitPrice, dividendReceived:dividendReceived, notes:notes, createdAt: new Date().toISOString().split('T')[0] };
+    var newInv = { id: 'inv_' + (invNxId++), name:name, type:type, txnLink:txnLink, costBasis:costBasis, currentValue:currentValue, quantity:quantity, purchaseDate:purchaseDate, avgCost:avgCost, unitPrice:unitPrice, dividendReceived:dividendReceived, notes:notes, createdAt: ftLocalISO() };
     INVESTMENTS.push(newInv);
-    INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: new Date().toISOString().split('T')[0], action: 'add', investmentId: newInv.id, investmentName: name, amount: costBasis, notes: 'Added investment' });
+    INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: ftLocalISO(), action: 'add', investmentId: newInv.id, investmentName: name, amount: costBasis, notes: 'Added investment' });
     saveINV_ACT();
   }
   saveINV();
@@ -436,7 +451,7 @@ function invProcessBuy(e) {
   inv.avgCost = inv.quantity > 0 ? inv.costBasis / inv.quantity : inv.costBasis;
   inv.unitPrice = inv.quantity > 0 ? inv.currentValue / inv.quantity : inv.currentValue;
   saveINV();
-  INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: new Date().toISOString().split('T')[0], action: 'buy', investmentId: id, investmentName: inv.name, amount: amount, notes: notes });
+  INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: ftLocalISO(), action: 'buy', investmentId: id, investmentName: inv.name, amount: amount, notes: notes });
   saveINV_ACT();
   invCloseBuyModal();
   invRefreshPage();
@@ -471,7 +486,7 @@ function invProcessSell(e) {
   inv.quantity = Math.max(0, inv.quantity - qty);
   if (inv.quantity > 0) { inv.avgCost = inv.costBasis / inv.quantity; inv.unitPrice = inv.currentValue / inv.quantity; }
   saveINV();
-  INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: new Date().toISOString().split('T')[0], action: 'sell', investmentId: id, investmentName: inv.name, amount: amount, notes: notes });
+  INV_ACTIVITIES.unshift({ id: 'act_' + (invActNxId++), date: ftLocalISO(), action: 'sell', investmentId: id, investmentName: inv.name, amount: amount, notes: notes });
   saveINV_ACT();
   invCloseSellModal();
   invRefreshPage();
@@ -595,15 +610,15 @@ function invSearchSymbol(query) {
         // Merge local matches first, then API results (deduplicate)
         var allResults = localMatches.map(function(l) { return { symbol: l.symbol, shortname: l.shortname, exchDisp: l.exchange, typeDisp: l.typeDisp }; });
         quotes.forEach(function(qq) { if (!allResults.some(function(r) { return r.symbol === qq.symbol; })) allResults.push(qq); });
-        if (!allResults.length) { results.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px">No results for "' + query + '"</div>'; return; }
+        if (!allResults.length) { results.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-tertiary);font-size:12px">No results for "' + ftEsc(query) + '"</div>'; return; }
         results.innerHTML = allResults.slice(0, 15).map(function(qq) {
           var typeLabel = qq.typeDisp || qq.quoteType || '';
           var exchange = qq.exchDisp || qq.exchange || '';
           var alreadyAdded = INV_WATCHLIST.some(function(w) { return w.symbol === qq.symbol; });
           var nameText = qq.shortname || qq.longname || qq.symbol;
-          return '<div class="inv-wl-sr' + (alreadyAdded ? ' added' : '') + '" onclick="' + (alreadyAdded ? '' : "invAddFromSearch('" + qq.symbol + "','" + nameText.replace(/'/g, "\\'") + "','" + exchange + "','" + typeLabel + "')") + '">' +
-            '<div class="inv-wl-sr-left"><div class="inv-wl-sr-sym">' + qq.symbol + '</div><div class="inv-wl-sr-name">' + nameText + '</div></div>' +
-            '<div class="inv-wl-sr-right"><span class="inv-wl-sr-exch">' + exchange + '</span>' + (alreadyAdded ? '<span class="inv-wl-sr-badge">Added</span>' : '<span class="inv-wl-sr-type">' + typeLabel + '</span>') + '</div>' +
+          return '<div class="inv-wl-sr' + (alreadyAdded ? ' added' : '') + '" onclick="' + (alreadyAdded ? '' : 'invAddFromSearch(' + ftArg(qq.symbol) + ',' + ftArg(nameText) + ',' + ftArg(exchange) + ',' + ftArg(typeLabel) + ')') + '">' +
+            '<div class="inv-wl-sr-left"><div class="inv-wl-sr-sym">' + ftEsc(qq.symbol) + '</div><div class="inv-wl-sr-name">' + ftEsc(nameText) + '</div></div>' +
+            '<div class="inv-wl-sr-right"><span class="inv-wl-sr-exch">' + ftEsc(exchange) + '</span>' + (alreadyAdded ? '<span class="inv-wl-sr-badge">Added</span>' : '<span class="inv-wl-sr-type">' + ftEsc(typeLabel) + '</span>') + '</div>' +
           '</div>';
         }).join('');
       })
@@ -612,9 +627,9 @@ function invSearchSymbol(query) {
         if (localMatches.length) {
           results.innerHTML = localMatches.map(function(l) {
             var alreadyAdded = INV_WATCHLIST.some(function(w) { return w.symbol === l.symbol; });
-            return '<div class="inv-wl-sr' + (alreadyAdded ? ' added' : '') + '" onclick="' + (alreadyAdded ? '' : "invAddFromSearch('" + l.symbol + "','" + l.shortname.replace(/'/g, "\\'") + "','" + l.exchange + "','" + l.typeDisp + "')") + '">' +
-              '<div class="inv-wl-sr-left"><div class="inv-wl-sr-sym">' + l.symbol + '</div><div class="inv-wl-sr-name">' + l.shortname + '</div></div>' +
-              '<div class="inv-wl-sr-right"><span class="inv-wl-sr-exch">' + l.exchange + '</span>' + (alreadyAdded ? '<span class="inv-wl-sr-badge">Added</span>' : '<span class="inv-wl-sr-type">' + l.typeDisp + '</span>') + '</div>' +
+            return '<div class="inv-wl-sr' + (alreadyAdded ? ' added' : '') + '" onclick="' + (alreadyAdded ? '' : 'invAddFromSearch(' + ftArg(l.symbol) + ',' + ftArg(l.shortname) + ',' + ftArg(l.exchange) + ',' + ftArg(l.typeDisp) + ')') + '">' +
+              '<div class="inv-wl-sr-left"><div class="inv-wl-sr-sym">' + ftEsc(l.symbol) + '</div><div class="inv-wl-sr-name">' + ftEsc(l.shortname) + '</div></div>' +
+              '<div class="inv-wl-sr-right"><span class="inv-wl-sr-exch">' + ftEsc(l.exchange) + '</span>' + (alreadyAdded ? '<span class="inv-wl-sr-badge">Added</span>' : '<span class="inv-wl-sr-type">' + ftEsc(l.typeDisp) + '</span>') + '</div>' +
             '</div>';
           }).join('');
         } else {
@@ -626,7 +641,7 @@ function invSearchSymbol(query) {
 
 function invAddFromSearch(symbol, name, exchange, type) {
   if (INV_WATCHLIST.some(function(w) { return w.symbol === symbol; })) { toast('Already in watchlist'); return; }
-  INV_WATCHLIST.push({ id: 'wl_' + (invWlNxId++), name: name, symbol: symbol, exchange: exchange, type: type, addedAt: new Date().toISOString().split('T')[0] });
+  INV_WATCHLIST.push({ id: 'wl_' + (invWlNxId++), name: name, symbol: symbol, exchange: exchange, type: type, addedAt: ftLocalISO() });
   saveINV_WL();
   toast('Added ' + symbol);
   // Re-render search to show "Added"
