@@ -13,9 +13,40 @@ function loadGOALS() {
   var raw = safeGet('ft_goals');
   if (raw) { try { GOALS = JSON.parse(raw); } catch(e) {} }
   if (!Array.isArray(GOALS)) GOALS = [];
-  GOALS = GOALS.filter(g => g && typeof g === 'object');
-  var nid = safeGet('ft_goalNxId');
-  if (nid) goalNxId = parseInt(nid);
+  GOALS = GOALS.filter(g => g && typeof g === 'object' && !Array.isArray(g));
+  var nid = parseInt(safeGet('ft_goalNxId'), 10);
+  if (isFinite(nid) && nid > 0) goalNxId = nid;
+  // V2.0.5: never reuse an id that already exists
+  GOALS.forEach(g => { const n = Number(g.id); if (isFinite(n) && n >= goalNxId) goalNxId = n + 1; });
+  // V2.0.5 (GOAL-CRASH): repair old / half-broken goals so one bad goal can't crash the Goals tab
+  GOALS.forEach(ftGoalNorm);
+}
+// Old cloud pulls saved goals as name/target/current; imports can bring text numbers or a text list.
+// Rebuild every goal in the app's own shape: n, t, c, e, due, linkedCats[], accs[].
+function ftGoalNorm(g) {
+  const num = v => { const n = Number(v); return isFinite(n) ? n : 0; };
+  const list = v => {
+    if (Array.isArray(v)) return v.filter(x => x !== null && x !== undefined && x !== '');
+    if (typeof v === 'string' && v.trim()) { try { const p = JSON.parse(v); if (Array.isArray(p)) return p; } catch (e) {} return [v]; }
+    return [];
+  };
+  g.n = String(g.n ?? g.name ?? '').trim() || 'Untitled goal';
+  g.t = num(g.t ?? g.target);
+  g.c = num(g.c ?? g.current);
+  g.e = String(g.e || g.icon || g.emoji || '🎯');
+  const due = g.due || g.deadline || g.dl || '';
+  g.due = typeof due === 'string' ? due.slice(0, 10) : '';
+  g.linkedCats = list(g.linkedCats).map(String);
+  g.linkedCat = typeof g.linkedCat === 'string' ? g.linkedCat : '';
+  g.accs = list(g.accs);
+  if (g.base !== undefined) g.base = num(g.base);
+  if (g.id === undefined || g.id === null || g.id === '') g.id = goalNxId++;
+  return g;
+}
+// A goal whose card can't be drawn shows this instead of crashing the whole tab
+function ftGoalErrCard(g) {
+  const id = g && g.id !== undefined && g.id !== null ? ftRemArg(g.id) : 'null';
+  return '<div style="background:var(--bg-card);border:1px solid var(--rose);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div style="min-width:0"><div style="font-size:13px;font-weight:600">⚠️ ' + ftEsc((g && (g.n || g.name)) || 'Goal') + '</div><div style="font-size:10px;color:var(--text-tertiary);margin-top:2px">This goal has damaged data. Edit or delete it.</div></div><div style="display:flex;gap:6px;flex-shrink:0"><button class="btn bs" style="font-size:10px;padding:5px 10px" onclick="event.stopPropagation();editGoal(' + id + ')">' + t('goal_edit') + '</button><button class="btn bd" style="font-size:10px;padding:5px 10px" onclick="event.stopPropagation();deleteGoal(' + id + ')">' + t('goal_delete') + '</button></div></div>';
 }
 function saveGOALS() { safeSave('ft_goals', JSON.stringify(GOALS)); safeSave('ft_goalNxId', goalNxId); }
 
@@ -68,9 +99,9 @@ function renderGoals(c) {
   if (goalFilter === 'active') filteredGoals = filteredGoals.filter(g => g.c < g.t);
   else if (goalFilter === 'completed') filteredGoals = filteredGoals.filter(g => g.c >= g.t);
   else if (goalFilter === 'paused') filteredGoals = filteredGoals.filter(g => g.paused);
-  if (goalSearchVal) filteredGoals = filteredGoals.filter(g => g.n.toLowerCase().includes(goalSearchVal));
+  if (goalSearchVal) filteredGoals = filteredGoals.filter(g => String(g.n || '').toLowerCase().includes(goalSearchVal));
   if (goalSort === 'progress') filteredGoals.sort((a, b) => ftGoalP(b) - ftGoalP(a));
-  else if (goalSort === 'name') filteredGoals.sort((a, b) => a.n.localeCompare(b.n));
+  else if (goalSort === 'name') filteredGoals.sort((a, b) => String(a.n || '').localeCompare(String(b.n || '')));
   else if (goalSort === 'due') filteredGoals.sort((a, b) => new Date(a.due) - new Date(b.due));
   else if (goalSort === 'amount') filteredGoals.sort((a, b) => b.t - a.t);
 
@@ -80,6 +111,8 @@ function renderGoals(c) {
   // Goal cards grid (2 columns like reference)
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:12px;margin-bottom:20px">`;
   filteredGoals.forEach(g => {
+    const _h0 = html.length; // V2.0.5: one bad goal shows a small repair card instead of crashing the tab
+    try {
     const p = ftGoalP(g);
     const pct = (p * 100).toFixed(0);
     const remaining = g.t - g.c;
@@ -131,12 +164,16 @@ function renderGoals(c) {
       html += `</div>`;
     }
     html += `</div>`;
+    } catch (err) {
+      console.error('[FinTrack] Goal card error:', g && g.id, err);
+      html = html.slice(0, _h0) + ftGoalErrCard(g);
+    }
   });
   html += `</div>`;
   }
 
   // === BUDGET PROGRESS (selected period) — moved above Budget Planner ===
-  const mf = document.getElementById('mf').value;
+  const mf = kpiMonth === null ? 'total' : String(kpiMonth); // V2.0.5: safe even if the month box is missing
   let pInc, pExp, pSav;
   const budgetTotalForProgress = getYearlyBudgetTotal(year);
   if (mf === 'total') {
@@ -485,7 +522,12 @@ function ftGoalDaysLabel(daysLeft, unit, done) {
   if (daysLeft === 0) return 'Today';
   return t('goal_overdue');
 }
-function ftGoalCats(g) { return g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []); }
+function ftGoalCats(g) {
+  const l = g.linkedCats;
+  if (Array.isArray(l) && l.length) return l;
+  if (typeof l === 'string' && l) return [l]; // V2.0.5: a text value (old import) never crashes .join
+  return g.linkedCat ? [g.linkedCat] : [];
+}
 // V2.0.5: g.accs = list of linked asset accounts (old single g.acc still read). Returns the real account ids.
 function ftGoalAccs(g) {
   const ids = Array.isArray(g.accs) && g.accs.length ? g.accs : (g.acc ? [g.acc] : []);
@@ -500,7 +542,7 @@ function ftGoalCatTotal(cats) {
   return TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).reduce((s, tx) => s + tx.a * ftXferSign(tx), 0);
 }
 function ftGoalLinkLabel(g) {
-  if (ftGoalAccOk(g)) return '🏦 ' + ftGoalAccs(g).map(id => ACCOUNTS.find(x => x.id === id).name).join(' + ');
+  if (ftGoalAccOk(g)) return '🏦 ' + ftGoalAccs(g).map(id => (ACCOUNTS.find(x => x.id === id) || {}).name || 'Account').join(' + ');
   const cats = ftGoalCats(g);
   return cats.length ? '🔗 ' + cats.join(', ') : t('goal_manual');
 }
@@ -516,14 +558,14 @@ function ftGoalAvgMonthly(g) {
       // Moving money between two accounts of the same goal nets to 0
       if (ftIsXfer(tx)) { if (set.includes(tx.toAcc)) d += tx.a; if (set.includes(tx.acc)) d -= tx.a; }
       else if (tx.t === 'Income') d = tx.a; else if (tx.t === 'Expense') d = -tx.a;
-      if (d) byMonth[tx.d.substring(0, 7)] = (byMonth[tx.d.substring(0, 7)] || 0) + d;
+      if (d) { const mk = String(tx.d || '').substring(0, 7); byMonth[mk] = (byMonth[mk] || 0) + d; }
     });
     const keys = Object.keys(byMonth);
     return keys.length ? Math.max(0, keys.reduce((s, k) => s + byMonth[k], 0) / keys.length) : 0;
   }
   const cats = ftGoalCats(g);
   if (!cats.length) return 0;
-  const months = new Set(TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).map(tx => tx.d.substring(0, 7))).size;
+  const months = new Set(TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).map(tx => String(tx.d || '').substring(0, 7))).size;
   return months > 0 ? Math.max(0, ftGoalCatTotal(cats) / months) : 0;
 }
 
@@ -531,7 +573,7 @@ function ftGoalAvgMonthly(g) {
 // V2.0.5: account-linked goals follow the account balance; category-linked goals sum their transfers (with direction)
 function syncGoalsWithSavings() {
   let changed = false;
-  GOALS.forEach(g => {
+  GOALS.forEach(g => { try { // V2.0.5: one broken goal is skipped, the rest still sync
     let newC;
     if (ftGoalAccOk(g)) {
       newC = Math.max(0, Math.round(ftGoalAccTotal(g) * 100) / 100);
@@ -541,13 +583,14 @@ function syncGoalsWithSavings() {
       // g.base = initial/untracked balance set by user (money already in account before tracking)
       newC = Math.max(0, (g.base || 0) + ftGoalCatTotal(cats));
     }
+    if (!isFinite(newC)) return; // bad number: keep the old value instead of saving NaN
     if (g.c !== newC) {
       const oldC = g.c;
       g.c = newC;
       changed = true;
       checkGoalMilestones(g, oldC, newC);
     }
-  });
+  } catch (e) { console.error('[FinTrack] Goal sync skipped:', g && g.id, e); } });
   if (changed) saveGOALS();
 }
 
@@ -906,7 +949,7 @@ function renderMobileGoalsTab(MD, year) {
   const totalSaved = GOALS.reduce((s, g) => s + (isFinite(+g.c) ? +g.c : 0), 0);
   const totalTarget = GOALS.reduce((s, g) => s + (isFinite(+g.t) ? +g.t : 0), 0);
   const overallPct = totalTarget > 0 ? (totalSaved / totalTarget * 100).toFixed(0) : 0;
-  const onTrack = GOALS.filter(g => {
+  const onTrack = GOALS.filter(g => { try {
     if (g.c >= g.t) return true;
     const today = new Date(); today.setHours(0,0,0,0);
     const due = new Date(g.due); due.setHours(0,0,0,0);
@@ -916,7 +959,7 @@ function renderMobileGoalsTab(MD, year) {
     const monthlyReq = remaining / monthsLeft;
     if (ftGoalIsSynced(g)) return ftGoalAvgMonthly(g) >= monthlyReq * 0.8;
     return true;
-  }).length;
+  } catch (e) { return false; } }).length;
   const ringOffset = totalTarget > 0 ? (263.9 * (1 - totalSaved / totalTarget)).toFixed(1) : 263.9;
 
   // Ring hero
@@ -945,7 +988,7 @@ function renderMobileGoalsTab(MD, year) {
   else if (goalFilter === 'completed') filtered = filtered.filter(g => g.c >= g.t);
   else if (goalFilter === 'paused') filtered = filtered.filter(g => g.paused);
   if (goalSort === 'progress') filtered.sort((a, b) => ftGoalP(b) - ftGoalP(a));
-  else if (goalSort === 'name') filtered.sort((a, b) => a.n.localeCompare(b.n));
+  else if (goalSort === 'name') filtered.sort((a, b) => String(a.n || '').localeCompare(String(b.n || '')));
   else if (goalSort === 'due') filtered.sort((a, b) => new Date(a.due) - new Date(b.due));
   else if (goalSort === 'amount') filtered.sort((a, b) => b.t - a.t);
 
@@ -955,6 +998,8 @@ function renderMobileGoalsTab(MD, year) {
   } else {
     html += '<div style="display:flex;flex-direction:column">';
     filtered.forEach(g => {
+      const _h0 = html.length; // V2.0.5: one bad goal shows a repair card instead of crashing the tab
+      try {
       const p = ftGoalP(g);
       const pct = (p * 100).toFixed(0);
       const remaining = g.t - g.c;
@@ -996,6 +1041,10 @@ function renderMobileGoalsTab(MD, year) {
         html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + ftRemArg(g.id) + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + ftRemArg(g.id) + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + ftRemArg(g.id) + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
         html += '</div>';
       }
+      } catch (err) {
+        console.error('[FinTrack] Goal row error:', g && g.id, err);
+        html = html.slice(0, _h0) + '<div style="padding:8px 0">' + ftGoalErrCard(g) + '</div>';
+      }
     });
     html += '</div>';
   }
@@ -1004,7 +1053,8 @@ function renderMobileGoalsTab(MD, year) {
 
 function renderMobileBudgetTab(MD, year) {
   let html = '';
-  const mf = document.getElementById('mf').value;
+  const _mfEl = document.getElementById('mf');
+  const mf = _mfEl && _mfEl.value !== 'total' && MD[+_mfEl.value] ? _mfEl.value : 'total'; // V2.0.5: never MD[undefined]
   const budgetTotal = getYearlyBudgetTotal(year);
   let pInc, pExp, pSav;
   if (mf === 'total') { pInc = MD.reduce((s, m) => s + m.i, 0); pExp = MD.reduce((s, m) => s + m.e, 0); pSav = MD.reduce((s, m) => s + m.s, 0); }
