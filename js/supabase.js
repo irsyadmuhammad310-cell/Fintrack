@@ -7,7 +7,19 @@ const SUPABASE_URL = 'https://eoonfztciqvyjchsinpg.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_3zgVsgSU4Jot7NpXl4dWKw_0Fhu19gY';
 
 // Initialize Supabase client
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// V2.0.5: if the Supabase CDN did not load (first open offline), don't crash the whole app.
+// Cloud calls then fail with a friendly error and local data keeps working.
+const _supabase = (typeof supabase !== 'undefined' && supabase && typeof supabase.createClient === 'function')
+  ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : ftNoCloud();
+function ftNoCloud() {
+  console.warn('[FinTrack] Supabase library not loaded: cloud sync unavailable this session.');
+  var h = {
+    get: function(t, k) { return k === 'then' ? undefined : new Proxy(function() {}, h); },
+    apply: function() { throw new Error('Cloud unavailable (offline). Local data is safe.'); }
+  };
+  return new Proxy(function() {}, h);
+}
 
 // === UUID GENERATOR (replaces integer nxId for new records) ===
 function ftUUID() {
@@ -36,7 +48,7 @@ const ftAuth = {
     _supabase.auth.onAuthStateChange((event, session) => {
       this.session = session;
       this.user = session ? session.user : null;
-      if (event === 'SIGNED_IN') ftSync.fullPush();
+      if (event === 'SIGNED_IN') ftCloudClaim().then(function(ok) { if (ok) ftSync.fullPush(); });
       if (event === 'SIGNED_OUT') this.user = null;
     });
     return this.user;
@@ -119,6 +131,39 @@ function ftCloudAccountsDirty() {
   }, 3000);
 }
 
+// === CLOUD OWNER GUARD (V2.0.5) ===
+// Local data on this device belongs to ONE cloud account (ft_cloud_uid).
+// Signing in with a different account must never upload the previous person's money data.
+function ftCloudOwner() { return safeGet('ft_cloud_uid') || ''; }
+function ftCloudAllowed() {
+  if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return false;
+  var uid = ftAuth.uid(), owner = ftCloudOwner();
+  if (!owner) { safeSave('ft_cloud_uid', uid); return true; } // first sign-in on this device claims its data
+  return owner === uid;
+}
+var _ftOwnerAsked = false;
+// Called right after SIGNED_IN. Returns true when syncing is allowed.
+async function ftCloudClaim() {
+  if (ftCloudAllowed()) return true;
+  if (_ftOwnerAsked) return false;
+  _ftOwnerAsked = true;
+  var email = (ftAuth.user && ftAuth.user.email) || 'this account';
+  var ok = confirm('This device already holds FinTrack data from a DIFFERENT cloud account.\n\nLink this device\'s data to ' + email + ' and sync it there?\n\nOK = link and sync\nCancel = sign out (nothing is uploaded)');
+  _ftOwnerAsked = false;
+  if (ok) { safeSave('ft_cloud_uid', ftAuth.uid()); return true; }
+  try { await ftAuth.signOut(); } catch (e) {}
+  if (typeof toast === 'function') toast('Signed out. Nothing was uploaded.');
+  return false;
+}
+
+// V2.0.5: remember deleted transaction ids so a pull never brings them back,
+// and a later push deletes them in the cloud if the phone was offline at delete time
+function ftGetTombstones() { try { var a = JSON.parse(safeGet('ft_deleted_txn') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function ftAddTombstone(id) {
+  var a = ftGetTombstones(); var k = String(id);
+  if (a.indexOf(k) < 0) { a.push(k); if (a.length > 5000) a = a.slice(-5000); safeSave('ft_deleted_txn', JSON.stringify(a)); }
+}
+
 // Throw on a failed upsert/delete instead of silently continuing
 function ftCheck(res, what) {
   if (res && res.error) throw new Error(what + ' failed: ' + res.error.message);
@@ -130,7 +175,7 @@ function ftCheck(res, what) {
 // =====================================================
 // V2.0.4: the cloud "note" column carries every link the table has no column for
 // (transfer destination, loan link, fee link, original currency). Old rows only had c/s: still readable.
-var FT_NOTE_EXTRA = ['toAcc', 'liab', 'fee', 'feeLinkedTo', 'cur', 'origAmt'];
+var FT_NOTE_EXTRA = ['toAcc', 'liab', 'fee', 'feeLinkedTo', 'cur', 'origAmt', 'fx']; // V2.0.5: fx = key-in rates
 function ftTxNote(tx) {
   var n = { c: tx.c || '', s: tx.s || '' };
   FT_NOTE_EXTRA.forEach(function(k) { if (tx[k] !== undefined && tx[k] !== null && tx[k] !== '') n[k] = tx[k]; });
@@ -166,6 +211,7 @@ const ftSync = {
   // opts.throwOnError: manual Push button passes true so the UI shows the real error
   async fullPush(opts) {
     if (!ftAuth.isLoggedIn()) return;
+    if (!ftCloudAllowed()) { if (opts && opts.throwOnError) throw new Error('This device holds data from another cloud account. Sign in again to choose.'); return; }
     if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
     this.isSyncing = true;
 
@@ -257,6 +303,12 @@ const ftSync = {
         }
       }
 
+      // V2.0.5: deletes made while offline reach the cloud now
+      var tomb = ftGetTombstones();
+      for (var ti = 0; ti < tomb.length; ti += 200) {
+        ftCheck(await _supabase.from('transactions').delete().eq('user_id', uid).in('id', tomb.slice(ti, ti + 200)), 'Deleted rows push');
+      }
+
       this.lastSyncAt = new Date().toISOString();
       safeSave('lastCloudSync', this.lastSyncAt);
       console.log('[FinTrack] Full push complete at', this.lastSyncAt);
@@ -274,6 +326,7 @@ const ftSync = {
   // then merged, so a dropped connection mid-pull changes nothing locally.
   async fullPull(opts) {
     if (!ftAuth.isLoggedIn()) return;
+    if (!ftCloudAllowed()) { if (opts && opts.throwOnError) throw new Error('This device holds data from another cloud account. Sign in again to choose.'); return; }
     if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
     this.isSyncing = true;
 
@@ -299,9 +352,10 @@ const ftSync = {
         }
 
         var added = 0;
+        var tombSet = {}; ftGetTombstones().forEach(function(k) { tombSet[k] = true; });
         cloudTxns.forEach(function(ctx) {
-          // Skip if local already has this ID
-          if (localMap[String(ctx.id)]) return;
+          // Skip if local already has this ID, or it was deleted on this device
+          if (localMap[String(ctx.id)] || tombSet[String(ctx.id)]) return;
 
           // Parse category from note JSON
           var category = 'Uncategorized', subcategory = '', noteData = {};
@@ -408,6 +462,29 @@ const ftSync = {
         safeSave('ft_goals', JSON.stringify(localGoals));
       }
 
+      // --- MERGE budgets (V2.0.5: budgets were pushed but never pulled). Local months always win. ---
+      try {
+        var bRes = await _supabase.from('budgets').select('*').eq('user_id', uid).limit(5000);
+        if (bRes.error) throw new Error(bRes.error.message);
+        var cloudBudgets = bRes.data || [];
+        if (cloudBudgets.length) {
+          var localPlans = {};
+          try { localPlans = JSON.parse(safeGet('ft_budget_plans') || '{}') || {}; } catch (e) { localPlans = {}; }
+          if (typeof localPlans !== 'object' || Array.isArray(localPlans)) localPlans = {};
+          var bAdded = 0;
+          cloudBudgets.forEach(function(b) {
+            var y = String(b.year), m = String(b.month);
+            if (!b.year && b.year !== 0) return;
+            if (!localPlans[y] || typeof localPlans[y] !== 'object') localPlans[y] = {};
+            if (localPlans[y][m]) return;
+            var bm = {}; try { bm = JSON.parse(b.note || '{}') || {}; } catch (e) {}
+            localPlans[y][m] = { i: parseFloat(b.income_target) || 0, e: parseFloat(b.expense_target) || 0, s: parseFloat(b.savings_target) || 0, incCats: bm.incCats || {}, expCats: bm.expCats || {}, savCats: bm.savCats || {} };
+            bAdded++;
+          });
+          if (bAdded) safeSave('ft_budget_plans', JSON.stringify(localPlans));
+        }
+      } catch (e) { console.warn('[FinTrack] Budget pull skipped:', e.message); }
+
       this.lastSyncAt = new Date().toISOString();
       safeSave('lastCloudSync', this.lastSyncAt);
       console.log('[FinTrack] Pull (merge) complete at', this.lastSyncAt);
@@ -426,12 +503,10 @@ const ftSync = {
 
   // Incremental sync: push single transaction after save
   async pushTransaction(tx) {
-    if (!ftAuth.isLoggedIn()) {
-      this.pendingChanges.push({ table: 'transactions', data: this._mapTxForCloud(tx) });
-      return;
-    }
+    if (!ftCloudAllowed()) return; // not signed in (fullPush covers it later) or another account's device
     try {
-      await _supabase.from('transactions').upsert(this._mapTxForCloud(tx), { onConflict: 'id' });
+      // V2.0.5: Supabase returns {error} instead of throwing, so check it
+      ftCheck(await _supabase.from('transactions').upsert(this._mapTxForCloud(tx), { onConflict: 'id' }), 'Transaction push');
     } catch (e) {
       this.pendingChanges.push({ table: 'transactions', data: this._mapTxForCloud(tx) });
       console.warn('[FinTrack] Queued for sync:', e.message);
@@ -440,9 +515,9 @@ const ftSync = {
 
   // Incremental sync: push goal update
   async pushGoal(goal) {
-    if (!ftAuth.isLoggedIn()) return;
+    if (!ftCloudAllowed()) return;
     try {
-      await _supabase.from('goals').upsert({
+      ftCheck(await _supabase.from('goals').upsert({
         id: String(goal.id),
         user_id: ftAuth.uid(),
         name: goal.name || goal.n || '',
@@ -453,30 +528,31 @@ const ftSync = {
         priority: goal.priority || goal.pri || 'medium',
         status: goal.paused ? 'paused' : (goal.completed ? 'completed' : 'active'),
         note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '', acc: goal.acc || '', accs: goal.accs || [], base: goal.base || 0, created: goal.created || '' })
-      }, { onConflict: 'id' });
+      }, { onConflict: 'id' }), 'Goal push');
     } catch (e) {
-      console.warn('[FinTrack] Goal sync failed:', e.message);
+      console.warn('[FinTrack] Goal sync failed (next full push retries):', e.message);
     }
   },
 
-  // Delete from cloud
+  // Delete from cloud (V2.0.5: always remembered locally, so it can't come back on pull)
   async deleteTransaction(txId) {
-    if (!ftAuth.isLoggedIn()) return;
+    ftAddTombstone(txId);
+    if (!ftCloudAllowed()) return;
     try {
-      await _supabase.from('transactions').delete().eq('id', String(txId));
+      ftCheck(await _supabase.from('transactions').delete().eq('id', String(txId)).eq('user_id', ftAuth.uid()), 'Delete');
     } catch (e) {
-      console.warn('[FinTrack] Delete sync failed:', e.message);
+      console.warn('[FinTrack] Delete sync failed (next full push retries):', e.message);
     }
   },
 
   // Flush pending changes (call when back online)
   async flushPending() {
-    if (!ftAuth.isLoggedIn() || !this.pendingChanges.length) return;
+    if (!ftCloudAllowed() || !this.pendingChanges.length) return;
     var pending = this.pendingChanges.splice(0);
     for (var i = 0; i < pending.length; i++) {
       var item = pending[i];
       try {
-        await _supabase.from(item.table).upsert(item.data, { onConflict: 'id' });
+        ftCheck(await _supabase.from(item.table).upsert(item.data, { onConflict: 'id' }), 'Pending push');
       } catch (e) {
         this.pendingChanges.push(item);
       }
@@ -506,9 +582,14 @@ window.addEventListener('online', function() {
 // =====================================================
 // INIT: Call after ftLoadAll() in init.js
 // =====================================================
+var _ftCloudInited = false;
 async function ftCloudInit() {
+  // V2.0.5: initApp runs again after every unlock; start auth listener + hourly timer only once
+  if (_ftCloudInited) return;
+  _ftCloudInited = true;
   try {
     await ftAuth.init();
+    if (ftAuth.isLoggedIn() && !(await ftCloudClaim())) return;
     if (ftAuth.isLoggedIn()) {
       console.log('[FinTrack] Cloud connected as:', ftAuth.user.email);
       // Auto-pull if last sync > 5 min ago
