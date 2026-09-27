@@ -1,11 +1,12 @@
 // === HELPERS & UI UTILITIES (V2.0.0) ===
 
 // === XSS SANITIZATION (#8) ===
+// V2.0.5: also escapes quotes (safe inside attributes) and keeps 0 / false instead of blanking them
 function escapeHTML(str) {
-  if (!str) return '';
-  var div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  if (str === null || str === undefined) return '';
+  if (typeof ftEsc === 'function') return ftEsc(str);
+  var A = '&';
+  return String(str).replace(/&/g, A + 'amp;').replace(/</g, A + 'lt;').replace(/>/g, A + 'gt;').replace(/"/g, A + 'quot;').replace(/'/g, A + '#39;');
 }
 
 // === SESSION TIMEOUT (#7) ===
@@ -23,9 +24,18 @@ function resetIdleTimer() {
 function lockSession() {
   if (!FT_APP_LOCK) return;
   _sessionLocked = true;
+  // V2.0.5 (SEC-24): idle lock also closes the AI (it could still be used above the lock screen)
+  if (typeof ftIsUnlocked !== 'undefined') ftIsUnlocked = false;
+  if (typeof aiOpen !== 'undefined' && aiOpen && typeof toggleAIChat === 'function') { aiOpen = false; var ap = document.getElementById('aiPanel'); if (ap) ap.classList.remove('open'); }
+  var fab = document.getElementById('aiFab'); if (fab) fab.style.display = 'none';
+  var np = document.getElementById('notifPanel'); if (np) np.remove();
   showUnlockScreen();
 }
+var _ftIdleInited = false;
 function initIdleTracking() {
+  // V2.0.5: initApp runs again after every unlock; add the listeners only once
+  if (_ftIdleInited) { resetIdleTimer(); return; }
+  _ftIdleInited = true;
   ['click', 'keydown', 'touchstart', 'mousemove'].forEach(function(evt) {
     document.addEventListener(evt, resetIdleTimer, { passive: true });
   });
@@ -70,6 +80,9 @@ function applyHideAmounts() {
     '.cover-opt-avail', '.cover-preview-after', '.cover-preview-amt', '.cover-amt-input', // Goals cover sheet
     '.rpt-kpi-value', '.rpt-tbl td', // Reports KPIs + table
     '#cnt canvas',               // Charts (axes + tooltips show amounts)
+    'td.ai', 'td.ae', 'td.as',   // V2.0.5: desktop transaction / report amount cells
+    '.aib',                      // V2.0.5: AI chat answers (they quote your amounts)
+    '.ft-day-total',             // V2.0.5: mobile daily totals in Transactions
     '[style*="font-feature-settings"]' // Any element with tnum (money formatting)
   ];
   document.querySelectorAll(selectors.join(',')).forEach(el => {
@@ -220,8 +233,11 @@ function ftLockoutRemaining() {
   if (r <= 0) return 0;
   return Math.min(r, FT_LOCK_STEPS[FT_LOCK_STEPS.length - 1]); // clock moved back: never more than 15 min
 }
+var FT_LOCK_DECAY = 24 * 60 * 60 * 1000; // V2.0.5: wrong tries older than 24h are forgotten
 function ftRegisterFail() {
   var s = ftLockState();
+  if (s.last && Date.now() - s.last > FT_LOCK_DECAY) s.fails = 0;
+  s.last = Date.now();
   s.fails = (s.fails || 0) + 1;
   if (s.fails >= FT_LOCK_FREE) {
     var idx = Math.min(s.fails - FT_LOCK_FREE, FT_LOCK_STEPS.length - 1);
@@ -235,7 +251,9 @@ function ftLockMsg(sec) {
   return '🔒 Too many wrong tries. Wait ' + (sec >= 60 ? Math.ceil(sec / 60) + ' min' : sec + 's') + '.';
 }
 function ftTriesLeftMsg() {
-  var left = FT_LOCK_FREE - (ftLockState().fails || 0);
+  var s = ftLockState();
+  var fails = s.last && Date.now() - s.last > FT_LOCK_DECAY ? 0 : (s.fails || 0);
+  var left = FT_LOCK_FREE - fails;
   return left > 0 ? left + (left === 1 ? ' try' : ' tries') + ' left before lock' : '';
 }
 // UI helpers: show a message in an error element (works for display:none divs and .ferr)
@@ -330,8 +348,10 @@ function hasSecurityQuestions() {
 function getSecurityQuestionIndices() {
   const stored = safeGet('ft_security_questions');
   if (!stored) return null;
-  const data = JSON.parse(stored);
-  return { q1: data.q1, q2: data.q2 };
+  let data;
+  try { data = JSON.parse(stored); } catch (e) { return null; }
+  if (!data || typeof data !== 'object') return null;
+  return { q1: parseInt(data.q1) || 0, q2: parseInt(data.q2) || 0 };
 }
 
 // === APP LOCK (Simple PIN) ===
@@ -343,6 +363,18 @@ var FT_APP_LOCK = (function() {
   if (val === null && _ftStore.hasOwnProperty('ft_app_lock')) val = _ftStore['ft_app_lock'];
   return val === 'true';
 })();
+
+// V2.0.5: call after IndexedDB has loaded. If localStorage lost the flag but IndexedDB still says
+// "locked", the app must lock (before, it opened without asking for the PIN).
+function ftRecheckAppLock() {
+  var val = _ftStore.hasOwnProperty('ft_app_lock') ? _ftStore['ft_app_lock'] : null;
+  if (val === 'true' && !FT_APP_LOCK) {
+    FT_APP_LOCK = true;
+    ftWriteLS('ft_app_lock', 'true'); // put the flag back so the next boot locks right away
+    return true; // caller should show the unlock screen
+  }
+  return false;
+}
 
 function enableAppLock() {
   safeSave('ft_app_lock', 'true');
@@ -359,6 +391,7 @@ function disableAppLock() {
 
 
 const fmt = n => {
+  n = Number(n); if (!isFinite(n)) n = 0; // V2.0.5: never show NaN / Infinity
   const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
   const converted = convertAmount(Math.abs(n));
   const formatted = cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -366,6 +399,7 @@ const fmt = n => {
 };
 
 const fmtD = n => {
+  n = Number(n); if (!isFinite(n)) n = 0;
   const cfg = CURRENCY_CONFIG[displayCurrency] || CURRENCY_CONFIG.MYR;
   const converted = convertAmount(n);
   return cfg.symbol + ' ' + converted.toLocaleString(cfg.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -374,11 +408,26 @@ const fmtD = n => {
 // fmtR is now identical to fmt (kept for compatibility with goals.js references)
 const fmtR = fmt;
 
-function toast(m) {
+// V2.0.5: in hidden mode, any "RM 1,234" style amount in a toast becomes "RM •••"
+var _ftAmtRe = null;
+function ftMaskAmounts(m) {
+  if (typeof safeGet !== 'function' || safeGet('ft_hide_amounts') !== 'true') return m;
+  if (!_ftAmtRe && typeof CURRENCY_CONFIG !== 'undefined') {
+    var syms = Object.keys(CURRENCY_CONFIG).map(function(k) { return CURRENCY_CONFIG[k].symbol; }).concat(Object.keys(CURRENCY_CONFIG));
+    syms.sort(function(a, b) { return b.length - a.length; });
+    _ftAmtRe = new RegExp('(' + syms.map(function(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') + ')\\s?-?[0-9][0-9.,]*', 'g');
+  }
+  return _ftAmtRe ? String(m).replace(_ftAmtRe, '$1 •••') : m;
+}
+// V2.0.5: optional ms (longer for messages with an amount to read). The old timer is cleared,
+// so a new toast is no longer hidden early by the previous one.
+function toast(m, ms) {
   const el = document.getElementById('toast');
-  el.textContent = m;
+  if (!el) return;
+  el.textContent = ftMaskAmounts(m);
   el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2500);
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), ms > 0 ? ms : 2500);
 }
 
 function toggleTheme() {
@@ -412,6 +461,13 @@ function toggleSB() {
 
 function getSelectedYear() {
   return parseInt(document.getElementById('yf').value);
+}
+
+// V2.0.5: YYYY-MM-DD in YOUR timezone. toISOString() is UTC, so in Malaysia before 8am it gave yesterday's date.
+function ftLocalISO(d) {
+  d = d instanceof Date ? d : new Date(d === undefined ? Date.now() : d);
+  if (isNaN(d.getTime())) d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
 // === NOTIFICATION PANEL (v10.9.1) ===
@@ -454,14 +510,15 @@ function toggleNotifPanel() {
       html += '<div style="padding:10px 12px;margin-bottom:8px;border-radius:8px;background:var(--bg-primary);' + borderStyle + '">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start">';
       html += '<div style="flex:1;min-width:0">';
-      html += '<div style="font-size:12px;font-weight:600;margin-bottom:2px">' + rem.title + '</div>';
-      if (rem.description) html += '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px">' + rem.description + '</div>';
-      html += '<div style="font-size:10px;color:var(--text-tertiary)">' + rem.date + (rem.time ? ' at ' + rem.time : '') + ' &middot; ' + freq + ' &middot; ' + prio + '</div>';
+      var remArg = typeof rem.id === 'number' ? rem.id : ftArg(rem.id); // V2.0.5: safe id inside onclick
+      html += '<div style="font-size:12px;font-weight:600;margin-bottom:2px">' + ftEsc(rem.title) + '</div>';
+      if (rem.description) html += '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:3px">' + ftEsc(rem.description) + '</div>';
+      html += '<div style="font-size:10px;color:var(--text-tertiary)">' + ftEsc(rem.date) + (rem.time ? ' at ' + ftEsc(rem.time) : '') + ' &middot; ' + freq + ' &middot; ' + ftEsc(prio) + '</div>';
       html += '</div>';
       html += '<div style="flex-shrink:0;text-align:right">';
       html += '<div style="font-size:9px;font-weight:600;color:' + sColor + ';margin-bottom:4px">' + sText + '</div>';
-      html += '<button onclick="completeReminder(' + rem.id + ')" style="border:none;background:#d1fae5;color:#059669;font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;cursor:pointer;margin-right:4px">Done</button>';
-      html += '<button onclick="dismissReminder(' + rem.id + ')" style="border:none;background:var(--bg-secondary);color:var(--text-tertiary);font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer">Dismiss</button>';
+      html += '<button onclick="completeReminder(' + remArg + ')" style="border:none;background:#d1fae5;color:#059669;font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;cursor:pointer;margin-right:4px">Done</button>';
+      html += '<button onclick="dismissReminder(' + remArg + ')" style="border:none;background:var(--bg-secondary);color:var(--text-tertiary);font-size:9px;padding:2px 6px;border-radius:3px;cursor:pointer">Dismiss</button>';
       html += '</div></div></div>';
     }
   }
@@ -474,15 +531,15 @@ function completeReminder(id) {
     if (REMINDERS[i].id === id) {
       var r = REMINDERS[i];
       if (r.repeat === 'once') { r.completed = true; }
-      else if (r.repeat === 'monthly') { var d = new Date(r.date); d.setMonth(d.getMonth() + 1); r.date = d.toISOString().split('T')[0]; }
-      else if (r.repeat === 'yearly') { var d2 = new Date(r.date); d2.setFullYear(d2.getFullYear() + 1); r.date = d2.toISOString().split('T')[0]; }
+      else if (r.repeat === 'monthly') { var d = new Date(r.date + 'T00:00:00'); d.setMonth(d.getMonth() + 1); r.date = ftLocalISO(d); }
+      else if (r.repeat === 'yearly') { var d2 = new Date(r.date + 'T00:00:00'); d2.setFullYear(d2.getFullYear() + 1); r.date = ftLocalISO(d2); }
       r.dismissed = false;
       break;
     }
   }
   saveREMINDERS();
   updateNotifBadge();
-  document.getElementById('notifPanel').remove();
+  var npc = document.getElementById('notifPanel'); if (npc) npc.remove();
   toggleNotifPanel();
   toast('Reminder completed');
 }
@@ -497,13 +554,13 @@ function dismissReminder(id) {
       } else {
         // Recurring: advance to next occurrence, reset dismissed so it shows again
         if (r.repeat === 'monthly') {
-          var d = new Date(r.date);
+          var d = new Date(r.date + 'T00:00:00');
           d.setMonth(d.getMonth() + 1);
-          r.date = d.toISOString().split('T')[0];
+          r.date = ftLocalISO(d);
         } else if (r.repeat === 'yearly') {
-          var d2 = new Date(r.date);
+          var d2 = new Date(r.date + 'T00:00:00');
           d2.setFullYear(d2.getFullYear() + 1);
-          r.date = d2.toISOString().split('T')[0];
+          r.date = ftLocalISO(d2);
         }
         r.dismissed = false;
       }
@@ -512,7 +569,7 @@ function dismissReminder(id) {
   }
   saveREMINDERS();
   updateNotifBadge();
-  document.getElementById('notifPanel').remove();
+  var npd = document.getElementById('notifPanel'); if (npd) npd.remove();
   toggleNotifPanel();
 }
 
@@ -606,7 +663,7 @@ function resolveHintFromSchema(type, hint) {
 }
 
 function getCatMemory() {
-  return JSON.parse(safeGet(CAT_MEMORY_KEY) || '{}');
+  return ftJSON(CAT_MEMORY_KEY, {}); // V2.0.5: corrupt memory no longer breaks the Add form
 }
 
 function saveCatMemory(mem) {
@@ -639,7 +696,7 @@ function learnFromTransaction(tx) {
     if (catKey.length >= 2 && !keys.includes(catKey)) keys.push(catKey);
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = ftLocalISO();
 
   keys.forEach(key => {
     if (!mem[key]) {
