@@ -106,7 +106,7 @@ function renderDashboard(c) {
   }
 
   // === BUILD HTML ===
-  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em" data-nw-morph onclick="ftMorphNav('accounts', this)" style="cursor:pointer" title="Open Accounts"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
+  c.innerHTML = `<div class="kg" style="margin-bottom:14px"><div class="kc em" data-nw-morph onclick="if(typeof ftMorphNav==='function')ftMorphNav('accounts', this);else navigate('accounts')" style="cursor:pointer" title="Open Accounts"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="landmark" width="13" height="13"></i></div><div class="kl">${t('dash_net_worth')}</div></div><div class="kv">${fmt(nw)}</div><div class="kt ${nwTrend.noData ? 'neutral' : (nwTrend.pos ? 'pos' : 'neg')}"><span class="kt-chg">${nwTrend.label}</span></div></div><div class="kc-spark"><canvas id="heroSpark" height="36"></canvas></div></div>${cards.map((k, i) => { const tr = calcTrend(k.s, k.exp); return `<div class="kc ${k.cl}"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="${k.ic}" width="13" height="13"></i></div><div class="kl">${k.l}</div></div><div class="kv">${k.v}</div><div class="kt ${tr.noData ? 'neutral' : (tr.pos ? 'pos' : 'neg')}"><span class="kt-chg">${tr.label}</span></div></div><div class="kc-spark"><canvas id="sp${i}" height="36"></canvas></div></div>`; }).join('')}</div>
 ${overspentBannerHtml}
 ${safeBuildForecastHtml('desktop')}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
@@ -474,7 +474,9 @@ function renderMobileDashboard(c, year) {
   }
 
   const nw = getNetWorth();
-  const nwT = typeof ftNwTotals === 'function' ? ftNwTotals() : null; // V2.0.4: Assets / Liabilities line on the card
+  // V2.0.5: Assets / Liabilities line computed here too, so it still shows if accounts.js fails to load
+  let nwT = typeof ftNwTotals === 'function' ? ftNwTotals() : null;
+  if (!nwT) { try { nwT = { assets: ACCOUNTS.filter(a => a.type === 'asset').reduce((s, a) => s + ftAccBalanceMYR(a.id), 0), liabs: ftLiabilitiesMYR() }; } catch (e) { nwT = null; console.warn('[FinTrack] NW totals:', e); } }
   const cf = ti - te;
   const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
   const budgetTotal = getYearlyBudgetTotal(year);
@@ -535,7 +537,7 @@ function renderMobileDashboard(c, year) {
   }).join('');
 
   c.innerHTML = `<div class="mob-dash">
-    <div class="mob-dash-balance ft-nw-card" data-nw-morph onclick="ftMorphNav('accounts', this)" role="button" aria-label="Open Accounts">
+    <div class="mob-dash-balance ft-nw-card" data-nw-morph onclick="if(typeof ftMorphNav==='function')ftMorphNav('accounts', this);else navigate('accounts')" role="button" aria-label="Open Accounts">
       <div class="mob-dash-greeting">${getGreeting()}</div>
       <div class="ft-nw-label">${t('dash_net_worth')}</div>
       <div class="mob-dash-amount">${fmt(nw)}</div>
@@ -631,10 +633,10 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   const cfChange = prevCf !== null && prevCf !== 0 ? ((cf - prevCf) / Math.abs(prevCf) * 100).toFixed(0) : null;
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💰 Cash Flow</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmtD(ti)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmtD(te)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmtD(cf)}</div></div>
+    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(ti)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmt(te)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmt(cf)}</div></div>
     </div>
     ${cfChange !== null ? `<div style="font-size:10px;color:${+cfChange >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-weight:500;text-align:center">${+cfChange >= 0 ? '▲' : '▼'} ${Math.abs(cfChange)}% vs previous month</div>` : ''}
     ${(() => { const sa = mf === 'total' ? yearData.reduce((s, m) => s + (m.sa || 0), 0) : (yearData[+mf].sa || 0); return sa !== 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--bg-primary);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary)">🔒 Set aside (to Savings/Investment accounts)</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:'tnum'">${fmt(sa)}</span></div>` : ''; })()}
