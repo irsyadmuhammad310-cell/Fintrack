@@ -28,6 +28,50 @@ function loadGOALS() {
   GOALS.forEach(g => { const n = Number(g.id); if (isFinite(n) && n >= goalNxId) goalNxId = n + 1; });
   // V2.0.5 (GOAL-CRASH): repair old / half-broken goals so one bad goal can't crash the Goals tab
   GOALS.forEach(ftGoalNorm);
+  // V2.0.6: a restore, import or sync can push one account past 100% across goals. Trim it back once.
+  const fixes = ftGoalRepairShares(GOALS);
+  if (fixes.length) { saveGOALS(); setTimeout(() => toast('⚖️ Goal % fixed: ' + fixes[0] + (fixes.length > 1 ? ' (+' + (fixes.length - 1) + ' more)' : '')), 1500); }
+}
+// V2.0.6: numeric id (time x 1000 + random) so old number-based buttons keep working, and two phones never clash
+function ftNewGoalId() {
+  let id;
+  do { id = Date.now() * 1000 + Math.floor(Math.random() * 1000); } while (GOALS.some(g => Number(g.id) === id));
+  return id;
+}
+// V2.0.6: every account can give at most 100% in total across goals, max 3 accounts per goal.
+// Goals in preferIds keep their % first, the rest get what is left (trimmed, or unlinked from that account at 0%).
+// Changes the list in place. Returns short messages for what was fixed.
+function ftGoalRepairShares(list, preferIds) {
+  const fixes = [];
+  if (!Array.isArray(list) || !list.length) return fixes;
+  const pref = new Set((preferIds || []).filter(x => x !== undefined && x !== null).map(String));
+  const order = list.filter(g => g && pref.has(String(g.id))).concat(list.filter(g => g && !pref.has(String(g.id))));
+  const used = {};
+  order.forEach(g => {
+    if (!g || typeof g !== 'object' || !Array.isArray(g.accs) || !g.accs.length) return;
+    if (!g.shares || typeof g.shares !== 'object' || Array.isArray(g.shares)) g.shares = {};
+    const name = String(g.n || 'Goal');
+    if (g.accs.length > 3) { g.accs.slice(3).forEach(id => delete g.shares[String(id)]); g.accs = g.accs.slice(0, 3); fixes.push(name + ': max 3 accounts'); }
+    const keep = [];
+    g.accs.forEach(id => {
+      const k = String(id);
+      const had = g.shares[k] !== undefined;
+      const n = Number(g.shares[k]);
+      const want = had && isFinite(n) ? Math.max(0, Math.min(100, n)) : 100;
+      const free = Math.max(0, 100 - (used[k] || 0));
+      if (free <= 0) { delete g.shares[k]; fixes.push(name + ': unlinked from a full account'); return; }
+      const got = Math.min(want, free);
+      if (got < want) fixes.push(name + ': ' + want + '% → ' + got + '%');
+      if (got < 100 || had) g.shares[k] = got;
+      used[k] = (used[k] || 0) + got;
+      keep.push(id);
+    });
+    if (keep.length !== g.accs.length) {
+      g.accs = keep;
+      if (!keep.length) g.acc = '';
+    }
+  });
+  return fixes;
 }
 // Old cloud pulls saved goals as name/target/current; imports can bring text numbers or a text list.
 // Rebuild every goal in the app's own shape: n, t, c, e, due, linkedCats[], accs[].
@@ -343,7 +387,7 @@ function openGoalModal(editG) {
   }).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No accounts yet</div>';
   const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
   const currentVal = isEdit ? (linkedArr.length ? (editG.base || 0) : editG.c) : '0';
-  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? ftRemArg(editG.id) : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? ftEsc(editG.n) : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? ftEsc(Number(editG.t) || 0) : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${ftEsc(Number(currentVal) || 0)}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = balance × % of the accounts you tick (max 3). Money in goes up, money out goes down. One account can be shared by several goals: its % across all goals can't pass 100, so money is never counted twice. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:190px;overflow-y:auto">${accChecks}</div><div id="g_acc_prev" style="font-size:10px;margin-top:6px;font-weight:600"></div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? ftEsc(editG.due || '') : (new Date().getFullYear() + 1) + '-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? ftEsc(editG.e) : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? ftRemArg(editG.id) : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? ftEsc(editG.n) : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? ftEsc(Number(editG.t) || 0) : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${ftEsc(Number(currentVal) || 0)}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = balance × % of the accounts you tick (max 3). Money in goes up, money out goes down. One account can be shared by several goals: its % across all goals can't pass 100, so money is never counted twice. Current Saved is ignored. Tick nothing = manual goal.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:190px;overflow-y:auto">${accChecks}</div><div id="g_acc_prev" style="font-size:10px;margin-top:6px;font-weight:600"></div>${linkedArr.length && !selAccs.length ? '<p style="font-size:10px;color:#d97706;margin-top:6px">Old goal: still follows transfer categories (' + ftEsc(linkedArr.join(', ')) + '). Tick accounts above to switch.</p>' : ''}</div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? ftEsc(editG.due || '') : (new Date().getFullYear() + 1) + '-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? ftEsc(editG.e) : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   ftGoalPreview(gEditId);
@@ -358,7 +402,9 @@ function saveGoal(e, editId) {
   const accIds = accList.map(x => x.id);
   const shares = {};
   accList.forEach(x => { shares[String(x.id)] = x.pct; });
-  const linkedCats = accIds.length ? [] : Array.from(document.querySelectorAll('.g_linked_chk:checked')).map(el => el.value);
+  // V2.0.6: category linking removed from the form. Old category goals keep theirs until switched to accounts.
+  const oldG = editId != null ? GOALS.find(g => g.id === editId) : null;
+  const linkedCats = (accIds.length || !oldG) ? [] : ftGoalCats(oldG);
   const isLinked = linkedCats.length > 0;
   const currentVal = parseFloat(document.getElementById('g_current').value) || 0;
   const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '', acc: '', accs: accIds, shares: accIds.length ? shares : {} };
@@ -378,7 +424,8 @@ function saveGoal(e, editId) {
     if (idx >= 0) GOALS[idx] = { ...GOALS[idx], ...data };
     toast('✅ Goal updated');
   } else {
-    data.id = goalNxId++;
+    goalNxId++;
+    data.id = ftNewGoalId(); // V2.0.6: unique across phones (cloud sync)
     data.created = ftLocalISO();
     GOALS.push(data);
     toast('✅ Goal created');
