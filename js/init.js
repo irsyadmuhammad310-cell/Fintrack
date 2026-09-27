@@ -1,5 +1,5 @@
 // === INIT (FinTrack Premium V2.0.2 Modular Boot) ===
-document.addEventListener("DOMContentLoaded", () => lucide.createIcons());
+document.addEventListener("DOMContentLoaded", () => { if (typeof lucide !== 'undefined') lucide.createIcons(); });
 
 // Populate header year dropdown
 document.getElementById('yf').innerHTML = buildYearOptions(CURRENT_YEAR);
@@ -141,6 +141,8 @@ function init() {
   }
   // Load IndexedDB → populate _ftStore → then boot
   ftLoadAll().then(function() {
+    // V2.0.5: localStorage lost the lock flag but IndexedDB still says locked -> ask for the PIN first
+    if (typeof ftRecheckAppLock === 'function' && ftRecheckAppLock()) { showUnlockScreen(); return; }
     loadAllModuleData();
     initApp();
   }).catch(function(e) {
@@ -160,6 +162,10 @@ async function initWithPasskey(passkey) {
 function showUnlockScreen() {
   var appEl = document.getElementById('app');
   if (appEl) appEl.style.display = 'none';
+  // V2.0.5: the AI button lives outside #app, hide it too (it stayed clickable over the lock screen)
+  ftIsUnlocked = false;
+  var fabEl = document.getElementById('aiFab');
+  if (fabEl) fabEl.style.display = 'none';
   // V2.0.4: remove any old lock/recovery overlay first (stacked overlays kept the lock screen stuck after unlock)
   var oldEl;
   while ((oldEl = document.getElementById('ftUnlock'))) oldEl.remove();
@@ -273,7 +279,8 @@ async function ftBiometricAuth() {
 }
 
 function ftBiometricRemove() {
-  localStorage.removeItem('ft_bio_cred');
+  // V2.0.5: overwrite instead of removeItem (empty = no biometric; every reader treats '' as absent)
+  try { localStorage.setItem('ft_bio_cred', ''); } catch (e) {}
   toast('🗑 Biometric removed');
 }
 
@@ -578,6 +585,8 @@ function showFirstTimeSecuritySetup() {
 
 function initApp() {
   window._ftAppBooted = true;
+  var fabBack = document.getElementById('aiFab');
+  if (fabBack) fabBack.style.display = ''; // V2.0.5: unlocked, bring the AI button back
   const st = safeGet('theme');
   if (st) {
     document.documentElement.dataset.theme = st;
@@ -618,7 +627,9 @@ function initApp() {
   // v15.5: Check budget alerts on app load
   if (typeof checkBudgetAlerts === 'function') setTimeout(() => checkBudgetAlerts(), 1000);
   // Register Service Worker for PWA with auto-update detection
-  if ('serviceWorker' in navigator) {
+  // V2.0.5: initApp runs again after every unlock; register the SW, 30-min timer and listener only once
+  if ('serviceWorker' in navigator && !window._ftSwInited) {
+    window._ftSwInited = true;
     navigator.serviceWorker.register('./sw.js').then(function(reg) {
       console.log('SW registered:', reg.scope);
       // Check for updates every 30 minutes
@@ -714,7 +725,7 @@ function showOnboarding() {
       var savedTitle = getUserTitle();
       html += '<div style="text-align:left;margin-bottom:20px;max-width:280px;margin-left:auto;margin-right:auto">';
       html += '<label style="font-size:11px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:4px">Your Name</label>';
-      html += '<input id="onboardName" class="fi" placeholder="e.g. Irsyad" value="' + (savedName || '') + '" style="margin-bottom:14px;text-align:center;font-size:14px">';
+      html += '<input id="onboardName" class="fi" placeholder="e.g. Irsyad" value="' + ftEsc(savedName || '') + '" style="margin-bottom:14px;text-align:center;font-size:14px">';
       html += '<label style="font-size:11px;font-weight:500;color:var(--text-secondary);display:block;margin-bottom:6px">How should I greet you?</label>';
       html += '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">';
       var titles = ['sir','master','boss','bro','chief'];
@@ -772,10 +783,42 @@ function showOnboarding() {
   renderStep();
 }
 
+// V2.0.5: offline with no cached CDN = icons/charts never load. Don't hang on the splash forever:
+// after 8s boot anyway with do-nothing stand-ins (icons blank, charts empty, your data all there).
+function ftNoopLib() {
+  var p;
+  var f = function() { return p; };
+  p = new Proxy(f, {
+    get: function(t, k) {
+      if (k === Symbol.toPrimitive) return function() { return ''; };
+      if (k === 'then') return undefined; // not a Promise
+      if (k === 'length') return 0;
+      if (k === 'toString' || k === 'valueOf') return function() { return ''; };
+      return p;
+    },
+    set: function() { return true; },
+    apply: function() { return p; },
+    construct: function() { return p; }
+  });
+  return p;
+}
+var _ftBootStart = Date.now();
+var _ftBooted = false;
 const rdy = setInterval(() => {
-  if (typeof lucide !== 'undefined' && typeof Chart !== 'undefined') {
+  var libsOk = typeof lucide !== 'undefined' && typeof Chart !== 'undefined';
+  var timedOut = Date.now() - _ftBootStart > 8000;
+  if (libsOk || timedOut) {
     clearInterval(rdy);
-    init();
+    if (_ftBooted) return;
+    _ftBooted = true;
+    if (!libsOk) {
+      var missing = [];
+      if (typeof lucide === 'undefined') { window.lucide = { createIcons: function() {} }; missing.push('icons'); }
+      if (typeof Chart === 'undefined') { window.Chart = ftNoopLib(); window._ftNoCharts = true; missing.push('charts'); }
+      console.warn('[FinTrack] Booting without: ' + missing.join(', '));
+      setTimeout(function() { try { toast('📶 Offline: ' + missing.join(' & ') + ' unavailable. Your data is fine.'); } catch (e) {} }, 2500);
+    }
+    try { init(); } catch (e) { console.error('[FinTrack] init failed:', e); }
     // Dismiss splash screen
     setTimeout(function() {
       var splash = document.getElementById('ftSplash');
