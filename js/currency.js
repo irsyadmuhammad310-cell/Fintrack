@@ -139,8 +139,19 @@ function ftSetBase(cur, force) {
   return true;
 }
 
+if (!CURRENCY_CONFIG[FT_BASE]) FT_BASE = 'MYR'; // V2.0.5: corrupt base code falls back safely
 let displayCurrency = safeGet('ft_currency') || ftDetectCurrency();
-let exchangeRates = JSON.parse(safeGet('ft_rates') || 'null') || FALLBACK_RATES;
+if (!CURRENCY_CONFIG[displayCurrency]) displayCurrency = FT_BASE; // V2.0.5: unknown code = show base currency
+// V2.0.5: keep only real, positive rates. Corrupt cache used to crash the whole app at startup.
+function ftCleanRates(r) {
+  var out = {};
+  if (r && typeof r === 'object' && !Array.isArray(r)) {
+    Object.keys(r).forEach(function(k) { var n = Number(r[k]); if (/^[A-Z]{3}$/.test(k) && isFinite(n) && n > 0) out[k] = n; });
+  }
+  out.MYR = 1;
+  return Object.keys(out).length > 1 ? out : Object.assign({}, FALLBACK_RATES);
+}
+let exchangeRates = (function() { try { return ftCleanRates(JSON.parse(safeGet('ft_rates') || 'null')); } catch (e) { return Object.assign({}, FALLBACK_RATES); } })();
 let ratesLastUpdated = safeGet('ft_rates_updated') || null;
 
 async function fetchExchangeRates() {
@@ -148,8 +159,7 @@ async function fetchExchangeRates() {
     const res = await fetch('https://api.exchangerate-api.com/v4/latest/MYR');
     if (!res.ok) throw new Error('API error');
     const data = await res.json();
-    exchangeRates = data.rates;
-    exchangeRates.MYR = 1;
+    exchangeRates = ftCleanRates(data && data.rates);
     ratesLastUpdated = new Date().toISOString();
     safeSave('ft_rates', JSON.stringify(exchangeRates));
     safeSave('ft_rates_updated', ratesLastUpdated);
@@ -167,6 +177,7 @@ function convertAmount(amountInBase) {
 
 // Convert amount from one currency to another (v15.1)
 function convertFromTo(amount, fromCurrency, toCurrency) {
+  amount = Number(amount) || 0; // V2.0.5: bad amount = 0, never NaN
   if (fromCurrency === toCurrency) return amount;
   const fromRate = exchangeRates[fromCurrency] || FALLBACK_RATES[fromCurrency] || 1;
   const toRate = exchangeRates[toCurrency] || FALLBACK_RATES[toCurrency] || 1;
@@ -198,6 +209,7 @@ function fmtDual(amount, nativeCurrency) {
 }
 
 function setCurrency(currency) {
+  if (!CURRENCY_CONFIG[currency]) return; // V2.0.5: never accept an unknown currency code
   displayCurrency = currency;
   safeSave('ft_currency', currency);
   // V2.0.4: before the first transaction, picking a currency also sets the base (nothing to re-price yet)
