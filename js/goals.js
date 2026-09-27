@@ -47,6 +47,12 @@ function ftGoalNorm(g) {
   g.linkedCats = list(g.linkedCats).map(String);
   g.linkedCat = typeof g.linkedCat === 'string' ? g.linkedCat : '';
   g.accs = list(g.accs);
+  // V2.0.5 shared accounts: keep only a valid 0-100 % for accounts this goal links
+  const sh = {};
+  if (g.shares && typeof g.shares === 'object' && !Array.isArray(g.shares)) {
+    g.accs.forEach(id => { const v = Number(g.shares[String(id)]); if (g.shares[String(id)] !== undefined && isFinite(v)) sh[String(id)] = Math.max(0, Math.min(100, v)); });
+  }
+  g.shares = sh;
   if (g.base !== undefined) g.base = num(g.base);
   if (g.id === undefined || g.id === null || g.id === '') g.id = goalNxId++;
   return g;
@@ -168,7 +174,8 @@ function renderGoals(c) {
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + ftEsc(ftGoalLinkLabel(g)) : t('goal_manual')}</div></div>`;
       html += `</div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--text-tertiary);font-style:italic">${t('goal_no_notes')}</div>`;
-      html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${ftRemArg(g.id)})">${t('goal_edit')}</button><button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${ftRemArg(g.id)})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${ftRemArg(g.id)})">${t('goal_delete')}</button></div>`;
+      html += ftGoalExtraNote(g);
+      html += `<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${ftRemArg(g.id)})">${t('goal_edit')}</button>${ftGoalAccOk(g) ? `<button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${ftRemArg(g.id)})">Adjust %</button>` : ''}<button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${ftRemArg(g.id)})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${ftRemArg(g.id)})">${t('goal_delete')}</button></div>`;
       html += `</div>`;
     }
     html += `</div>`;
@@ -321,36 +328,45 @@ function openGoalModal(editG) {
   const savCats = Object.keys(SCHEMA.Savings || {});
   const linkedArr = isEdit && editG.linkedCats ? editG.linkedCats : (isEdit && editG.linkedCat ? [editG.linkedCat] : []);
   const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + ftEsc(cat) + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + ftEsc(cat) + '</label>').join('');
-  // V2.0.5: optional account link. Progress = that account's live balance.
-  // Accounts already used by another goal are greyed out ("used by ...")
+  // V2.0.5 shared accounts: each ticked account gets a % box. Only the % other goals haven't used is allowed.
   const selAccs = isEdit ? ftGoalAccs(editG) : [];
+  const gEditId = isEdit ? editG.id : null;
+  const gPrevCall = 'ftGoalPreview(' + (isEdit ? ftRemArg(editG.id) : 'null') + ')';
   const accChecks = ACCOUNTS.filter(a => a.type === 'asset').map(a => {
-    const owner = ftAccOwnerGoal(a.id, isEdit ? editG.id : null);
-    const dis = !!owner && !selAccs.includes(a.id);
-    return '<label style="display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 0;cursor:' + (dis ? 'not-allowed;opacity:.45' : 'pointer') + '"><input type="checkbox" class="g_acc_chk" value="' + escapeHTML(String(a.id)) + '"' + (selAccs.includes(a.id) ? ' checked' : '') + (dis ? ' disabled' : '') + '> ' + escapeHTML(a.name) + ' <span style="color:var(--text-tertiary)">· ' + (dis ? 'used by ' + escapeHTML(owner.n || 'another goal') : escapeHTML(a.accountType || '')) + '</span></label>';
+    const free = ftAccFreePct(a.id, gEditId);
+    const mine = selAccs.includes(a.id);
+    const dis = free <= 0 && !mine;
+    const val = mine ? Math.min(ftGoalShare(editG, a.id), free) : free;
+    const others = ftAccShareLabel(a.id, gEditId);
+    const sub = dis ? 'full: ' + others : (others ? others + ' · ' + free + '% free' : (a.accountType || ''));
+    return '<div style="display:flex;align-items:center;gap:6px;padding:4px 0' + (dis ? ';opacity:.45' : '') + '"><label style="display:flex;align-items:center;gap:6px;font-size:11px;flex:1;min-width:0;cursor:' + (dis ? 'not-allowed' : 'pointer') + '"><input type="checkbox" class="g_acc_chk" value="' + escapeHTML(String(a.id)) + '"' + (mine ? ' checked' : '') + (dis ? ' disabled' : '') + ' onchange="' + gPrevCall + '"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHTML(a.name) + ' <span style="color:var(--text-tertiary)">· ' + escapeHTML(sub) + '</span></span></label>' + (dis ? '' : '<input type="number" class="fi g_acc_pct" data-acc="' + escapeHTML(String(a.id)) + '" min="0.01" max="' + free + '" step="any" value="' + val + '" style="width:62px;padding:4px 6px;font-size:11px" oninput="' + gPrevCall + '"><span style="font-size:11px;color:var(--text-tertiary)">%</span>') + '</div>';
   }).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No accounts yet</div>';
   const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
   const currentVal = isEdit ? (linkedArr.length ? (editG.base || 0) : editG.c) : '0';
-  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? ftRemArg(editG.id) : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? ftEsc(editG.n) : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? ftEsc(Number(editG.t) || 0) : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${ftEsc(Number(currentVal) || 0)}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = total balance of the accounts you tick. Money in goes up, money out goes down. One account can only belong to one goal. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:160px;overflow-y:auto">${accChecks}</div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? ftEsc(editG.due || '') : (new Date().getFullYear() + 1) + '-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? ftEsc(editG.e) : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? ftRemArg(editG.id) : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? ftEsc(editG.n) : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? ftEsc(Number(editG.t) || 0) : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${ftEsc(Number(currentVal) || 0)}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = balance × % of the accounts you tick (max 3). Money in goes up, money out goes down. One account can be shared by several goals: its % across all goals can't pass 100, so money is never counted twice. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:190px;overflow-y:auto">${accChecks}</div><div id="g_acc_prev" style="font-size:10px;margin-top:6px;font-weight:600"></div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? ftEsc(editG.due || '') : (new Date().getFullYear() + 1) + '-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? ftEsc(editG.e) : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
+  ftGoalPreview(gEditId);
 }
 
 function saveGoal(e, editId) {
   e.preventDefault();
-  const accIds = Array.from(document.querySelectorAll('.g_acc_chk:checked')).map(el => (ACCOUNTS.find(a => String(a.id) === el.value) || {}).id).filter(id => id !== undefined);
-  // One account = one goal (otherwise the same money is counted twice)
-  const clash = accIds.map(id => ({ id, g: ftAccOwnerGoal(id, editId) })).find(x => x.g);
-  if (clash) { toast('⚠️ ' + ACCOUNTS.find(a => a.id === clash.id).name + ' is already linked to "' + clash.g.n + '"'); return; }
+  // V2.0.5 shared accounts: max 3 accounts, and each account's % across all goals stays within 100
+  const accList = ftGoalFormAccs();
+  const accErr = ftGoalAccError(accList, editId);
+  if (accErr) { toast('⚠️ ' + accErr); return; }
+  const accIds = accList.map(x => x.id);
+  const shares = {};
+  accList.forEach(x => { shares[String(x.id)] = x.pct; });
   const linkedCats = accIds.length ? [] : Array.from(document.querySelectorAll('.g_linked_chk:checked')).map(el => el.value);
   const isLinked = linkedCats.length > 0;
   const currentVal = parseFloat(document.getElementById('g_current').value) || 0;
-  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '', acc: '', accs: accIds };
+  const data = { n: document.getElementById('g_name').value.trim(), t: parseFloat(document.getElementById('g_target').value) || 0, c: currentVal, due: document.getElementById('g_due').value, e: document.getElementById('g_emoji').value || '🎯', linkedCats: linkedCats, linkedCat: '', acc: '', accs: accIds, shares: accIds.length ? shares : {} };
   // For linked goals, "Current Saved" field = base (initial untracked balance).
   // Sync will set g.c = base + sum(transfers, with direction) on next render.
   if (accIds.length) {
     data.base = 0;
-    data.c = Math.max(0, ftGoalAccTotal({ accs: accIds }));
+    data.c = ftGoalAccValue({ accs: accIds, shares: shares, t: data.t });
   } else if (isLinked) {
     data.base = currentVal;
     data.c = Math.max(0, currentVal + ftGoalCatTotal(linkedCats));
@@ -403,12 +419,22 @@ function editGoal(id) {
   if (g) openGoalModal(g);
 }
 
+// V2.0.5 shared accounts: a finished goal on a shared account stops at its target. Tell the user
+// how much more is sitting there so they can give that % to another goal.
+function ftGoalExtraNote(g) {
+  const extra = ftGoalAccExtra(g);
+  if (!(extra > 0)) return '';
+  return '<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--emerald);border-radius:6px;margin-bottom:10px;font-size:11px;color:var(--text-secondary)">🎉 Target reached. ' + fmt(extra) + ' more of this goal\'s share is sitting in the account. Tap <b>Adjust %</b> to lower it and give it to another goal.</div>';
+}
+
 function deleteGoal(id) {
   if (!confirm('Delete this goal? This cannot be undone.')) return;
+  const gone = GOALS.find(g => g.id === id);
+  const freed = gone && ftGoalAccOk(gone) && GOALS.length > 1;
   GOALS = GOALS.filter(g => g.id !== id);
   saveGOALS();
   expandedGoal = null;
-  toast('🗑 Goal deleted');
+  toast(freed ? '🗑 Goal deleted. Its account % is free for other goals' : '🗑 Goal deleted');
   renderGoals(document.getElementById('cnt'));
 }
 
@@ -542,15 +568,85 @@ function ftGoalAccs(g) {
   return ids.map(id => (ACCOUNTS.find(a => a.type === 'asset' && String(a.id) === String(id)) || {}).id).filter(id => id !== undefined);
 }
 function ftGoalAccOk(g) { return ftGoalAccs(g).length > 0; }
-function ftGoalAccTotal(g) { return ftGoalAccs(g).reduce((s, id) => s + ftAccBalanceMYR(id), 0); }
-// One account = one goal, otherwise the same money is counted twice. Returns the goal that already uses it.
-function ftAccOwnerGoal(accId, exceptId) { return GOALS.find(g => g.id !== exceptId && ftGoalAccs(g).includes(accId)) || null; }
+// V2.0.5 SHARED ACCOUNTS: one account can feed several goals by % (e.g. ASB: 40% Kahwin, 60% Rumah).
+// Goal = sum of (account balance x its %). One account's % across ALL goals can never pass 100,
+// so the same ringgit is never counted twice. No % saved = 100 (goals made before this update own the whole account).
+const FT_GOAL_MAX_ACCS = 3;
+function ftGoalShare(g, accId) {
+  const sh = g && g.shares && typeof g.shares === 'object' ? g.shares[String(accId)] : undefined;
+  if (sh === undefined || sh === null || sh === '') return 100;
+  const n = Number(sh);
+  return isFinite(n) ? Math.max(0, Math.min(100, n)) : 100;
+}
+// % of an account already given to OTHER goals
+function ftAccUsedPct(accId, exceptId) {
+  return GOALS.reduce((s, g) => (g.id !== exceptId && ftGoalAccs(g).includes(accId)) ? s + ftGoalShare(g, accId) : s, 0);
+}
+function ftAccFreePct(accId, exceptId) { return Math.max(0, Math.round((100 - ftAccUsedPct(accId, exceptId)) * 100) / 100); }
+// Other goals using this account, e.g. "Kahwin 40%, Rumah 20%"
+function ftAccShareLabel(accId, exceptId) {
+  return GOALS.filter(g => g.id !== exceptId && ftGoalAccs(g).includes(accId)).map(g => (g.n || 'Goal') + ' ' + ftGoalShare(g, accId) + '%').join(', ');
+}
+function ftGoalUsesShared(g) { return ftGoalAccs(g).some(id => ftGoalShare(g, id) < 100); }
+// Goal money from its accounts, before the target cap
+function ftGoalAccTotal(g) { return ftGoalAccs(g).reduce((s, id) => s + ftAccBalanceMYR(id) * ftGoalShare(g, id) / 100, 0); }
+// A goal using a shared account stops at its target (the rest stays in the account for other goals)
+function ftGoalAccValue(g) {
+  let v = Math.max(0, Math.round(ftGoalAccTotal(g) * 100) / 100);
+  const t = Number(g.t);
+  if (ftGoalUsesShared(g) && isFinite(t) && t > 0 && v > t) v = t;
+  return v;
+}
+// Money above the target in a shared goal (shown so the user can give that % to another goal)
+function ftGoalAccExtra(g) {
+  const t = Number(g.t);
+  if (!ftGoalUsesShared(g) || !isFinite(t) || t <= 0) return 0;
+  return Math.max(0, Math.round((ftGoalAccTotal(g) - t) * 100) / 100);
+}
+// Kept for old callers: the goal list when an account has no % left
+function ftAccOwnerGoal(accId, exceptId) { return ftAccFreePct(accId, exceptId) <= 0 ? (GOALS.find(g => g.id !== exceptId && ftGoalAccs(g).includes(accId)) || null) : null; }
+// Ticked accounts + typed % from the goal form
+function ftGoalFormAccs() {
+  const pctOf = {};
+  document.querySelectorAll('.g_acc_pct').forEach(el => { pctOf[el.dataset.acc] = parseFloat(el.value); });
+  return Array.from(document.querySelectorAll('.g_acc_chk:checked')).map(el => {
+    const acc = ACCOUNTS.find(a => String(a.id) === el.value);
+    if (!acc) return null;
+    const p = pctOf[el.value];
+    return { id: acc.id, name: acc.name || 'Account', pct: isFinite(p) ? Math.round(p * 100) / 100 : 0 };
+  }).filter(Boolean);
+}
+// '' when OK, otherwise the problem in plain words
+function ftGoalAccError(list, editId) {
+  if (list.length > FT_GOAL_MAX_ACCS) return 'Max ' + FT_GOAL_MAX_ACCS + ' accounts per goal.';
+  for (const x of list) {
+    const free = ftAccFreePct(x.id, editId);
+    if (!(x.pct > 0)) return x.name + ': % must be more than 0.';
+    if (x.pct > free + 1e-9) return x.name + ': only ' + free + '% left (' + (ftAccShareLabel(x.id, editId) || 'other goals') + ').';
+  }
+  return '';
+}
+// Live "Before -> After" line in the goal form, so changing a % never surprises you
+function ftGoalPreview(editId) {
+  const box = document.getElementById('g_acc_prev');
+  if (!box) return;
+  const list = ftGoalFormAccs();
+  if (!list.length) { box.textContent = ''; return; }
+  const err = ftGoalAccError(list, editId);
+  if (err) { box.style.color = 'var(--rose)'; box.textContent = '⚠️ ' + err; return; }
+  const g0 = editId !== null && editId !== undefined ? GOALS.find(g => g.id === editId) : null;
+  const tgt = parseFloat((document.getElementById('g_target') || {}).value) || 0;
+  const shares = {}; list.forEach(x => { shares[String(x.id)] = x.pct; });
+  const after = ftGoalAccValue({ accs: list.map(x => x.id), shares: shares, t: tgt });
+  box.style.color = 'var(--text-secondary)';
+  box.textContent = (g0 ? 'Before ' + fmt(Number(g0.c) || 0) + ' → After ' : 'Starts at ') + fmt(after);
+}
 // Category mode: transfers in the linked categories. Taking money back OUT of a savings account lowers the goal.
 function ftGoalCatTotal(cats) {
   return TXN.filter(tx => ftIsXfer(tx) && cats.includes(tx.c)).reduce((s, tx) => s + tx.a * ftXferSign(tx), 0);
 }
 function ftGoalLinkLabel(g) {
-  if (ftGoalAccOk(g)) return '🏦 ' + ftGoalAccs(g).map(id => (ACCOUNTS.find(x => x.id === id) || {}).name || 'Account').join(' + ');
+  if (ftGoalAccOk(g)) return '🏦 ' + ftGoalAccs(g).map(id => { const nm = (ACCOUNTS.find(x => x.id === id) || {}).name || 'Account'; const p = ftGoalShare(g, id); return p < 100 ? nm + ' ' + p + '%' : nm; }).join(' + ');
   const cats = ftGoalCats(g);
   return cats.length ? '🔗 ' + cats.join(', ') : t('goal_manual');
 }
@@ -559,13 +655,14 @@ function ftGoalIsSynced(g) { return ftGoalAccOk(g) || ftGoalCats(g).length > 0; 
 function ftGoalAvgMonthly(g) {
   if (ftGoalAccOk(g)) {
     const set = ftGoalAccs(g);
+    const w = id => set.includes(id) ? ftGoalShare(g, id) / 100 : 0; // V2.0.5: this goal's % of each account
     const byMonth = {};
     TXN.forEach(tx => {
       if (!ftIsXfer(tx) && !set.includes(tx.acc)) return;
       let d = 0;
-      // Moving money between two accounts of the same goal nets to 0
-      if (ftIsXfer(tx)) { if (set.includes(tx.toAcc)) d += tx.a; if (set.includes(tx.acc)) d -= tx.a; }
-      else if (tx.t === 'Income') d = tx.a; else if (tx.t === 'Expense') d = -tx.a;
+      // Moving money between two accounts of the same goal nets to 0 (when both are 100% this goal's)
+      if (ftIsXfer(tx)) d = tx.a * (w(tx.toAcc) - w(tx.acc));
+      else if (tx.t === 'Income') d = tx.a * w(tx.acc); else if (tx.t === 'Expense') d = -tx.a * w(tx.acc);
       if (d) { const mk = String(tx.d || '').substring(0, 7); byMonth[mk] = (byMonth[mk] || 0) + d; }
     });
     const keys = Object.keys(byMonth);
@@ -584,7 +681,7 @@ function syncGoalsWithSavings() {
   GOALS.forEach(g => { try { // V2.0.5: one broken goal is skipped, the rest still sync
     let newC;
     if (ftGoalAccOk(g)) {
-      newC = Math.max(0, Math.round(ftGoalAccTotal(g) * 100) / 100);
+      newC = ftGoalAccValue(g); // V2.0.5: balance x % per account, shared goals stop at target
     } else {
       const cats = ftGoalCats(g);
       if (!cats.length) return;
@@ -1046,7 +1143,8 @@ function renderMobileGoalsTab(MD, year) {
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_monthly_contrib') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(monthlyReq) + '/mo</div></div>';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? ftEsc(ftGoalLinkLabel(g)) : t('goal_manual')) + '</div></div>';
         html += '</div>';
-        html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + ftRemArg(g.id) + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + ftRemArg(g.id) + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + ftRemArg(g.id) + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
+        html += ftGoalExtraNote(g);
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + ftRemArg(g.id) + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button>' + (ftGoalAccOk(g) ? '<button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + ftRemArg(g.id) + ')">Adjust %</button>' : '') + '<button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + ftRemArg(g.id) + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + ftRemArg(g.id) + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
         html += '</div>';
       }
       } catch (err) {
