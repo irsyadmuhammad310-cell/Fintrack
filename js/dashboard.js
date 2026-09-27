@@ -1,5 +1,10 @@
 // === DASHBOARD (V2.0.0) ===
+// V2.0.5: keep track of Home charts and destroy old ones on every re-render (no memory build-up)
+var dashCharts = [];
+function dashDestroy() { dashCharts.forEach(function(ch) { try { if (ch) ch.destroy(); } catch (e) {} }); dashCharts = []; }
+function dashChart(ctx, cfg) { var ch = new Chart(ctx, cfg); dashCharts.push(ch); return ch; }
 function renderDashboard(c) {
+  dashDestroy();
   const year = getSelectedYear();
 
   // v15.8.1: Mobile gets stripped-down dashboard (unless user forced desktop view)
@@ -54,8 +59,13 @@ function renderDashboard(c) {
       return { labels: monthNames, networth: yearData.map((m, i) => getNetWorthByPeriod(year, String(i))), balance: balSpark, income: yearData.map(m => m.i), expense: yearData.map(m => m.e), savings: yearData.map(m => m.s), cashflow: yearData.map(m => m.i - m.e) };
     }
     const mi = +mf, daysInMonth = new Date(year, mi + 1, 0).getDate();
-    const lbls = [], iArr = [], eArr = [], sArr = [], cfArr = [], nwArr = [];
+    const lbls = [], iArr = [], eArr = [], sArr = [], cfArr = [], nwArr = [], balArr = [];
     let cI = 0, cE = 0, cS = 0;
+    // V2.0.5: daily series start from the real opening point, so the last day matches the KPI cards
+    const monthNet = (yearData[mi].i || 0) - (yearData[mi].e || 0);
+    const nwEnd = Number(getNetWorthByPeriod(year, String(mi))) || 0;
+    const nwStart = nwEnd - monthNet;
+    const balStart = (Number(bal) || 0) - monthNet;
     for (let d = 1; d <= daysInMonth; d++) {
       lbls.push(d + ' ' + monthNames[mi]);
       const ds = `${year}-${String(mi + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -64,9 +74,9 @@ function renderDashboard(c) {
       cE += dt.filter(t => t.t === 'Expense').reduce((a, t) => a + t.a, 0);
       cS = cI - cE; // V2.0.5: savings = income - expense
       iArr.push(cI); eArr.push(cE); sArr.push(cS);
-      cfArr.push(cI - cE); nwArr.push(cI - cE);
+      cfArr.push(cI - cE); nwArr.push(nwStart + cI - cE); balArr.push(balStart + cI - cE);
     }
-    return { labels: lbls, networth: nwArr, balance: balSpark, income: iArr, expense: eArr, savings: sArr, cashflow: cfArr };
+    return { labels: lbls, networth: nwArr, balance: balArr, income: iArr, expense: eArr, savings: sArr, cashflow: cfArr };
   }
 
   function calcTrend(fullSeries, isExpense) {
@@ -102,7 +112,7 @@ function renderDashboard(c) {
   let overspentBannerHtml = '';
   if (dashOverspent.length > 0) {
     const overspentMonthLabel = dashOverspent[0] ? MONTH_NAMES[dashOverspent[0].month] + ' ' + dashOverspent[0].year : '';
-    overspentBannerHtml = `<div class="dash-overspent-banner"><div class="dash-overspent-header"><div class="dash-overspent-title"><i data-lucide="alert-triangle" width="14" height="14" style="color:var(--rose)"></i> <span>${dashOverspent.length} categor${dashOverspent.length > 1 ? 'ies' : 'y'} over budget</span></div><span style="font-size:10px;color:var(--text-tertiary)">${overspentMonthLabel}</span></div><div class="dash-overspent-items">${dashOverspent.map(item => `<div class="dash-overspent-item"><span class="dash-overspent-emoji">${item.emoji}</span><span class="dash-overspent-cat">${item.cat}</span><span class="dash-overspent-over">-${fmt(item.over)} over</span><button class="btn bp dash-overspent-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div>`).join('')}</div></div>`;
+    overspentBannerHtml = `<div class="dash-overspent-banner"><div class="dash-overspent-header"><div class="dash-overspent-title"><i data-lucide="alert-triangle" width="14" height="14" style="color:var(--rose)"></i> <span>${dashOverspent.length} categor${dashOverspent.length > 1 ? 'ies' : 'y'} over budget</span></div><span style="font-size:10px;color:var(--text-tertiary)">${overspentMonthLabel}</span></div><div class="dash-overspent-items">${dashOverspent.map(item => `<div class="dash-overspent-item"><span class="dash-overspent-emoji">${item.emoji}</span><span class="dash-overspent-cat">${ftEsc(item.cat)}</span><span class="dash-overspent-over">-${fmt(item.over)} over</span><button class="btn bp dash-overspent-btn" data-cover-cat="${ftEsc(item.cat)}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div>`).join('')}</div></div>`;
   }
 
   // === BUILD HTML ===
@@ -111,7 +121,7 @@ ${overspentBannerHtml}
 ${safeBuildForecastHtml('desktop')}
 <div class="ib" style="margin-bottom:14px">${generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf)}</div>
 <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_income_expense_savings')}</div><div class="cs">${t('dash_monthly_trend')}</div></div><div class="seg" id="dc1tog"><button class="bm active" data-ct="line">${t('misc_line')}</button><button class="bm" data-ct="bar">${t('misc_bar')}</button></div></div><div style="height:240px"><canvas id="dc1"></canvas></div></div><div class="cc"><div class="ct">${t('dash_expense_breakdown')}</div><div class="cs">${t('dash_by_category')}</div><div id="expDoughnutWrap" style="height:240px;display:flex;align-items:center;justify-content:center">${expCats.length ? '<canvas id="expDoughnut"></canvas>' : '<div style="color:var(--text-tertiary);font-size:12px">' + t('misc_no_data') + '</div>'}</div></div></div>
-<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_budget_vs_cf')}</div><div class="cs">${mf === 'total' ? t('hdr_total_year') : MONTH_NAMES[+mf] + ' ' + year}</div></div></div><div style="height:220px"><canvas id="bchart"></canvas></div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:hidden"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:13px;font-weight:700">${t('dash_bank_accounts')}</div><div style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${banks.map(b => `<div class="bank-card" style="padding:8px 10px"><div class="bank-top" style="margin-bottom:3px"><div class="bank-badge ${b.cls}" style="width:22px;height:22px;font-size:7px;border-radius:5px">${b.tag}</div><div class="bank-info"><div class="bank-name" style="font-size:10px">${b.name}</div></div></div><div class="bank-balance" style="font-size:12px">${fmt(b.balance)}</div></div>`).join('')}</div></div></div>`;
+<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px"><div class="cc"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div><div class="ct">${t('dash_budget_vs_cf')}</div><div class="cs">${mf === 'total' ? t('hdr_total_year') : MONTH_NAMES[+mf] + ' ' + year}</div></div></div><div style="height:220px"><canvas id="bchart"></canvas></div></div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;overflow:hidden"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:13px;font-weight:700">${t('dash_bank_accounts')}</div><div class="ft-amt" style="font-size:11px;font-weight:700;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">${banks.map(b => `<div class="bank-card" style="padding:8px 10px"><div class="bank-top" style="margin-bottom:3px"><div class="bank-badge ${b.cls}" style="width:22px;height:22px;font-size:7px;border-radius:5px">${b.tag}</div><div class="bank-info"><div class="bank-name" style="font-size:10px">${ftEsc(b.name)}</div></div></div><div class="bank-balance ft-amt" style="font-size:12px">${fmt(b.balance)}</div></div>`).join('')}</div></div></div>`;
   lucide.createIcons();
   setTimeout(() => {
     const dk = document.documentElement.dataset.theme === 'dark';
@@ -126,7 +136,7 @@ ${safeBuildForecastHtml('desktop')}
       const heroData = spSeries.networth || [];
       const heroGrad = heroCtx.createLinearGradient(0, 0, 0, 36);
       heroGrad.addColorStop(0, 'rgba(16,185,129,0.25)'); heroGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      new Chart(heroCtx, { type: 'line', data: { labels: spSeries.labels, datasets: [{ data: heroData, borderColor: '#10b981', borderWidth: 1.8, tension: .4, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#10b981', pointHoverBorderColor: dk ? '#1e1e2e' : '#fff', pointHoverBorderWidth: 2, fill: true, backgroundColor: heroGrad }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, callbacks: { title: ctx => String(spSeries.labels[ctx[0].dataIndex]), label: c2 => fmt(c2.raw) }, bodyFont: { size: 10 }, titleFont: { size: 9, weight: '600' }, padding: 6, displayColors: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#333', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, cornerRadius: 6 } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, onHover: (evt, elements, chart) => { chart.data.datasets[0].borderWidth = elements.length ? 2.8 : 1.8; chart.update('none'); } } });
+      dashChart(heroCtx, { type: 'line', data: { labels: spSeries.labels, datasets: [{ data: heroData, borderColor: '#10b981', borderWidth: 1.8, tension: .4, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: '#10b981', pointHoverBorderColor: dk ? '#1e1e2e' : '#fff', pointHoverBorderWidth: 2, fill: true, backgroundColor: heroGrad }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, callbacks: { title: ctx => String(spSeries.labels[ctx[0].dataIndex]), label: c2 => fmt(c2.raw) }, bodyFont: { size: 10 }, titleFont: { size: 9, weight: '600' }, padding: 6, displayColors: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#333', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, cornerRadius: 6 } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, onHover: (evt, elements, chart) => { chart.data.datasets[0].borderWidth = elements.length ? 2.8 : 1.8; chart.update('none'); } } });
     }
 
     // KPI sparklines
@@ -141,7 +151,7 @@ ${safeBuildForecastHtml('desktop')}
       if (!spCtx) return;
       const grad = spCtx.createLinearGradient(0, 0, 0, 36);
       grad.addColorStop(0, bgCol); grad.addColorStop(1, 'rgba(0,0,0,0)');
-      new Chart(spCtx, { type: 'line', data: { labels: spSeries.labels, datasets: [{ data: sparkData, borderColor: col, borderWidth: 1.8, tension: .4, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, pointHoverBorderColor: dk ? '#1e1e2e' : '#fff', pointHoverBorderWidth: 2, fill: true, backgroundColor: grad }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, callbacks: { title: ctx => String(spSeries.labels[ctx[0].dataIndex]), label: c2 => fmt(c2.raw) }, bodyFont: { size: 10 }, titleFont: { size: 9, weight: '600' }, padding: 6, displayColors: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#333', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, cornerRadius: 6, caretSize: 4 } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, onHover: (evt, elements, chart) => { chart.data.datasets[0].borderWidth = elements.length ? 2.8 : 1.8; chart.update('none'); } } });
+      dashChart(spCtx, { type: 'line', data: { labels: spSeries.labels, datasets: [{ data: sparkData, borderColor: col, borderWidth: 1.8, tension: .4, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, pointHoverBorderColor: dk ? '#1e1e2e' : '#fff', pointHoverBorderWidth: 2, fill: true, backgroundColor: grad }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true, mode: 'index', intersect: false, callbacks: { title: ctx => String(spSeries.labels[ctx[0].dataIndex]), label: c2 => fmt(c2.raw) }, bodyFont: { size: 10 }, titleFont: { size: 9, weight: '600' }, padding: 6, displayColors: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#333', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, cornerRadius: 6, caretSize: 4 } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 300, easing: 'easeOutQuart' }, interaction: { mode: 'index', intersect: false }, onHover: (evt, elements, chart) => { chart.data.datasets[0].borderWidth = elements.length ? 2.8 : 1.8; chart.update('none'); } } });
     });
 
     // Main trend chart
@@ -150,7 +160,7 @@ ${safeBuildForecastHtml('desktop')}
     function drawMainChart(chartType) {
       if (mainChart) mainChart.destroy();
       const isFill = chartType === 'line';
-      mainChart = new Chart(document.getElementById('dc1'), { type: chartType, data: { labels: mns, datasets: [{ label: 'Income', data: yearData.map(m => m.i), borderColor: '#10b981', backgroundColor: chartType === 'bar' ? 'rgba(16,185,129,0.75)' : 'rgba(16,185,129,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }, { label: 'Expense', data: yearData.map(m => m.e), borderColor: '#f43f5e', backgroundColor: chartType === 'bar' ? 'rgba(244,63,94,0.75)' : 'rgba(244,63,94,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }, { label: 'Savings', data: savLine, borderColor: '#3b82f6', backgroundColor: chartType === 'bar' ? 'rgba(59,130,246,0.75)' : 'rgba(59,130,246,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 } } }, tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }, scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: v => fmt(v) } } }, interaction: { intersect: false, mode: 'index' } } });
+      mainChart = dashChart(document.getElementById('dc1'), { type: chartType, data: { labels: mns, datasets: [{ label: 'Income', data: yearData.map(m => m.i), borderColor: '#10b981', backgroundColor: chartType === 'bar' ? 'rgba(16,185,129,0.75)' : 'rgba(16,185,129,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }, { label: 'Expense', data: yearData.map(m => m.e), borderColor: '#f43f5e', backgroundColor: chartType === 'bar' ? 'rgba(244,63,94,0.75)' : 'rgba(244,63,94,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }, { label: 'Savings', data: savLine, borderColor: '#3b82f6', backgroundColor: chartType === 'bar' ? 'rgba(59,130,246,0.75)' : 'rgba(59,130,246,0.08)', fill: isFill, tension: .4, pointRadius: chartType === 'bar' ? 0 : 3, borderWidth: chartType === 'bar' ? 0 : 2.5, borderRadius: chartType === 'bar' ? 6 : 0 }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 } } }, tooltip: { mode: 'index', intersect: false, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }, scales: { x: { grid: { color: gc }, ticks: { color: tc } }, y: { grid: { color: gc }, ticks: { color: tc, callback: v => fmt(v) } } }, interaction: { intersect: false, mode: 'index' } } });
     }
     drawMainChart('line');
     document.querySelectorAll('#dc1tog .bm').forEach(btn => btn.onclick = () => { document.querySelectorAll('#dc1tog .bm').forEach(b => b.classList.remove('active')); btn.classList.add('active'); drawMainChart(btn.dataset.ct); });
@@ -159,13 +169,13 @@ ${safeBuildForecastHtml('desktop')}
     const bSpend = yearData.map(m => m.e);
     const bLimit = yearData.map((m, idx) => getMonthlyBudget(year, idx));
     const bNet = yearData.map(m => m.i - m.e);
-    new Chart(document.getElementById('bchart'), { data: { labels: mns, datasets: [{ type: 'bar', label: 'Budget limit', data: bLimit, backgroundColor: dk ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)', borderWidth: 1, borderRadius: 5, barThickness: 18 }, { type: 'bar', label: 'Actual spend', data: bSpend, backgroundColor: bSpend.map((v, idx) => v > bLimit[idx] ? 'rgba(244,63,94,0.8)' : 'rgba(16,185,129,0.7)'), borderRadius: 5, barThickness: 10 }, { type: 'line', label: 'Cash flow', data: bNet, borderColor: '#6366f1', borderWidth: 2.5, tension: .4, pointRadius: 3, pointBackgroundColor: '#6366f1', pointBorderColor: dk ? '#1e1e2e' : '#fff', pointBorderWidth: 2, yAxisID: 'y1', fill: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 }, padding: 12 } }, tooltip: { mode: 'index', intersect: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#1a1a2e', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, padding: 10, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }, scales: { x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc, drawBorder: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } }, y1: { position: 'right', grid: { display: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } } } } });
+    dashChart(document.getElementById('bchart'), { data: { labels: mns, datasets: [{ type: 'bar', label: 'Budget limit', data: bLimit, backgroundColor: dk ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)', borderColor: 'rgba(99,102,241,0.35)', borderWidth: 1, borderRadius: 5, barThickness: 18 }, { type: 'bar', label: 'Actual spend', data: bSpend, backgroundColor: bSpend.map((v, idx) => v > bLimit[idx] ? 'rgba(244,63,94,0.8)' : 'rgba(16,185,129,0.7)'), borderRadius: 5, barThickness: 10 }, { type: 'line', label: 'Cash flow', data: bNet, borderColor: '#6366f1', borderWidth: 2.5, tension: .4, pointRadius: 3, pointBackgroundColor: '#6366f1', pointBorderColor: dk ? '#1e1e2e' : '#fff', pointBorderWidth: 2, yAxisID: 'y1', fill: false }] }, options: { responsive: true, maintainAspectRatio: false, animation: { duration: 500, easing: 'easeOutQuart' }, plugins: { legend: { position: 'bottom', labels: { color: tc, usePointStyle: true, font: { size: 10 }, padding: 12 } }, tooltip: { mode: 'index', intersect: false, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#1a1a2e', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, padding: 10, cornerRadius: 8, callbacks: { label: ctx => ctx.dataset.label + ': ' + fmt(ctx.raw) } } }, scales: { x: { grid: { display: false }, ticks: { color: tc, font: { size: 10 } } }, y: { grid: { color: gc, drawBorder: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } }, y1: { position: 'right', grid: { display: false }, ticks: { color: tc, font: { size: 10 }, callback: v => fmt(v), maxTicksLimit: 5 } } } } });
 
     // Expense Breakdown Doughnut
     if (expCats.length) {
       const doughnutColors = ['#ef4444', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b', '#6366f1', '#06b6d4', '#f97316', '#14b8a6', '#a855f7'];
       const totalExp = expCats.reduce((s, c) => s + c.a, 0);
-      new Chart(document.getElementById('expDoughnut'), { type: 'doughnut', data: { labels: expCats.map(c => c.n), datasets: [{ data: expCats.map(c => c.a), backgroundColor: doughnutColors.slice(0, expCats.length), borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', animation: { duration: 600, easing: 'easeOutQuart' }, plugins: { legend: { position: 'right', labels: { color: dk ? 'rgba(255,255,255,0.8)' : tc, usePointStyle: true, font: { size: 10 }, padding: 10, generateLabels: chart => chart.data.labels.map((l, i) => ({ text: `${l} (${(chart.data.datasets[0].data[i] / totalExp * 100).toFixed(0)}%)`, fillStyle: doughnutColors[i], strokeStyle: 'transparent', pointStyle: 'circle', index: i, fontColor: dk ? 'rgba(255,255,255,0.8)' : undefined })) } }, tooltip: { callbacks: { label: ctx => { const pct = totalExp > 0 ? (ctx.raw / totalExp * 100).toFixed(1) : 0; return `${ctx.label}: ${fmt(ctx.raw)} (${pct}%)`; } }, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#1a1a2e', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, padding: 10, cornerRadius: 8 } } } });
+      dashChart(document.getElementById('expDoughnut'), { type: 'doughnut', data: { labels: expCats.map(c => c.n), datasets: [{ data: expCats.map(c => c.a), backgroundColor: doughnutColors.slice(0, expCats.length), borderWidth: 0, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '62%', animation: { duration: 600, easing: 'easeOutQuart' }, plugins: { legend: { position: 'right', labels: { color: dk ? 'rgba(255,255,255,0.8)' : tc, usePointStyle: true, font: { size: 10 }, padding: 10, generateLabels: chart => chart.data.labels.map((l, i) => ({ text: `${l} (${(chart.data.datasets[0].data[i] / totalExp * 100).toFixed(0)}%)`, fillStyle: doughnutColors[i], strokeStyle: 'transparent', pointStyle: 'circle', index: i, fontColor: dk ? 'rgba(255,255,255,0.8)' : undefined })) } }, tooltip: { callbacks: { label: ctx => { const pct = totalExp > 0 ? (ctx.raw / totalExp * 100).toFixed(1) : 0; return `${ctx.label}: ${fmt(ctx.raw)} (${pct}%)`; } }, backgroundColor: dk ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)', titleColor: dk ? '#e0e0e0' : '#1a1a2e', bodyColor: dk ? '#b0b0b0' : '#555', borderColor: dk ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)', borderWidth: 1, padding: 10, cornerRadius: 8 } } } });
     }
 
     // Category Breakdown chart (removed)
@@ -177,8 +187,9 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
   const budgetTotal = getYearlyBudgetTotal(year);
   if (mf === 'total') {
     const savRate = ti > 0 ? (ts / ti * 100).toFixed(0) : 0;
-    const budgetUsed = te > 0 ? (te / budgetTotal * 100).toFixed(0) : 0;
-    const topCat = EC.length ? EC[0].n : 'N/A';
+    // V2.0.5: no budget plan = say so, never Infinity%
+    const budgetTxt = budgetTotal > 0 && isFinite(te) ? (te / budgetTotal * 100).toFixed(0) + '% of budget' : 'no budget set';
+    const topCat = EC.length ? ftEsc(EC[0].n) : 'N/A';
     const healthStatus = cf >= 0 ? 'healthy' : 'under pressure';
     const incTrend = yearData.filter(m => m.i > 0);
     let incChange = '';
@@ -187,7 +198,7 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
       const pct = prev > 0 ? ((recent - prev) / prev * 100).toFixed(0) : 0;
       incChange = recent >= prev ? `Income grew ${pct}% last active month.` : `Income dipped ${Math.abs(pct)}% last active month.`;
     }
-    const summary = `Your ${year} financial health is <b>${healthStatus}</b>. Total income ${fmt(ti)} with expenses at ${fmt(te)} (${budgetUsed}% of budget). ${incChange} Savings rate is <b>${savRate}%</b>. Largest category: <b>${topCat}</b>. Cash flow: <b>${fmt(cf)}</b>.`;
+    const summary = `Your ${year} financial health is <b>${healthStatus}</b>. Total income ${fmt(ti)} with expenses at ${fmt(te)} (${budgetTxt}). ${incChange} Savings rate is <b>${savRate}%</b>. Largest category: <b>${topCat}</b>. Cash flow: <b>${fmt(cf)}</b>.`;
     return `<div class="ic"><span class="ie">🤖</span><div class="ix">${summary}</div></div>`;
   } else {
     const mi = +mf;
@@ -195,15 +206,16 @@ function generateDashInsights(yearData, EC, ti, te, ts, nw, cf, year, mf) {
     const prevM = mi > 0 ? yearData[mi - 1] : null;
     const monthName = MONTH_NAMES[mi];
     const savRate = curM.i > 0 ? (curM.s / curM.i * 100).toFixed(0) : 0;
-    const budgetMonthly = budgetTotal / 12;
-    const budgetUsed = budgetMonthly > 0 ? (curM.e / budgetMonthly * 100).toFixed(0) : 0;
+    // V2.0.5: use this month's own plan (not yearly / 12)
+    const budgetMonthly = (typeof getMonthlyBudget === 'function') ? (Number(getMonthlyBudget(year, mi)) || 0) : budgetTotal / 12;
+    const budgetTxt = budgetMonthly > 0 ? (curM.e / budgetMonthly * 100).toFixed(0) + '% of monthly budget utilized' : 'no monthly budget set';
     let comparison = '';
     if (prevM && prevM.e > 0) {
       const pct = ((curM.e - prevM.e) / prevM.e * 100).toFixed(0);
       comparison = curM.e > prevM.e ? `Expenses increased ${pct}% vs ${MONTH_NAMES[mi - 1]}.` : `Expenses decreased ${Math.abs(pct)}% vs ${MONTH_NAMES[mi - 1]}.`;
     }
     const healthStatus = cf >= 0 ? 'remains healthy' : 'is under pressure';
-    const summary = `Your financial performance for <b>${monthName} ${year}</b> ${healthStatus}. ${comparison} Savings rate is <b>${savRate}%</b> and ${budgetUsed}% of monthly budget utilized. Cash flow: <b>${fmt(cf)}</b>.${cf >= 0 ? ' Continue maintaining current spending habits.' : ' Consider reducing discretionary spending.'}`;
+    const summary = `Your financial performance for <b>${monthName} ${year}</b> ${healthStatus}. ${comparison} Savings rate is <b>${savRate}%</b> and ${budgetTxt}. Cash flow: <b>${fmt(cf)}</b>.${cf >= 0 ? ' Continue maintaining current spending habits.' : ' Consider reducing discretionary spending.'}`;
     return `<div class="ic"><span class="ie">🤖</span><div class="ix">${summary}</div></div>`;
   }
 }
@@ -291,7 +303,7 @@ function getMobileOverspentHtml() {
   const items = getDashboardOverspentCats();
   if (!items.length) return '';
   const monthLabel = items[0] ? MONTH_NAMES[items[0].month] : MONTH_NAMES[new Date().getMonth()];
-  return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${monthLabel}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${item.cat}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
+  return `<div class="mob-overspent-alert"><div class="mob-overspent-header"><span style="color:var(--rose);font-weight:700;font-size:12px">⚠️ Over Budget</span><span style="font-size:10px;color:var(--text-tertiary)">${monthLabel}</span></div><div class="mob-overspent-list">${items.map(item => `<div class="mob-overspent-row"><div class="mob-overspent-left"><span class="mob-overspent-emoji">${item.emoji}</span><div class="mob-overspent-info"><div class="mob-overspent-name">${ftEsc(item.cat)}</div><div class="mob-overspent-meta">${fmt(item.spent)} / ${fmt(item.budget)}</div></div></div><div class="mob-overspent-right"><div class="mob-overspent-amt">-${fmt(item.over)}</div><button class="mob-overspent-cover" data-cover-cat="${ftEsc(item.cat)}" data-cover-over="${item.over}" data-cover-year="${item.year}" data-cover-month="${item.month}">Cover</button></div></div>`).join('')}</div></div>`;
 }
 
 // === CASH FLOW FORECAST (v15.8.2 — Follows selected period) ===
@@ -409,14 +421,14 @@ function buildForecastHtml(mode) {
       </div>
       <div style="text-align:center;margin-bottom:10px">
         <div style="font-size:9px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px">Safe to spend per day</div>
-        <div style="font-size:24px;font-weight:800;color:${safeColor};font-feature-settings:'tnum'">${fmt(Math.max(0, fc.safePerDay))}</div>
+        <div class="ft-amt" style="font-size:24px;font-weight:800;color:${safeColor};font-feature-settings:'tnum'">${fmt(Math.max(0, fc.safePerDay))}</div>
       </div>
       <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:10px">
         <div style="height:100%;width:${progressPct}%;background:var(--accent);border-radius:2px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div style="padding:8px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Available</div><div style="font-size:12px;font-weight:700;color:${fc.available >= 0 ? 'var(--text-primary)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(fc.available)}</div></div>
-        <div style="padding:8px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Projected End</div><div style="font-size:12px;font-weight:700;color:${statusColor};font-feature-settings:'tnum'">${fmt(fc.projectedEnd)}</div></div>
+        <div style="padding:8px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Available</div><div class="ft-amt" style="font-size:12px;font-weight:700;color:${fc.available >= 0 ? 'var(--text-primary)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(fc.available)}</div></div>
+        <div style="padding:8px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Projected End</div><div class="ft-amt" style="font-size:12px;font-weight:700;color:${statusColor};font-feature-settings:'tnum'">${fmt(fc.projectedEnd)}</div></div>
       </div>
       <div style="margin-top:8px;font-size:10px;color:${statusColor};text-align:center;font-weight:500">${statusIcon} ${statusText}</div>
     </div>`;
@@ -431,19 +443,19 @@ function buildForecastHtml(mode) {
     <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div style="padding:12px 14px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:9px">
         <div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Safe to spend / day</div>
-        <div style="font-size:20px;font-weight:800;color:${safeColor};font-feature-settings:'tnum'">${fmt(Math.max(0, fc.safePerDay))}</div>
+        <div class="ft-amt" style="font-size:20px;font-weight:800;color:${safeColor};font-feature-settings:'tnum'">${fmt(Math.max(0, fc.safePerDay))}</div>
       </div>
       <div style="padding:12px 14px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:9px">
         <div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Remaining</div>
-        <div style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:${fc.available >= 0 ? 'var(--text-primary)' : 'var(--rose)'}">${fmt(fc.available)}</div>
+        <div class="ft-amt" style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:${fc.available >= 0 ? 'var(--text-primary)' : 'var(--rose)'}">${fmt(fc.available)}</div>
       </div>
       <div style="padding:12px 14px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:9px">
         <div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Daily avg spend</div>
-        <div style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:var(--rose)">${fmt(fc.dailyAvgExpense)}</div>
+        <div class="ft-amt" style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:var(--rose)">${fmt(fc.dailyAvgExpense)}</div>
       </div>
       <div style="padding:12px 14px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:9px">
         <div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">Projected end</div>
-        <div style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:${statusColor}">${fmt(fc.projectedEnd)}</div>
+        <div class="ft-amt" style="font-size:14px;font-weight:700;font-feature-settings:'tnum';color:${statusColor}">${fmt(fc.projectedEnd)}</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
@@ -455,6 +467,7 @@ function buildForecastHtml(mode) {
 
 // === MOBILE DASHBOARD (v15.8.1 — Essential info only) ===
 function renderMobileDashboard(c, year) {
+  dashDestroy();
   if (!yearHasData(year)) {
     c.innerHTML = `<div class="es" style="padding:80px 20px"><div style="font-size:40px;margin-bottom:12px">📊</div><div style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:6px">${t('dash_no_data')} ${year}</div><p style="font-size:12px">${t('dash_select_year')}</p></div>`;
     return;
@@ -507,7 +520,7 @@ function renderMobileDashboard(c, year) {
     const color = tx.t === 'Income' ? 'var(--emerald)' : isX ? 'var(--blue)' : 'var(--rose)';
     // V2.0.5: an own-account transfer is not money out, so no minus sign
     const sign = tx.t === 'Income' ? '+' : (isX && tx.toAcc) ? '⇄ ' : '-';
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${tx.dt || tx.c}</div><div style="font-size:10px;color:var(--text-tertiary)">${tx.c}${tx.s ? ' · ' + tx.s : ''}</div></div><div style="font-size:13px;font-weight:700;color:${color};font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div></div>`;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-light)"><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ftEsc(tx.dt || tx.c)}</div><div style="font-size:10px;color:var(--text-tertiary)">${ftEsc(tx.c)}${tx.s ? ' · ' + ftEsc(tx.s) : ''}</div></div><div style="font-size:13px;font-weight:700;color:${color};font-feature-settings:'tnum'">${sign}${fmtD(tx.a)}</div></div>`;
   }).join('');
 
   // Budget categories progress (top 4)
@@ -533,7 +546,7 @@ function renderMobileDashboard(c, year) {
     }
     const pct = catBudget > 0 ? Math.min(100, (cat.a / catBudget * 100)) : 50;
     const fillClass = pct > 90 ? 'over' : pct > 70 ? 'warn' : 'safe';
-    return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${cat.n}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
+    return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${ftEsc(cat.n)}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
   }).join('');
 
   c.innerHTML = `<div class="mob-dash">
@@ -574,7 +587,7 @@ function renderMobileDashboard(c, year) {
     const grad = ctx.createLinearGradient(0, 0, 0, 140);
     grad.addColorStop(0, 'rgba(244,63,94,0.15)');
     grad.addColorStop(1, 'rgba(244,63,94,0)');
-    new Chart(ctx, {
+    dashChart(ctx, {
       type: 'line',
       data: {
         labels,
@@ -608,10 +621,10 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💎 Wealth Summary</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Total Assets</div><div style="font-size:16px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div>
-      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div style="font-size:16px;font-weight:800;color:${netWorthLive >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(netWorthLive)}</div></div>
+      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Total Assets</div><div class="ft-amt" style="font-size:16px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div>
+      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div class="ft-amt" style="font-size:16px;font-weight:800;color:${netWorthLive >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(netWorthLive)}</div></div>
     </div>
-    ${liabTotal > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--rose-light);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--rose)">Liabilities</span><span style="font-size:11px;font-weight:700;color:var(--rose);font-feature-settings:'tnum'">-${fmt(liabTotal)}</span></div>` : ''}
+    ${liabTotal > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--rose-light);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--rose)">Liabilities</span><span class="ft-amt" style="font-size:11px;font-weight:700;color:var(--rose);font-feature-settings:'tnum'">-${fmt(liabTotal)}</span></div>` : ''}
   </div>`;
 
   // 2. FINANCIAL HEALTH SCORE
@@ -634,12 +647,12 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">💰 Cash Flow</div>
     <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(ti)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmt(te)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div class="ft-fit" style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmt(cf)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(ti)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmt(te)}</div></div>
+      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmt(cf)}</div></div>
     </div>
     ${cfChange !== null ? `<div style="font-size:10px;color:${+cfChange >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-weight:500;text-align:center">${+cfChange >= 0 ? '▲' : '▼'} ${Math.abs(cfChange)}% vs previous month</div>` : ''}
-    ${(() => { const sa = mf === 'total' ? yearData.reduce((s, m) => s + (m.sa || 0), 0) : (yearData[+mf].sa || 0); return sa !== 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--bg-primary);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary)">🔒 Set aside (to Savings/Investment accounts)</span><span style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:'tnum'">${fmt(sa)}</span></div>` : ''; })()}
+    ${(() => { const sa = mf === 'total' ? yearData.reduce((s, m) => s + (m.sa || 0), 0) : (yearData[+mf].sa || 0); return sa !== 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--bg-primary);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary)">🔒 Set aside (to Savings/Investment accounts)</span><span class="ft-amt" style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:'tnum'">${fmt(sa)}</span></div>` : ''; })()}
   </div>`;
 
   // 4. CASH FLOW FORECAST
@@ -655,7 +668,7 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
       <div style="display:flex;flex-direction:column;gap:8px">
         ${expCats.slice(0, 8).map((cat, i) => {
           const pct = totalExp > 0 ? (cat.a / totalExp * 100).toFixed(0) : 0;
-          return `<div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cat.n}</span><span style="font-size:11px;font-weight:700;font-feature-settings:'tnum';flex-shrink:0">${fmtD(cat.a)} (${pct}%)</span></div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[i % colors.length]};border-radius:2px"></div></div></div></div>`;
+          return `<div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ftEsc(cat.n)}</span><span class="ft-amt" style="font-size:11px;font-weight:700;font-feature-settings:'tnum';flex-shrink:0">${fmtD(cat.a)} (${pct}%)</span></div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[i % colors.length]};border-radius:2px"></div></div></div></div>`;
         }).join('')}
       </div>
       ${expCats.length > 8 ? `<div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-top:8px">+ ${expCats.length - 8} more categories</div>` : ''}
@@ -667,14 +680,14 @@ function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUs
   if (banks.length) {
     const sorted = [...banks].sort((a, b) => b.balance - a.balance);
     html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700">🏦 Account Breakdown</div><div style="font-size:12px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalBal)}</div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700">🏦 Account Breakdown</div><div class="ft-amt" style="font-size:12px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalBal)}</div></div>
       <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:12px">
         ${sorted.map((b, i) => { const w = totalBal > 0 ? (b.balance / totalBal * 100) : 0; return `<div style="height:100%;width:${w}%;background:${colors[i % colors.length]}"></div>`; }).join('')}
       </div>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${sorted.map((b, i) => {
           const pct = totalBal > 0 ? (b.balance / totalBal * 100).toFixed(0) : 0;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-primary);border-radius:8px"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]}"></div><span style="font-size:11px;font-weight:600">${b.name}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;font-weight:700;font-feature-settings:'tnum'">${fmt(b.balance)}</span><span style="font-size:9px;color:var(--text-tertiary);font-weight:600">${pct}%</span></div></div>`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-primary);border-radius:8px"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]}"></div><span style="font-size:11px;font-weight:600">${ftEsc(b.name)}</span></div><div style="display:flex;align-items:center;gap:8px"><span class="ft-amt" style="font-size:11px;font-weight:700;font-feature-settings:'tnum'">${fmt(b.balance)}</span><span style="font-size:9px;color:var(--text-tertiary);font-weight:600">${pct}%</span></div></div>`;
         }).join('')}
       </div>
     </div>`;
@@ -791,14 +804,14 @@ function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, per
   if (expCats.length) {
     const top = expCats[0];
     const pct = te > 0 ? (top.a / te * 100).toFixed(0) : 0;
-    insights.push({ icon: '📍', text: `<b>${top.n}</b> is your biggest expense (${pct}% of total). ${+pct > 40 ? 'Consider diversifying spending.' : 'Distribution looks balanced.'}` });
+    insights.push({ icon: '📍', text: `<b>${ftEsc(top.n)}</b> is your biggest expense (${pct}% of total). ${+pct > 40 ? 'Consider diversifying spending.' : 'Distribution looks balanced.'}` });
   }
 
   // Largest single transaction
   const periodTxns = TXN.filter(tx => { const d = new Date(tx.d); if (d.getFullYear() !== year) return false; if (mf !== 'total' && d.getMonth() !== +mf) return false; return tx.t === 'Expense'; });
   if (periodTxns.length) {
     const biggest = periodTxns.reduce((max, tx) => tx.a > max.a ? tx : max, periodTxns[0]);
-    insights.push({ icon: '💳', text: `Largest expense: <b>${biggest.dt || biggest.c}</b> (${fmtD(biggest.a)}) on ${new Date(biggest.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` });
+    insights.push({ icon: '💳', text: `Largest expense: <b>${ftEsc(biggest.dt || biggest.c)}</b> (${fmtD(biggest.a)}) on ${new Date(biggest.d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` });
   }
 
   // Budget warnings
