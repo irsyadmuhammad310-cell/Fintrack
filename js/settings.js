@@ -31,7 +31,7 @@ function ftArg(s) { return ftEsc(JSON.stringify(String(s === null || s === undef
 
 function renderSettings(c) {
   if (window.innerWidth <= 768 && safeGet('ft_desktop_mode') !== 'true') { renderMobileSettings(c); return; }
-  c.innerHTML = `<div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
+  c.innerHTML = `<div class="setg"><div class="setn"><div class="nsec">Profile</div><div class="sni active" onclick="setTab(this,'profile')"><i data-lucide="user" width="14" height="14"></i>Profile & Appearance</div><div class="nsec">General</div><div class="sni" onclick="setTab(this,'general')"><i data-lucide="sliders" width="14" height="14"></i>General</div><div class="nsec">Categories</div><div class="sni" onclick="setTab(this,'cataccounts')"><i data-lucide="layers" width="14" height="14"></i>Categories</div><div class="nsec">Loans</div><div class="sni" id="sniLiab" onclick="setTab(this,'liabmap')"><i data-lucide="link" width="14" height="14"></i>Loans & Debts</div><div class="nsec">System</div><div class="sni" onclick="setTab(this,'system')"><i data-lucide="cpu" width="14" height="14"></i>System</div><div class="nsec">Security</div><div class="sni" onclick="setTab(this,'security')"><i data-lucide="shield" width="14" height="14"></i>Security</div></div><div class="setc" id="setc"></div></div>`;
   lucide.createIcons();
   setTab(null, 'profile');
 }
@@ -40,14 +40,14 @@ function renderSettings(c) {
 function renderMobileSettings(c) {
   const name = getUserName() || 'User';
   const initials = getUserInitials();
-  c.innerHTML = `<div style="text-align:center;margin-bottom:24px"><div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),oklch(0.45 0.22 280));margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;box-shadow:0 4px 16px oklch(0.55 0.2 260/0.2)">${initials}</div><div style="font-size:16px;font-weight:700">${getUserTitle() ? getUserTitle().charAt(0).toUpperCase() + getUserTitle().slice(1) + ' ' : ''}${ftEsc(name)}</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">FinTrack Premium ${FINTRACK_VERSION}</div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Profile</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('profile')"><span class="mob-set-icon" style="background:var(--accent-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="16" height="16" style="color:var(--accent)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Profile & Appearance</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Name, title, theme, display mode</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">General</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('general')"><span class="mob-set-icon" style="background:var(--blue-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="sliders" width="16" height="16" style="color:var(--blue)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">General</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">AI, notifications, currency, language</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Categories</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('cataccounts')"><span class="mob-set-icon" style="background:var(--emerald-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="layers" width="16" height="16" style="color:var(--emerald)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Categories</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Categories, subcategories & liability mapping</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">System</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('system')"><span class="mob-set-icon" style="background:var(--gold-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="cpu" width="16" height="16" style="color:var(--gold)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">System</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Cloud sync, backup, storage, updates</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Security</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('security')"><span class="mob-set-icon" style="background:var(--rose-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="16" height="16" style="color:var(--rose)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Security</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">PIN lock, biometric, recovery methods</div></div><span class="mob-set-val">${FT_APP_LOCK ? 'On' : 'Off'} &#8250;</span></div></div>`;
+  c.innerHTML = `<div style="text-align:center;margin-bottom:24px"><div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--accent),oklch(0.45 0.22 280));margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;box-shadow:0 4px 16px oklch(0.55 0.2 260/0.2)">${initials}</div><div style="font-size:16px;font-weight:700">${getUserTitle() ? getUserTitle().charAt(0).toUpperCase() + getUserTitle().slice(1) + ' ' : ''}${ftEsc(name)}</div><div style="font-size:11px;color:var(--text-tertiary);margin-top:2px">FinTrack Premium ${FINTRACK_VERSION}</div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Profile</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('profile')"><span class="mob-set-icon" style="background:var(--accent-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="user" width="16" height="16" style="color:var(--accent)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Profile & Appearance</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Name, title, theme, display mode</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">General</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('general')"><span class="mob-set-icon" style="background:var(--blue-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="sliders" width="16" height="16" style="color:var(--blue)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">General</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">AI, notifications, currency, language</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Categories</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('cataccounts')"><span class="mob-set-icon" style="background:var(--emerald-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="layers" width="16" height="16" style="color:var(--emerald)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Categories</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Categories & subcategories</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Loans</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('liabmap')"><span class="mob-set-icon" style="background:var(--rose-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="link" width="16" height="16" style="color:var(--rose)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Loans & Debts</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Link each loan to its payment category</div></div><span class="mob-set-val">${ftLiabUnlinkedCount() ? '⚠️ ' + ftLiabUnlinkedCount() + ' ' : ''}&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">System</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('system')"><span class="mob-set-icon" style="background:var(--gold-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="cpu" width="16" height="16" style="color:var(--gold)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">System</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">Cloud sync, backup, storage, updates</div></div><span class="mob-set-val">&#8250;</span></div></div><div style="font-size:9px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.08em;padding:0 4px 6px">Security</div><div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px"><div class="mob-set-item" onclick="mobSetOpen('security')"><span class="mob-set-icon" style="background:var(--rose-light);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center"><i data-lucide="shield" width="16" height="16" style="color:var(--rose)"></i></span><div style="flex:1;min-width:0"><span class="mob-set-label">Security</span><div style="font-size:10px;color:var(--text-tertiary);margin-top:1px">PIN lock, biometric, recovery methods</div></div><span class="mob-set-val">${FT_APP_LOCK ? 'On' : 'Off'} &#8250;</span></div></div>`;
   lucide.createIcons();
 }
 
 function mobSetOpen(tab) {
   const c = document.getElementById('cnt');
-  const tabNames = { profile: 'Profile & Appearance', general: 'General', cataccounts: 'Categories', system: 'System', security: 'Security' };
-  const tabIcons = { profile: 'user', general: 'sliders', cataccounts: 'layers', system: 'cpu', security: 'shield' };
+  const tabNames = { profile: 'Profile & Appearance', general: 'General', cataccounts: 'Categories', liabmap: 'Loans & Debts', system: 'System', security: 'Security' };
+  const tabIcons = { profile: 'user', general: 'sliders', cataccounts: 'layers', liabmap: 'link', system: 'cpu', security: 'shield' };
   let html = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding-bottom:14px;border-bottom:1px solid var(--border)"><button style="border:none;background:none;padding:4px;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center" onclick="renderSettings(document.getElementById('cnt'))"><i data-lucide="chevron-left" width="20" height="20"></i></button><div style="display:flex;align-items:center;gap:8px"><i data-lucide="${tabIcons[tab] || 'settings'}" width="16" height="16" style="color:var(--accent)"></i><span style="font-size:15px;font-weight:700">${tabNames[tab] || tab}</span></div></div><div id="setc"></div>`;
   c.innerHTML = html;
   lucide.createIcons();
@@ -55,6 +55,7 @@ function mobSetOpen(tab) {
   if (tab === 'profile') { renderProfileTab(setc); }
   else if (tab === 'general') { renderGeneralTab(setc); }
   else if (tab === 'cataccounts') { renderCatAccountsTab(setc); }
+  else if (tab === 'liabmap') { renderLiabMapTab(setc); }
   else if (tab === 'system') { renderSystemTab(setc); }
   else if (tab === 'security') { renderSecurityTab(setc); }
 }
@@ -65,6 +66,7 @@ function setTab(el, tab) {
   if (tab === 'profile') { renderProfileTab(c); }
   else if (tab === 'general') { renderGeneralTab(c); }
   else if (tab === 'cataccounts') { renderCatAccountsTab(c); }
+  else if (tab === 'liabmap') { renderLiabMapTab(c); }
   else if (tab === 'system') { renderSystemTab(c); }
   else if (tab === 'security') { renderSecurityTab(c); }
 }
@@ -398,22 +400,57 @@ function renderCatAccountsTab(c) {
     });
   }
   html += '</div>';
-  // Liability Mapping Section (V2.0.2)
-  var liabilities = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
-  var loanSubs = SCHEMA.Expense && SCHEMA.Expense['Loan'] ? SCHEMA.Expense['Loan'] : [];
-  if (liabilities.length && loanSubs.length) {
-    var liabMap = getLiabMap();
-    html += `<div style="border-top:2px solid var(--border);padding-top:20px;margin-top:20px">`;
-    html += `<div style="font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px"><i data-lucide="link" width="16" height="16" style="color:var(--accent)"></i> Liability Mapping</div>`;
-    html += `<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">Link Loan subcategories to liability accounts. Quick-add will auto-select the liability when you pick a subcategory.</div>`;
-    loanSubs.forEach(function(sub) {
-      var mapped = liabMap[sub] || '';
-      html += `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px 12px;background:var(--bg-primary);border-radius:8px"><span style="font-size:12px;font-weight:600;flex:1">${ftEsc(sub)}</span><select class="fi" style="max-width:180px;font-size:11px;padding:6px 8px" onchange="saveLiabMapping(${ftArg(sub)},this.value)"><option value="">None</option>${liabilities.map(function(l) { return '<option value="' + ftEsc(l.id) + '"' + (mapped === l.id ? ' selected' : '') + '>' + ftEsc(l.name) + '</option>'; }).join('')}</select></div>`;
-    });
-    html += `</div>`;
+  // V2.0.5: loan links moved to their own Settings page (Loans & Debts). Short pointer kept here.
+  if (catTypeFilter === 'Expense' && ACCOUNTS.some(function(a) { return a.type === 'liability'; })) {
+    html += `<div onclick="ftOpenLiabMap()" style="cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px dashed var(--accent);border-radius:10px;background:var(--accent-light)"><i data-lucide="link" width="14" height="14" style="color:var(--accent)"></i><span style="font-size:11px;flex:1">Link loan payments to your loans in <b>Loans & Debts</b></span><span style="color:var(--accent)">›</span></div>`;
   }
   c.innerHTML = html;
   lucide.createIcons();
+}
+
+// === LOANS & DEBTS (V2.0.5) ===
+// One row per loan: pick the Expense subcategory you pay it with. One loan = one subcategory.
+// Several loans can share a subcategory (2 personal loans): the Add form then asks which one you paid.
+function ftLiabUnlinkedCount() {
+  if (typeof ftLiabOwnerSub !== 'function') return 0;
+  return ACCOUNTS.filter(function(a) { return a.type === 'liability' && !ftLiabOwnerSub(a.id); }).length;
+}
+
+function renderLiabMapTab(c) {
+  var liabs = ACCOUNTS.filter(function(a) { return a.type === 'liability'; });
+  var exp = SCHEMA.Expense || {};
+  var subOpts = [];
+  Object.keys(exp).forEach(function(cat) { (exp[cat] || []).forEach(function(sub) { subOpts.push({ sub: sub, label: cat + ' › ' + sub }); }); });
+  var card = 'border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--bg-card)';
+  var html = '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6">Choose the expense subcategory you use to pay each loan. Payments in that subcategory are linked to the loan, so its balance goes down. Two loans can share one subcategory: you will be asked which one you paid.</div>';
+  if (!liabs.length) {
+    html += '<div style="' + card + ';text-align:center;padding:24px"><div style="font-size:26px;margin-bottom:6px">🏦</div><div style="font-size:12px;font-weight:600">No loans yet</div><div style="font-size:11px;color:var(--text-tertiary);margin:3px 0 12px">Add a loan or card debt in Accounts first.</div><button class="btn bp" onclick="navigate(\'accounts\')">Open Accounts</button></div>';
+    c.innerHTML = html; lucide.createIcons(); return;
+  }
+  if (!subOpts.length) html += '<div style="' + card + ';font-size:11px;color:var(--amber)">⚠️ Add an Expense subcategory first (Settings › Categories), e.g. Loan › Car.</div>';
+  liabs.forEach(function(l) {
+    var linked = ftLiabOwnerSub(l.id);
+    var shared = linked ? ftLiabIdsForSub(linked).length : 0;
+    var lcur = l.currency || FT_BASE;
+    var opts = '<option value="">Not linked</option>' + subOpts.map(function(o) { return '<option value="' + ftEsc(o.sub) + '"' + (o.sub === linked ? ' selected' : '') + '>' + ftEsc(o.label) + '</option>'; }).join('');
+    if (linked && !subOpts.some(function(o) { return o.sub === linked; })) opts += '<option value="' + ftEsc(linked) + '" selected>' + ftEsc(linked) + ' (deleted)</option>';
+    var status = !linked
+      ? '<div style="font-size:10px;color:var(--rose);margin-top:6px">⚠️ Not linked: payments will not lower this balance unless you pick the loan by hand.</div>'
+      : shared > 1 ? '<div style="font-size:10px;color:var(--amber);margin-top:6px">Shares "' + ftEsc(linked) + '" with ' + (shared - 1) + ' other loan' + (shared > 2 ? 's' : '') + '. You will pick the loan when adding a payment.</div>'
+      : '<div style="font-size:10px;color:var(--emerald);margin-top:6px">✓ Payments in "' + ftEsc(linked) + '" go to this loan automatically.</div>';
+    html += '<div style="' + card + '"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><div style="flex:1;min-width:120px"><div style="font-size:13px;font-weight:600">' + ftEsc(l.name) + '</div><div class="ft-amt" style="font-size:10px;color:var(--text-tertiary)">' + ftEsc(l.accountType) + ' · Owed ' + fmtIn(ftLiabOwed(l), lcur) + '</div></div><select class="fi" style="max-width:200px;font-size:11px;padding:6px 8px" onchange="ftSetLiabSub(' + ftArg(l.id) + ',this.value);toast(\'✅ Saved\');renderLiabMapTab(document.getElementById(\'setc\'))">' + opts + '</select></div>' + status + '</div>';
+  });
+  c.innerHTML = html;
+  lucide.createIcons();
+}
+
+// Open Loans & Debts from anywhere (Accounts page, Categories pointer)
+function ftOpenLiabMap() {
+  navigate('settings');
+  setTimeout(function() {
+    var sni = document.getElementById('sniLiab');
+    if (sni) setTab(sni, 'liabmap'); else mobSetOpen('liabmap');
+  }, 60);
 }
 
 // (renderAccountsSection removed: see js/accounts.js renderAccounts)
