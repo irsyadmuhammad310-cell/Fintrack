@@ -1,7 +1,14 @@
 // === ANALYTICS (V2.0.0) ===
 var anCharts = [];
 
-function anDestroy() { anCharts.forEach(function(ch) { if (ch) ch.destroy(); }); anCharts = []; }
+function anDestroy() { anCharts.forEach(function(ch) { try { if (ch) ch.destroy(); } catch (e) {} }); anCharts = []; }
+// V2.0.5: bad or missing numbers count as 0 (never NaN on screen)
+function anN(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+function anGoalTotals() {
+  var saved = 0, target = 0;
+  if (typeof GOALS !== 'undefined' && Array.isArray(GOALS)) GOALS.forEach(function(g) { if (g) { saved += anN(g.c); target += anN(g.t); } });
+  return { saved: saved, target: target, pct: target > 0 ? saved / target * 100 : 0 };
+}
 
 function renderAnalytics(c) {
   anDestroy();
@@ -17,19 +24,25 @@ function renderAnalytics(c) {
   var MD = computeMonthlyData(year);
   var am = MD.filter(function(m) { return m.i > 0 || m.e > 0 || (m.sa || 0) !== 0; });
   if (!am.length) am = MD;
-  var ti = MD.reduce(function(s,m){return s+m.i;},0);
-  var te = MD.reduce(function(s,m){return s+m.e;},0);
-  var ts = MD.reduce(function(s,m){return s+m.s;},0);
+  // V2.0.5: KPIs, health and insights follow the month picked in the header (same as Home/Reports/mobile)
+  var isMonth = month !== 'total' && MD[+month];
+  var periodMD = isMonth ? [MD[+month]] : MD;
+  var ti = periodMD.reduce(function(s,m){return s+anN(m.i);},0);
+  var te = periodMD.reduce(function(s,m){return s+anN(m.e);},0);
+  var ts = periodMD.reduce(function(s,m){return s+anN(m.s);},0);
   var net = ti - te;
-  var nw = typeof getNetWorth === 'function' ? getNetWorth() : 0;
+  var nw = isMonth && typeof getNetWorthByPeriod === 'function' ? anN(getNetWorthByPeriod(year, month)) : (typeof getNetWorth === 'function' ? getNetWorth() : 0);
   var savRate = ti > 0 ? (ts / ti * 100).toFixed(1) : '0.0';
   // V2.0.5: ts = income - expense. Set aside = moved into Savings/Investment accounts (shown, not scored)
-  var tsa = MD.reduce(function(s,m){return s+(m.sa||0);},0);
+  var tsa = periodMD.reduce(function(s,m){return s+anN(m.sa);},0);
+  var anBudget = isMonth ? anN(getMonthlyBudget(year, +month)) : anN(getYearlyBudgetTotal(year));
+  var anCats = (isMonth && typeof computeExpenseCategoriesByPeriod === 'function') ? computeExpenseCategoriesByPeriod(year, month) : computeExpenseCategories(year);
+  var periodName = isMonth ? MONTH_NAMES[+month] + ' ' + year : String(year);
 
   var html = '<div class="an-page">';
 
   // 1. Financial Overview KPIs
-  html += '<div class="an-section"><div class="an-sec-title">' + t('nav_overview') + '</div><div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' +
+  html += '<div class="an-section"><div class="an-sec-title">' + t('nav_overview') + ' · ' + ftEsc(periodName) + '</div><div class="kg" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">' +
     '<div class="kc em"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-up" width="13" height="13"></i></div><div class="kl">' + t('dash_income') + '</div></div><div class="kv">' + fmt(ti) + '</div></div></div>' +
     '<div class="kc rs"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="trending-down" width="13" height="13"></i></div><div class="kl">' + t('dash_expense') + '</div></div><div class="kv">' + fmt(te) + '</div></div></div>' +
     '<div class="kc bl"><div class="kc-left"><div class="kc-hdr"><div class="ki"><i data-lucide="piggy-bank" width="13" height="13"></i></div><div class="kl">' + t('dash_savings') + '</div></div><div class="kv">' + fmt(ts) + '</div></div></div>' +
@@ -52,9 +65,10 @@ function renderAnalytics(c) {
   html += '<div class="an-section"><div class="an-grid-2">';
   // Goals
   if (typeof GOALS !== 'undefined' && GOALS.length) {
-    var totalGoalSaved = GOALS.reduce(function(s,g){return s+g.c;},0);
-    var totalGoalTarget = GOALS.reduce(function(s,g){return s+g.t;},0);
-    var goalPct = totalGoalTarget > 0 ? (totalGoalSaved/totalGoalTarget*100).toFixed(0) : 0;
+    var gT = anGoalTotals();
+    var totalGoalSaved = gT.saved;
+    var totalGoalTarget = gT.target;
+    var goalPct = Math.min(100, gT.pct).toFixed(0);
     html += '<div class="cc"><div class="ct">' + t('goal_progress') + '</div><div class="cs">' + GOALS.length + ' ' + t('goal_title').toLowerCase() + '</div><div class="an-goal-stats"><div class="an-goal-big">' + goalPct + '%</div><div class="an-goal-bar"><div class="an-goal-fill" style="width:' + goalPct + '%;background:var(--accent)"></div></div><div class="an-goal-meta"><span>' + t('goal_saved') + ': ' + fmt(totalGoalSaved) + '</span><span>' + t('goal_target') + ': ' + fmt(totalGoalTarget) + '</span></div></div></div>';
   } else {
     html += '<div class="cc"><div class="ct">' + t('goal_progress') + '</div><div class="cs">' + t('misc_no_data') + '</div><div class="es" style="padding:30px"><p>' + t('goal_title') + '</p></div></div>';
@@ -75,24 +89,24 @@ function renderAnalytics(c) {
   html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_net_worth') + '</div><div class="cs">' + t('dash_monthly_trend') + ' ' + year + '</div><div style="height:180px"><canvas id="anNetWorth"></canvas></div></div></div>';
 
   // 7. Financial Health Score
-  var healthScore = anCalcHealthScore(ti, te, ts, net, year);
+  var healthScore = anCalcHealthScore(ti, te, ts, net, year, anBudget);
   var healthColor = healthScore >= 80 ? 'var(--emerald)' : healthScore >= 65 ? 'var(--gold)' : healthScore >= 50 ? 'var(--amber)' : 'var(--rose)';
   var healthLabel = healthScore >= 95 ? t('an_excellent') : healthScore >= 80 ? t('an_very_good') : healthScore >= 65 ? t('an_good') : healthScore >= 50 ? t('an_fair') : t('an_needs_work');
-  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_health_score') + '</div><div class="cs">' + t('an_sub') + '</div><div class="an-health"><div class="an-health-score" style="color:' + healthColor + '">' + healthScore + '</div><div class="an-health-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="an-health-bar"><div class="an-health-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div>' + anHealthBreakdown(ti, te, ts, net, year) + '</div></div></div>';
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_health_score') + '</div><div class="cs">' + t('an_sub') + '</div><div class="an-health"><div class="an-health-score" style="color:' + healthColor + '">' + healthScore + '</div><div class="an-health-label" style="color:' + healthColor + '">' + healthLabel + '</div><div class="an-health-bar"><div class="an-health-fill" style="width:' + healthScore + '%;background:' + healthColor + '"></div></div>' + anHealthBreakdown(ti, te, ts, net, year, anBudget) + '</div></div></div>';
 
   // 8. AI Insights
-  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_insights') + '</div><div class="cs"></div><div class="an-insights">' + anGetInsights(ti, te, ts, net, year, MD) + '</div></div></div>';
+  html += '<div class="an-section"><div class="cc"><div class="ct">' + t('an_insights') + '</div><div class="cs">' + ftEsc(periodName) + '</div><div class="an-insights">' + anGetInsights(ti, te, ts, net, year, MD, anBudget, anCats) + '</div></div></div>';
 
   html += '</div>';
   c.innerHTML = html;
   lucide.createIcons();
 
   // Render charts
-  setTimeout(function() { anRenderCharts(year, MD, am); }, 60);
+  setTimeout(function() { anRenderCharts(year, MD, am, anCats, periodName); }, 60);
 }
 
 // === CHART RENDERING ===
-function anRenderCharts(year, MD, am) {
+function anRenderCharts(year, MD, am, periodCats, periodName) {
   var tc = document.documentElement.dataset.theme === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)';
   var gc = document.documentElement.dataset.theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
   var labels = am.map(function(m){return m.m;});
@@ -103,9 +117,11 @@ function anRenderCharts(year, MD, am) {
 
   // Expense by Category (doughnut)
   var EC = computeExpenseCategories(year);
+  // V2.0.5: doughnut shows the selected period (month or year)
+  var PC = Array.isArray(periodCats) ? periodCats : EC;
   var el2 = document.getElementById('anExpCat');
   var catColors = ['#ef4444','#f59e0b','#6366f1','#10b981','#06b6d4','#ec4899','#14b8a6','#f97316','#8b5cf6'];
-  if (el2 && EC.length) anCharts.push(new Chart(el2, { type:'doughnut', data:{ labels:EC.map(function(c){return c.n;}), datasets:[{ data:EC.map(function(c){return c.a;}), backgroundColor:catColors.slice(0,EC.length), borderWidth:2, borderColor:document.documentElement.dataset.theme==='dark'?'#2a2a3e':'#fff' }] }, options:{ responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ color:tc, font:{size:9}, padding:8, usePointStyle:true, pointStyle:'circle' } } } } }));
+  if (el2 && PC.length) anCharts.push(new Chart(el2, { type:'doughnut', data:{ labels:PC.map(function(c){return c.n;}), datasets:[{ data:PC.map(function(c){return anN(c.a);}), backgroundColor:catColors.slice(0,PC.length), borderWidth:2, borderColor:document.documentElement.dataset.theme==='dark'?'#2a2a3e':'#fff' }] }, options:{ responsive:true, maintainAspectRatio:false, cutout:'55%', plugins:{ legend:{ position:'right', labels:{ color:tc, font:{size:9}, padding:8, usePointStyle:true, pointStyle:'circle' } } } } }));
   else if (el2) el2.parentElement.innerHTML = '<div class="es" style="padding:30px"><p>No expense data yet</p></div>';
 
   // Savings Rate
@@ -125,26 +141,27 @@ function anRenderCharts(year, MD, am) {
   // Net Worth Trend
   var el6 = document.getElementById('anNetWorth');
   if (el6) {
-    var nwSeries = typeof computeBalanceSeries === 'function' ? computeBalanceSeries(year) : [];
+    // V2.0.5: same net-worth rule as the KPI (accounts + opening balances - debt), not a cash-flow line
+    var nwSeries = typeof getNetWorthByPeriod === 'function' ? MONTH_NAMES.map(function(_, i) { return anN(getNetWorthByPeriod(year, String(i))); }) : (typeof computeBalanceSeries === 'function' ? computeBalanceSeries(year) : []);
     anCharts.push(new Chart(el6, { type:'line', data:{ labels:MONTH_NAMES, datasets:[{ label:'Net Worth', data:nwSeries, borderColor:'#6366f1', backgroundColor:'rgba(99,102,241,0.08)', fill:true, tension:.4, pointRadius:2, borderWidth:2 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} }, scales:{ x:{grid:{display:false},ticks:{color:tc,font:{size:9}}}, y:{grid:{color:gc},ticks:{color:tc,font:{size:9},callback:function(v){return fmt(v);}}} } } }));
   }
 }
 
 // === FINANCIAL HEALTH SCORE ===
-function anCalcHealthScore(inc, exp, sav, net, year) {
+function anCalcHealthScore(inc, exp, sav, net, year, budgetOverride) {
   var score = 0;
   // Savings Rate (0-25 pts): 20%+ = 25, 10-20% = 15, 5-10% = 10, <5% = 5
   var savRate = inc > 0 ? sav / inc * 100 : 0;
   if (savRate >= 20) score += 25; else if (savRate >= 10) score += 18; else if (savRate >= 5) score += 10; else score += 3;
   // Budget Discipline (0-25 pts): under budget = 25, within 10% = 18, over = 8
-  var budget = getYearlyBudgetTotal(year);
+  var budget = budgetOverride !== undefined ? anN(budgetOverride) : getYearlyBudgetTotal(year);
   var budgetUsage = budget > 0 ? exp / budget : 1;
   if (budgetUsage <= 0.9) score += 25; else if (budgetUsage <= 1.0) score += 20; else if (budgetUsage <= 1.1) score += 12; else score += 5;
   // Positive Cash Flow (0-20 pts)
   if (net > 0) score += 20; else if (net >= -500) score += 10; else score += 3;
   // Goal Progress (0-15 pts)
   if (typeof GOALS !== 'undefined' && GOALS.length) {
-    var goalPct = GOALS.reduce(function(s,g){return s+g.c;},0) / Math.max(1, GOALS.reduce(function(s,g){return s+g.t;},0)) * 100;
+    var goalPct = anGoalTotals().pct;
     if (goalPct >= 70) score += 15; else if (goalPct >= 40) score += 10; else score += 4;
   } else { score += 8; }
   // Investment Growth (0-15 pts)
@@ -155,17 +172,17 @@ function anCalcHealthScore(inc, exp, sav, net, year) {
   return Math.min(100, Math.max(0, score));
 }
 
-function anHealthBreakdown(inc, exp, sav, net, year) {
+function anHealthBreakdown(inc, exp, sav, net, year, budgetOverride) {
   var savRate = inc > 0 ? sav / inc * 100 : 0;
-  var budget = getYearlyBudgetTotal(year);
-  var budgetUsage = budget > 0 ? (exp / budget * 100).toFixed(0) : 0;
+  var budget = budgetOverride !== undefined ? anN(budgetOverride) : getYearlyBudgetTotal(year);
+  var budgetUsage = budget > 0 ? (exp / budget * 100).toFixed(0) : null;
   var items = [
     { label: t('an_savings_rate'), value:savRate.toFixed(1)+'%', good:savRate>=10 },
-    { label: t('an_budget_used'), value:budgetUsage+'%', good:parseFloat(budgetUsage)<=100 },
+    { label: t('an_budget_used'), value:budgetUsage === null ? 'No budget' : budgetUsage+'%', good:budgetUsage === null || parseFloat(budgetUsage)<=100 },
     { label: t('an_cash_flow'), value:net>=0?'Positive':'Negative', good:net>=0 }
   ];
   if (typeof GOALS !== 'undefined' && GOALS.length) {
-    var gp = (GOALS.reduce(function(s,g){return s+g.c;},0) / Math.max(1,GOALS.reduce(function(s,g){return s+g.t;},0)) * 100).toFixed(0);
+    var gp = anGoalTotals().pct.toFixed(0);
     items.push({ label: t('goal_progress'), value:gp+'%', good:parseFloat(gp)>=40 });
   }
   if (typeof INVESTMENTS !== 'undefined' && INVESTMENTS.length) {
@@ -178,7 +195,7 @@ function anHealthBreakdown(inc, exp, sav, net, year) {
 }
 
 // === AI INSIGHTS ===
-function anGetInsights(inc, exp, sav, net, year, MD) {
+function anGetInsights(inc, exp, sav, net, year, MD, budgetOverride, periodCats) {
   var insights = [];
   var savRate = inc > 0 ? (sav / inc * 100) : 0;
 
@@ -276,15 +293,15 @@ function anGetInsights(inc, exp, sav, net, year, MD) {
   if (savRate >= 15) insights.push({ icon:'✓', text: T.sav_good.replace('{rate}', savRate.toFixed(1)), type:'good' });
   else if (savRate < 5 && inc > 0) insights.push({ icon:'⚠', text: T.sav_bad.replace('{rate}', savRate.toFixed(1)), type:'warn' });
   // Budget insight
-  var budget = getYearlyBudgetTotal(year);
+  var budget = budgetOverride !== undefined ? anN(budgetOverride) : getYearlyBudgetTotal(year);
   if (budget > 0 && exp > budget) insights.push({ icon:'⚠', text: T.budget_over.replace('{amount}', fmt(exp - budget)), type:'warn' });
   else if (budget > 0 && exp <= budget * 0.8) insights.push({ icon:'✓', text: T.budget_good.replace('{pct}', (exp/budget*100).toFixed(0)), type:'good' });
   // Cash flow
   if (net > 0) insights.push({ icon:'✓', text: T.cf_pos.replace('{amount}', fmt(net)), type:'good' });
   else if (net < 0) insights.push({ icon:'⚠', text: T.cf_neg.replace('{amount}', fmt(Math.abs(net))), type:'warn' });
   // Top expense
-  var EC = computeExpenseCategories(year);
-  if (EC.length) insights.push({ icon:'ℹ', text: T.top_cat.replace('{cat}', EC[0].n).replace('{amount}', fmt(EC[0].a)), type:'info' });
+  var EC = Array.isArray(periodCats) ? periodCats : computeExpenseCategories(year);
+  if (EC.length) insights.push({ icon:'ℹ', text: T.top_cat.replace('{cat}', function() { return ftEsc(EC[0].n); }).replace('{amount}', fmt(EC[0].a)), type:'info' });
   // Investment
   if (typeof INVESTMENTS !== 'undefined' && INVESTMENTS.length) {
     var pnl = getPortfolioValue() - getTotalInvested();
@@ -342,6 +359,6 @@ function renderMobileInsights(c, year, month) {
     if (typeof lucide !== 'undefined') lucide.createIcons();
   } catch(e) {
     console.error('[FinTrack] Insights render error:', e);
-    c.innerHTML = '<div style="padding:40px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Insights unavailable</div><div style="font-size:12px;color:var(--text-tertiary)">' + e.message + '</div></div>';
+    c.innerHTML = '<div style="padding:40px 20px;text-align:center"><div style="font-size:32px;margin-bottom:10px">⚠️</div><div style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:6px">Insights unavailable</div><div style="font-size:12px;color:var(--text-tertiary)">' + ftEsc(e && e.message) + '</div></div>';
   }
 }
