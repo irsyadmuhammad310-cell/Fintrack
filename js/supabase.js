@@ -2,6 +2,7 @@
 // Handles auth, cloud sync, and offline-first architecture
 // Sits on top of existing dual-write (localStorage + IndexedDB)
 // V2.0.1: Fixed category mapping, merge-on-pull, UUID IDs, 72h auto-sync
+// V2.0.6: new cloud table ft_sync (one row per record, 3-way merge). Edits + deletes sync, auto-sync 8s after a change.
 
 const SUPABASE_URL = 'https://eoonfztciqvyjchsinpg.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_3zgVsgSU4Jot7NpXl4dWKw_0Fhu19gY';
@@ -48,7 +49,7 @@ const ftAuth = {
     _supabase.auth.onAuthStateChange((event, session) => {
       this.session = session;
       this.user = session ? session.user : null;
-      if (event === 'SIGNED_IN') ftCloudClaim().then(function(ok) { if (ok) ftSync.fullPush(); });
+      if (event === 'SIGNED_IN') ftCloudClaim().then(function(ok) { if (ok) ftSync.sync({ full: !ftSync.hasSnapshot() }); });
       if (event === 'SIGNED_OUT') this.user = null;
     });
     return this.user;
@@ -90,46 +91,48 @@ const ftAuth = {
 };
 
 // =====================================================
-// PAGED FETCH (V2.0.4)
-// Supabase returns max 1,000 rows per request (project "Max Rows" setting).
-// Fetch 1,000 at a time with .range() until a short page comes back.
-// A stable order (date + id) keeps rows from shifting between pages.
-// Any error throws, so a half-finished pull never looks complete.
+// AUTO SYNC TRIGGER (V2.0.6)
+// Every save of synced data schedules ONE sync 8 seconds later (signed in + online only).
+// No page has to remember to call the cloud: safeSave is wrapped once, below.
 // =====================================================
-var FT_PAGE_SIZE = 1000;
-async function ftFetchAll(table, uid, orderCol) {
-  var all = [];
-  for (var from = 0; ; from += FT_PAGE_SIZE) {
-    var q = _supabase.from(table).select('*').eq('user_id', uid);
-    if (orderCol) q = q.order(orderCol, { ascending: false });
-    q = q.order('id', { ascending: true }).range(from, from + FT_PAGE_SIZE - 1);
-    var res = await q;
-    if (res.error) throw new Error(table + ' pull failed: ' + res.error.message);
-    var rows = res.data || [];
-    all = all.concat(rows);
-    if (rows.length < FT_PAGE_SIZE) break;
-    if (from > 5000000) throw new Error(table + ' pull stopped: too many pages');
-  }
-  return all;
+var FT_TXN_KEY = typeof STORAGE_KEY !== 'undefined' ? STORAGE_KEY : 'ft_txn_data';
+var FT_SYNC_DELAY = 8000;
+var _ftDirtyTimer = null;
+// Keys with their own cloud rows, per-phone settings and sync bookkeeping never go up as "settings"
+var FT_SYNC_SKIP = /^ft_(goals|budget_plans|accounts|txn_data|currency|lang|hide_amounts|base_cur|rates.*|budget_alerts.*|milestone_alerts|autocat_off|quickstart_done|security_setup_done|liab_v2_at|last_backup.*|sync_.*|reminderNxId|goalNxId)$|nxid$/i;
+function ftSyncStoreKeyOk(k) {
+  if (typeof k !== 'string' || k.indexOf('ft_') !== 0 || FT_SYNC_SKIP.test(k)) return false;
+  if (k === 'ft_schema') return true; // categories
+  return typeof ftBackupKeyAllowed === 'function' ? ftBackupKeyAllowed(k) : false; // same safety list as JSON backup
 }
-
-// V2.0.4: saveACCOUNTS() (data.js) calls this so reorders/edits reach the cloud.
-// Cheap debounce: pushes 3s after the last change, only when online and signed in.
-var _ftAccSyncTimer = null;
-function ftCloudAccountsDirty() {
-  if (typeof ftSync === 'undefined') return;
-  ftSync.markAccountsDirty();
-  clearTimeout(_ftAccSyncTimer);
-  _ftAccSyncTimer = setTimeout(function() {
+function ftSyncWatchKey(k) {
+  return k === FT_TXN_KEY || k === 'ft_accounts' || k === 'ft_goals' || k === 'ft_budget_plans' || ftSyncStoreKeyOk(k);
+}
+function ftCloudDirty() {
+  if (typeof ftSync === 'undefined' || !ftSync || ftSync._applying) return;
+  ftSync._dirty = true;
+  clearTimeout(_ftDirtyTimer);
+  _ftDirtyTimer = setTimeout(function() {
     try {
-      if (!ftSync._accountsDirty) return;
-      if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return;
-      if (navigator.onLine === false) return;
-      ftSync._accountsDirty = false;
-      ftSync.fullPush({ throwOnError: false }).catch(function() { ftSync._accountsDirty = true; });
+      if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn() || navigator.onLine === false) return;
+      if (ftSync.isSyncing) { ftSync._again = true; return; }
+      ftSync.sync({ auto: true });
     } catch (e) {}
-  }, 3000);
+  }, FT_SYNC_DELAY);
 }
+// Old name kept: data.js saveACCOUNTS() calls it
+function ftCloudAccountsDirty() { ftCloudDirty(); }
+(function ftWrapSafeSave() {
+  if (typeof safeSave !== 'function' || safeSave._ftSync) return;
+  var orig = safeSave;
+  var wrapped = function(key, value) {
+    var r = orig.apply(this, arguments);
+    try { if (ftSyncWatchKey(key)) ftCloudDirty(); } catch (e) {}
+    return r;
+  };
+  wrapped._ftSync = true;
+  safeSave = wrapped;
+})();
 
 // === CLOUD OWNER GUARD (V2.0.5) ===
 // Local data on this device belongs to ONE cloud account (ft_cloud_uid).
@@ -171,413 +174,479 @@ function ftCheck(res, what) {
 }
 
 // =====================================================
-// SYNC MODULE (Offline-first, sync when online)
+// SYNC MODULE (V2.0.6): one cloud table, 3-way merge
 // =====================================================
-// V2.0.4: the cloud "note" column carries every link the table has no column for
-// (transfer destination, loan link, fee link, original currency). Old rows only had c/s: still readable.
-var FT_NOTE_EXTRA = ['toAcc', 'liab', 'fee', 'feeLinkedTo', 'cur', 'origAmt', 'fx']; // V2.0.5: fx = key-in rates
-function ftTxNote(tx) {
-  var n = { c: tx.c || '', s: tx.s || '' };
-  FT_NOTE_EXTRA.forEach(function(k) { if (tx[k] !== undefined && tx[k] !== null && tx[k] !== '') n[k] = tx[k]; });
-  return JSON.stringify(n);
+// Cloud table ft_sync = one row per record: kind (txn / acc / goal / budget / store), rid (record id),
+// data (the record exactly as this app saves it, so no field is ever lost) and deleted (true = removed).
+// The phone remembers a fingerprint of every record from the last sync (the "snapshot"). Per record:
+//   phone = cloud -> nothing to do | only the cloud changed -> download | only the phone changed -> upload
+//   both changed -> the phone wins; deleted on one side + edited on the other -> the edit wins;
+//   settings lists (categories, loan links, reminders...) edited on both -> combined.
+// So new entries, edits AND deletes reach every device. Old tables (transactions, accounts...) are not used.
+var FT_SYNC_TABLE = 'ft_sync';
+var FT_SYNC_KINDS = ['txn', 'acc', 'goal', 'budget', 'store'];
+var FT_SYNC_PAGE = 1000;
+
+// Same text for the same data, whatever order the fields were saved in
+function ftStable(v) {
+  if (v === null || v === undefined || typeof v !== 'object') { var s = JSON.stringify(v); return s === undefined ? 'null' : s; }
+  if (Array.isArray(v)) return '[' + v.map(function(x) { return ftStable(x); }).join(',') + ']';
+  var keys = Object.keys(v).filter(function(k) { return v[k] !== undefined && typeof v[k] !== 'function'; }).sort();
+  return '{' + keys.map(function(k) { return JSON.stringify(k) + ':' + ftStable(v[k]); }).join(',') + '}';
+}
+// cyrb53 fingerprint: only answers "did this record change?" (not for security)
+function ftHash(str) {
+  var h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (var i = 0; i < str.length; i++) { var ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36) + '.' + str.length.toString(36);
+}
+// A linked goal's "saved" amount is recalculated from balances on every device, so it is not a real edit
+function ftSyncFp(kind, s, v) {
+  if (kind === 'goal' && v && typeof v === 'object' && ((Array.isArray(v.accs) && v.accs.length) || v.acc || (Array.isArray(v.linkedCats) && v.linkedCats.length) || v.linkedCat)) {
+    var o = {}; Object.keys(v).forEach(function(k) { if (k !== 'c') o[k] = v[k]; });
+    s = ftStable(o);
+  }
+  return ftHash(s);
+}
+// Downloaded data: drop keys that could poison objects, stop at 20 levels
+function ftSyncClean(v, depth) {
+  depth = depth || 0;
+  if (depth > 20) return null;
+  if (Array.isArray(v)) return v.map(function(x) { return ftSyncClean(x, depth + 1); });
+  if (v && typeof v === 'object') {
+    var o = {};
+    Object.keys(v).forEach(function(k) { if (k !== '__proto__' && k !== 'prototype' && k !== 'constructor') o[k] = ftSyncClean(v[k], depth + 1); });
+    return o;
+  }
+  return v;
+}
+function ftSyncHas(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+// --- snapshot = fingerprints from the last good sync (per cloud user) ---
+function ftSyncSnapLoad(uid) {
+  var s = null;
+  try { s = JSON.parse(safeGet('ft_sync_snap') || 'null'); } catch (e) { s = null; }
+  if (!s || typeof s !== 'object' || s.uid !== uid || !s.h || typeof s.h !== 'object') return { uid: uid, base: '', cursor: '', h: {} };
+  return s;
+}
+function ftSyncSnapSize(s) { var n = 0; Object.keys(s.h || {}).forEach(function(k) { n += Object.keys(s.h[k] || {}).length; }); return n; }
+function ftSyncRecCount(map) { var n = 0; ['txn', 'acc', 'goal', 'budget'].forEach(function(k) { n += Object.keys((map && map[k]) || {}).length; }); return n; }
+// Big delete = at least 5 records and over a quarter of everything, or literally everything
+function ftSyncSuspicious(n, total) { return n > 0 && ((n >= 5 && n > total * 0.25) || (total >= 2 && n >= total)); }
+// Downloads start 5 min before the newest change already seen (covers saves still in flight).
+// Once a download ran 60s+ after that change was first seen, nothing older can still arrive:
+// then only rows newer than it are fetched (so big uploads are not downloaded again and again).
+function ftSyncSince(snap) {
+  var t = new Date(String(snap.cursor).replace(/(\.\d{3})\d+/, '$1')).getTime();
+  if (!isFinite(t)) return null;
+  return new Date(snap.safe ? t : t - 5 * 60 * 1000).toISOString();
 }
 
-const ftSync = {
+function ftSyncStoreKeys() {
+  var keys = {};
+  try { Object.keys(_ftStore).forEach(function(k) { keys[k] = 1; }); } catch (e) {}
+  try { for (var i = 0; i < localStorage.length; i++) keys[localStorage.key(i)] = 1; } catch (e) {}
+  return Object.keys(keys).filter(ftSyncStoreKeyOk).sort();
+}
+
+// Everything this phone syncs: {kind: {rid: {v: value, h: fingerprint}}}
+// Fingerprints are cached per session, so a sync after one small edit stays fast with 20,000+ records.
+var _ftFpCache = {};
+function ftSyncText(it) { if (it.s === undefined) it.s = ftStable(it.v); return it.s; }
+function ftSyncLocal() {
+  var L = {}, next = {}; FT_SYNC_KINDS.forEach(function(k) { L[k] = {}; });
+  var add = function(kind, rid, v) {
+    var key = kind + '|' + JSON.stringify(v);
+    var h = ftSyncHas(_ftFpCache, key) ? _ftFpCache[key] : ftSyncFp(kind, ftStable(v), v);
+    next[key] = h;
+    L[kind][rid] = { v: v, h: h };
+  };
+  var raw = function(rid, v) { L.store[rid] = { v: v, s: v, h: ftSyncFp('store', v, v) }; };
+  var list = function(key, kind) {
+    var arr = []; try { arr = JSON.parse(safeGet(key) || '[]'); } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) return [];
+    arr.forEach(function(x) { if (x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined && x.id !== null && x.id !== '') add(kind, String(x.id), x); });
+    return arr;
+  };
+  list(FT_TXN_KEY, 'txn');
+  var accs = list('ft_accounts', 'acc');
+  list('ft_goals', 'goal');
+  var plans = {}; try { plans = JSON.parse(safeGet('ft_budget_plans') || '{}') || {}; } catch (e) { plans = {}; }
+  if (plans && typeof plans === 'object' && !Array.isArray(plans)) Object.keys(plans).forEach(function(y) {
+    var ym = plans[y]; if (!ym || typeof ym !== 'object' || Array.isArray(ym)) return;
+    Object.keys(ym).forEach(function(m) { if (ym[m] && typeof ym[m] === 'object') add('budget', y + '-' + m, ym[m]); });
+  });
+  ftSyncStoreKeys().forEach(function(k) { var v = safeGet(k); if (v !== null && v !== undefined) raw(k, String(v)); });
+  var ids = accs.filter(function(a) { return a && typeof a === 'object' && a.id !== undefined; }).map(function(a) { return String(a.id); });
+  if (ids.length) raw('_accOrder', JSON.stringify(ids)); // account order (drag reorder) syncs too
+  _ftFpCache = next;
+  return L;
+}
+
+// Two records with one id would overwrite each other in the cloud: the later one gets a new id
+function ftSyncFixDupIds() {
+  var fix = function(key, newId) {
+    var arr; try { arr = JSON.parse(safeGet(key) || '[]'); } catch (e) { return 0; }
+    if (!Array.isArray(arr)) return 0;
+    var seen = {}, n = 0;
+    arr.forEach(function(x) {
+      if (!x || typeof x !== 'object' || Array.isArray(x)) return;
+      if (x.id === undefined || x.id === null || x.id === '' || seen[String(x.id)]) { x.id = newId(); n++; }
+      seen[String(x.id)] = 1;
+    });
+    if (n) safeSave(key, JSON.stringify(arr));
+    return n;
+  };
+  return fix(FT_TXN_KEY, function() { return generateTxnId(); }) +
+    fix('ft_goals', function() { return typeof ftNewGoalId === 'function' ? ftNewGoalId() : 'g_' + ftUUID(); });
+}
+
+// Decide every record. L = phone, C = cloud rows downloaded, S = snapshot, opts.full = C is the whole cloud.
+// Pure: reads nothing, writes nothing.
+function ftSyncPlan(L, C, S, opts) {
+  var first = !!opts.first, tomb = opts.tomb || {};
+  var P = { down: [], up: [], upDel: [], downDel: [], conflicts: [], snap: {}, needFull: false };
+  FT_SYNC_KINDS.forEach(function(kind) {
+    var l = L[kind] || {}, c = C[kind] || {}, s = S[kind] || {}, ns = P.snap[kind] = {}, ids = {};
+    [l, c, s].forEach(function(m) { Object.keys(m).forEach(function(k) { ids[k] = 1; }); });
+    Object.keys(ids).forEach(function(rid) {
+      if (kind === 'store' && rid === '_base') return;
+      var lo = ftSyncHas(l, rid) ? l[rid] : null, co = ftSyncHas(c, rid) ? c[rid] : null;
+      var lh = lo ? lo.h : null, sh = ftSyncHas(s, rid) ? s[rid] : null;
+      var ch = co ? (co.del ? null : co.h) : (opts.full ? null : sh); // not downloaded = unchanged since last sync
+      var it = { kind: kind, rid: rid, l: lo, c: co };
+      if (lh === ch) { if (lh) ns[rid] = lh; return; }
+      if (first && kind !== 'store' && lo && co && co.del) { P.downDel.push(it); return; } // deleted on another device earlier
+      if (first && kind === 'txn' && !lo && ch && tomb[rid]) { P.upDel.push(it); return; } // deleted here before the first sync
+      if (lh === sh) { // only the cloud changed
+        if (ch) P.down.push(it); else if (kind === 'store') P.up.push(it); else P.downDel.push(it);
+        return;
+      }
+      if (ch === sh) { // only this phone changed
+        if (lh) P.up.push(it);
+        else if (kind !== 'store') P.upDel.push(it);
+        else if (co && !co.del) P.down.push(it); // settings are never deleted: bring the key back
+        else P.needFull = true;
+        return;
+      }
+      if (!lh) { P.down.push(it); return; } // deleted here, edited in the cloud: keep the edit
+      if (!ch) { P.up.push(it); return; }   // deleted in the cloud, edited here: keep the edit
+      if (kind === 'store') { it.merge = true; P.up.push(it); return; }
+      if (first) { P.conflicts.push(it); return; }
+      P.up.push(it); // both edited: this phone wins
+    });
+  });
+  return P;
+}
+
+// Settings edited on two devices: keep everything from both (this phone wins on the same item)
+function ftSyncUnion(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    var out = a.slice(), seen = {};
+    var key = function(x) { return x && typeof x === 'object' && !Array.isArray(x) && x.id !== undefined ? 'id:' + String(x.id) : ftStable(x); };
+    out.forEach(function(x) { seen[key(x)] = 1; });
+    b.forEach(function(x) { var k = key(x); if (!seen[k]) { out.push(x); seen[k] = 1; } });
+    return out;
+  }
+  var isObj = function(x) { return x && typeof x === 'object' && !Array.isArray(x); };
+  if (isObj(a) && isObj(b)) {
+    var o = {};
+    Object.keys(a).forEach(function(k) { o[k] = a[k]; });
+    Object.keys(b).forEach(function(k) { o[k] = ftSyncHas(o, k) ? ftSyncUnion(o[k], b[k]) : b[k]; });
+    return o;
+  }
+  return a;
+}
+function ftSyncMergeRaw(localRaw, cloudRaw) {
+  var a, b;
+  try { a = JSON.parse(localRaw); b = ftSyncClean(JSON.parse(cloudRaw)); } catch (e) { return localRaw; }
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return localRaw;
+  return JSON.stringify(ftSyncUnion(a, b));
+}
+
+// Write downloaded changes into this phone's storage, all in one go
+function ftSyncWrite(sets, dels) {
+  var list = function(key, kind) {
+    var s = sets[kind] || {}, d = dels[kind] || {};
+    if (!Object.keys(s).length && !Object.keys(d).length) return;
+    var arr = []; try { arr = JSON.parse(safeGet(key) || '[]'); } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+    var idx = {};
+    arr.forEach(function(x, i) { if (x && typeof x === 'object') idx[String(x.id)] = i; });
+    Object.keys(s).forEach(function(rid) { if (ftSyncHas(idx, rid)) arr[idx[rid]] = s[rid]; else { idx[rid] = arr.length; arr.push(s[rid]); } });
+    if (Object.keys(d).length) arr = arr.filter(function(x) { return !(x && typeof x === 'object' && d[String(x.id)]); });
+    safeSave(key, JSON.stringify(arr));
+  };
+  list(FT_TXN_KEY, 'txn');
+  list('ft_accounts', 'acc');
+  list('ft_goals', 'goal');
+  var bs = sets.budget || {}, bd = dels.budget || {};
+  if (Object.keys(bs).length || Object.keys(bd).length) {
+    var plans = {}; try { plans = JSON.parse(safeGet('ft_budget_plans') || '{}') || {}; } catch (e) { plans = {}; }
+    if (typeof plans !== 'object' || Array.isArray(plans)) plans = {};
+    var ym = function(rid) { var i = rid.indexOf('-'); return i > 0 ? [rid.slice(0, i), rid.slice(i + 1)] : null; };
+    Object.keys(bs).forEach(function(rid) { var p = ym(rid); if (!p) return; if (!plans[p[0]] || typeof plans[p[0]] !== 'object') plans[p[0]] = {}; plans[p[0]][p[1]] = bs[rid]; });
+    Object.keys(bd).forEach(function(rid) { var p = ym(rid); if (p && plans[p[0]]) delete plans[p[0]][p[1]]; });
+    safeSave('ft_budget_plans', JSON.stringify(plans));
+  }
+  var ss = sets.store || {};
+  Object.keys(ss).forEach(function(k) {
+    if (k === '_accOrder' || !ftSyncStoreKeyOk(k)) return;
+    var v = String(ss[k]), n;
+    try { n = JSON.parse(v); } catch (e) { n = v; }
+    if (typeof ftBackupValueOk === 'function' && !ftBackupValueOk(k, n)) { console.warn('[FinTrack] Cloud key skipped (wrong shape):', k); return; }
+    safeSave(k, v);
+  });
+  if (ss._accOrder !== undefined) {
+    var order = []; try { order = JSON.parse(ss._accOrder); } catch (e) { order = []; }
+    var accs = []; try { accs = JSON.parse(safeGet('ft_accounts') || '[]'); } catch (e) { accs = []; }
+    if (Array.isArray(order) && Array.isArray(accs) && accs.length) {
+      var pos = {}; order.forEach(function(id, i) { pos[String(id)] = i; });
+      var rows = accs.map(function(a, i) { return { a: a, k: a && ftSyncHas(pos, String(a.id)) ? pos[String(a.id)] : 1e6 + i }; });
+      rows.sort(function(x, y) { return x.k - y.k; });
+      safeSave('ft_accounts', JSON.stringify(rows.map(function(x) { return x.a; })));
+    }
+  }
+}
+
+// After a download: next new id is always higher than any id that arrived
+function ftSyncBumpCounters() {
+  try {
+    var top = function(list, re) {
+      var m = -1;
+      (list || []).forEach(function(x) {
+        if (!x) return;
+        var n = typeof x.id === 'number' ? x.id : NaN, hit = re.exec(String(x.id));
+        if (!isFinite(n) && hit) n = parseInt(hit[1], 10);
+        if (isFinite(n) && n > m) m = n;
+      });
+      return m;
+    };
+    if (typeof TXN !== 'undefined' && typeof nxId !== 'undefined') { var t = top(TXN, /^(\d+)$/); if (t + 1 > nxId) { nxId = t + 1; safeSave('ft_nxId', String(nxId)); } }
+    if (typeof ACCOUNTS !== 'undefined' && typeof accNxId !== 'undefined') { var a = top(ACCOUNTS, /^acc_(\d+)$/); if (a + 1 > accNxId) { accNxId = a + 1; safeSave('ft_accNxId', String(accNxId)); } }
+    if (typeof REMINDERS !== 'undefined' && typeof reminderNxId !== 'undefined') { var r = top(REMINDERS, /^(\d+)$/); if (r + 1 > reminderNxId) { reminderNxId = r + 1; safeSave('ft_reminderNxId', String(reminderNxId)); } }
+  } catch (e) {}
+}
+
+function ftSyncTableErr(err, what) {
+  var m = (err && err.message) || String(err);
+  if (/ft_sync/.test(m) && /(does not exist|could not find|schema cache)/i.test(m)) m = 'the cloud table is not set up yet';
+  return new Error(what + ' failed: ' + m);
+}
+function ftSyncErrText(e) {
+  var m = (e && e.message) || String(e);
+  if (/Failed to fetch|NetworkError|Load failed|network/i.test(m)) return 'No internet connection. Your data is safe on this phone.';
+  return m;
+}
+
+// Download rows (all, or only rows changed since `since`), 1,000 per request until an empty page
+async function ftSyncFetch(uid, since) {
+  var all = [];
+  for (var from = 0; ; ) {
+    var q = _supabase.from(FT_SYNC_TABLE).select('kind,rid,data,deleted,updated_at').eq('user_id', uid);
+    if (since) q = q.gt('updated_at', since);
+    var res = await q.order('kind', { ascending: true }).order('rid', { ascending: true }).range(from, from + FT_SYNC_PAGE - 1);
+    if (res.error) throw ftSyncTableErr(res.error, 'Download');
+    var rows = res.data || [];
+    if (!rows.length) break;
+    for (var i = 0; i < rows.length; i++) all.push(rows[i]);
+    from += rows.length;
+    if (from > 3000000) throw new Error('Download stopped: too many rows');
+  }
+  return all;
+}
+// Upload in chunks (max 500 rows / ~900 KB per request)
+async function ftSyncPush(uid, items) {
+  var chunk = [], size = 0;
+  var send = async function() {
+    if (!chunk.length) return;
+    var res = await _supabase.from(FT_SYNC_TABLE).upsert(chunk, { onConflict: 'user_id,kind,rid' });
+    if (res && res.error) throw ftSyncTableErr(res.error, 'Upload');
+    chunk = []; size = 0;
+  };
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    var row = { user_id: uid, kind: it.kind, rid: it.rid, data: it.deleted ? null : it.data, deleted: !!it.deleted };
+    var len = (row.data ? row.data.length : 0) + 120;
+    if (chunk.length && (chunk.length >= 500 || size + len > 900000)) await send();
+    chunk.push(row); size += len;
+  }
+  await send();
+}
+
+var ftSync = {
   isSyncing: false,
   lastSyncAt: null,
+  lastPullAdded: 0,
+  lastError: '',
   pendingChanges: [],
+  _applying: false,
+  _dirty: false,
+  _again: false,
 
-  // V2.0.4: called by data.js saveACCOUNTS() so account order changes sync on the next push
-  _accountsDirty: false,
-  markAccountsDirty() { this._accountsDirty = true; },
+  hasSnapshot() { var uid = ftAuth.uid(); return !!uid && ftSyncSnapSize(ftSyncSnapLoad(uid)) > 0; },
 
-  // Helper: map local tx to cloud format
-  _mapTxForCloud(tx) {
-    return {
-      id: String(tx.id),
-      user_id: ftAuth.uid(),
-      type: tx.t || 'Expense',
-      amount: tx.a || 0,
-      description: tx.dt || '',
-      date: tx.d || new Date().toISOString().split('T')[0],
-      account_id: tx.acc || null,
-      note: ftTxNote(tx),
-      currency: FT_BASE,
-      category_id: null
-    };
-  },
-
-  // Full push: upload all local data to Supabase
-  // opts.throwOnError: manual Push button passes true so the UI shows the real error
-  async fullPush(opts) {
-    if (!ftAuth.isLoggedIn()) return;
-    if (!ftCloudAllowed()) { if (opts && opts.throwOnError) throw new Error('This device holds data from another cloud account. Sign in again to choose.'); return; }
-    if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
+  // opts.full: download everything (sign-in, Sync now button). opts.throwOnError: button shows the error.
+  // Returns { down, up } = records changed on this phone / sent to the cloud.
+  async sync(opts) {
+    opts = opts || {};
+    var no = function(msg) { if (opts.throwOnError) throw new Error(msg); return null; };
+    if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return no('Not signed in');
+    if (!ftCloudAllowed()) return no('This device holds data from another cloud account. Sign in again to choose.');
+    if (this.isSyncing) { this._again = true; return no('Sync already running, try again in a moment'); }
     this.isSyncing = true;
-
+    this._dirty = false;
     try {
-      const uid = ftAuth.uid();
-
-      // Push accounts (V2.0.4: sort_order = array position, so drag reorder reaches other devices)
-      var accounts = JSON.parse(safeGet('ft_accounts') || '[]');
-      if (accounts.length) {
-        var rows = accounts.map(function(a, aIdx) {
-          return {
-            id: String(a.id),
-            user_id: uid,
-            name: a.name,
-            type: a.type || 'asset',
-            currency: a.currency || FT_BASE,
-            balance: a.initialBalance || 0,
-            icon: a.icon || '',
-            color: a.color || '',
-            is_active: a.active !== false,
-            sort_order: aIdx,
-            note: JSON.stringify({ accountType: a.accountType, notes: a.notes || '', liabV2: a.liabV2 || undefined, createdAt: a.createdAt || undefined })
-          };
-        });
-        ftCheck(await _supabase.from('accounts').upsert(rows, { onConflict: 'id' }), 'Accounts push');
-      }
-
-      // Push transactions (category + subcategory packed in note as JSON)
-      var txns = JSON.parse(safeGet(STORAGE_KEY) || '[]');
-      if (txns.length) {
-        for (var i = 0; i < txns.length; i += 500) {
-          var chunk = txns.slice(i, i + 500).map(function(tx) {
-            return {
-              id: String(tx.id),
-              user_id: uid,
-              account_id: tx.acc || null,
-              type: tx.t || 'Expense',
-              amount: tx.a || 0,
-              currency: FT_BASE,
-              description: tx.dt || '',
-              note: ftTxNote(tx),
-              date: tx.d || new Date().toISOString().split('T')[0],
-              category_id: null
-            };
-          });
-          ftCheck(await _supabase.from('transactions').upsert(chunk, { onConflict: 'id' }), 'Transactions push (rows ' + (i + 1) + '+)');
-        }
-      }
-
-      // Push goals (handle both field name formats)
-      var goals = typeof GOALS !== 'undefined' ? GOALS : JSON.parse(safeGet('ft_goals') || '[]');
-      if (goals.length) {
-        var goalRows = goals.map(function(g) {
-          return {
-            id: String(g.id),
-            user_id: uid,
-            name: g.name || g.n || '',
-            icon: g.icon || g.e || g.emoji || '',
-            target_amount: g.target || g.t || 0,
-            current_amount: g.current || g.c || 0,
-            currency: FT_BASE,
-            deadline: g.due || g.deadline || g.dl || null, // V2.0.5: app stores the deadline as g.due
-            priority: g.priority || g.pri || 'medium',
-            status: g.paused ? 'paused' : (g.completed ? 'completed' : 'active'),
-            note: JSON.stringify({ linkedCats: g.linkedCats || [], linkedCat: g.linkedCat || '', notes: g.notes || '', acc: g.acc || '', accs: g.accs || [], shares: g.shares || {}, base: g.base || 0, created: g.created || '' }) // V2.0.5: shares = % of each shared account
-          };
-        });
-        ftCheck(await _supabase.from('goals').upsert(goalRows, { onConflict: 'id' }), 'Goals push');
-      }
-
-      // Push budgets (with per-category data)
-      var budgets = JSON.parse(safeGet('ft_budget_plans') || '{}');
-      for (var year in budgets) {
-        var yearPlans = budgets[year];
-        for (var month in yearPlans) {
-          var plan = yearPlans[month];
-          if (plan) {
-            var bRes = await _supabase.from('budgets').upsert({
-              user_id: uid,
-              year: parseInt(year),
-              month: parseInt(month),
-              income_target: plan.i || 0,
-              expense_target: plan.e || 0,
-              savings_target: plan.s || 0,
-              note: JSON.stringify({ incCats: plan.incCats, expCats: plan.expCats, savCats: plan.savCats })
-            }, { onConflict: 'user_id,year,month' });
-            ftCheck(bRes, 'Budget push ' + year + '/' + month);
-          }
-        }
-      }
-
-      // V2.0.5: deletes made while offline reach the cloud now
-      var tomb = ftGetTombstones();
-      for (var ti = 0; ti < tomb.length; ti += 200) {
-        ftCheck(await _supabase.from('transactions').delete().eq('user_id', uid).in('id', tomb.slice(ti, ti + 200)), 'Deleted rows push');
-      }
-
+      var r = await this._run(!!opts.full);
+      if (r && r.needFull) r = await this._run(true);
+      this.lastError = '';
+      safeSave('ft_sync_err', '');
       this.lastSyncAt = new Date().toISOString();
       safeSave('lastCloudSync', this.lastSyncAt);
-      console.log('[FinTrack] Full push complete at', this.lastSyncAt);
+      this.lastPullAdded = r ? r.down : 0;
+      if (r && (r.down || r.up)) console.log('[FinTrack] Synced: ' + r.down + ' in, ' + r.up + ' out');
+      return r;
     } catch (e) {
-      // lastCloudSync is NOT updated on failure, so auto-sync retries later
-      console.error('[FinTrack] Push error:', e);
-      if (opts && opts.throwOnError) throw e;
+      var msg = ftSyncErrText(e);
+      this.lastError = msg;
+      safeSave('ft_sync_err', msg + ' · ' + new Date().toLocaleString());
+      console.error('[FinTrack] Sync error:', e);
+      if (opts.throwOnError) throw new Error(msg);
+      return null;
     } finally {
       this.isSyncing = false;
+      this._applying = false;
+      if (this._again || this._dirty) { this._again = false; ftCloudDirty(); } // changes made during the sync go next
     }
   },
 
-  // Full pull: download from Supabase and MERGE with local (no overwrite)
-  // V2.0.4: pages through ALL rows (1,000 per request). Everything is downloaded first,
-  // then merged, so a dropped connection mid-pull changes nothing locally.
-  async fullPull(opts) {
-    if (!ftAuth.isLoggedIn()) return;
-    if (!ftCloudAllowed()) { if (opts && opts.throwOnError) throw new Error('This device holds data from another cloud account. Sign in again to choose.'); return; }
-    if (this.isSyncing) { if (opts && opts.throwOnError) throw new Error('Sync already running, try again in a moment'); return; }
-    this.isSyncing = true;
+  async _run(full) {
+    var uid = ftAuth.uid();
+    if (ftSyncFixDupIds() && typeof loadAllModuleData === 'function') loadAllModuleData();
+    var snap = ftSyncSnapLoad(uid);
+    var first = ftSyncSnapSize(snap) === 0;
+    if (first || !snap.cursor) full = true;
+    var since = full ? null : ftSyncSince(snap);
+    if (!full && !since) full = true;
+    var rows = await ftSyncFetch(uid, since);
+    if (full && !rows.length && !first) { snap = { uid: uid, base: '', cursor: '', h: {} }; first = true; } // cloud emptied: upload again, delete nothing
 
-    try {
-      var uid = ftAuth.uid();
-
-      // --- Download everything first (paged) ---
-      var cloudTxns = await ftFetchAll('transactions', uid, 'date');
-      var cloudAccounts = await ftFetchAll('accounts', uid, null);
-      var cloudGoals = await ftFetchAll('goals', uid, null);
-      console.log('[FinTrack] Pulled ' + cloudTxns.length + ' transactions, ' + cloudAccounts.length + ' accounts, ' + cloudGoals.length + ' goals.');
-
-      // --- MERGE transactions ---
-      if (cloudTxns.length) {
-        var localTxns = JSON.parse(safeGet(STORAGE_KEY) || '[]');
-        var localMap = {};
-        localTxns.forEach(function(tx) { localMap[String(tx.id)] = true; });
-        // V2.0.4 base currency: a new/empty phone adopts the cloud's base (rows saved before this are MYR).
-        // A phone that already has data converts any cloud row saved in a different base.
-        if (!localTxns.length) {
-          var cloudBase = cloudTxns[0].currency || 'MYR';
-          if (CURRENCY_CONFIG[cloudBase]) ftSetBase(cloudBase, true);
-        }
-
-        var added = 0;
-        var tombSet = {}; ftGetTombstones().forEach(function(k) { tombSet[k] = true; });
-        cloudTxns.forEach(function(ctx) {
-          // Skip if local already has this ID, or it was deleted on this device
-          if (localMap[String(ctx.id)] || tombSet[String(ctx.id)]) return;
-
-          // Parse category from note JSON
-          var category = 'Uncategorized', subcategory = '', noteData = {};
-          try {
-            noteData = JSON.parse(ctx.note || '{}') || {};
-            if (noteData.c) { category = noteData.c; subcategory = noteData.s || ''; }
-            else if (ctx.note && ctx.note.length < 100) { category = ctx.note; }
-          } catch(e) {
-            noteData = {};
-            if (ctx.note) category = ctx.note;
-          }
-
-          var row = {
-            id: isNaN(Number(ctx.id)) ? ctx.id : Number(ctx.id),
-            t: ctx.type === 'Transfer' ? 'Savings' : (ctx.type || 'Expense'),
-            c: category,
-            s: subcategory,
-            a: (function(v, cur) { return cur && cur !== FT_BASE && CURRENCY_CONFIG[cur] ? Math.round(convertFromTo(v, cur, FT_BASE) * 100) / 100 : v; })(parseFloat(ctx.amount) || 0, ctx.currency),
-            d: ctx.date || '',
-            dt: ctx.description || '',
-            acc: ctx.account_id || undefined
-          };
-          // V2.0.4: restore transfer / loan / fee links saved in the note
-          FT_NOTE_EXTRA.forEach(function(k) { if (noteData[k] !== undefined) row[k] = noteData[k]; });
-          localTxns.push(row);
-          localMap[String(ctx.id)] = true; // same id twice in cloud = add once
-          added++;
-        });
-
-        if (added > 0) {
-          // safeSave keeps big keys in IndexedDB only (V2.0.4 storage engine)
-          safeSave(STORAGE_KEY, JSON.stringify(localTxns));
-          console.log('[FinTrack] Merged', added, 'new transactions from cloud.');
-        }
-        this.lastPullAdded = added;
+    // --- cloud rows -> {kind: {rid: {v, s, h} | {del: true}}}; nothing is written before everything is downloaded ---
+    var C = {}; FT_SYNC_KINDS.forEach(function(k) { C[k] = {}; });
+    var cursor = snap.cursor || '', cloudBase = '';
+    rows.forEach(function(r) {
+      if (r.updated_at && String(r.updated_at) > cursor) cursor = String(r.updated_at);
+      if (!C[r.kind] || typeof r.rid !== 'string') return;
+      if (r.kind === 'store' && r.rid === '_base') { if (!r.deleted && r.data) cloudBase = String(r.data); return; }
+      if (r.deleted || r.data === null || r.data === undefined) { C[r.kind][r.rid] = { del: true }; return; }
+      var v, s;
+      if (r.kind === 'store') { v = s = String(r.data); }
+      else {
+        try { v = ftSyncClean(JSON.parse(r.data)); } catch (e) { return; }
+        if (!v || typeof v !== 'object' || Array.isArray(v)) return;
+        if (r.kind !== 'budget' && (v.id === undefined || v.id === null || String(v.id) !== r.rid)) return;
+        s = ftStable(v);
       }
+      C[r.kind][r.rid] = { v: v, s: s, h: ftSyncFp(r.kind, s, v) };
+    });
 
-      // --- MERGE accounts ---
-      if (cloudAccounts.length) {
-        var localAccounts = JSON.parse(safeGet('ft_accounts') || '[]');
-        var localAccMap = {};
-        localAccounts.forEach(function(a) { localAccMap[String(a.id)] = true; });
-
-        cloudAccounts.forEach(function(ca) {
-          if (localAccMap[String(ca.id)]) return;
-          var meta = {};
-          try { meta = JSON.parse(ca.note || '{}'); } catch(e) {}
-          localAccounts.push({
-            id: ca.id,
-            name: ca.name,
-            type: ca.type || 'asset',
-            accountType: meta.accountType || ca.type || 'Savings Account',
-            currency: ca.currency || FT_BASE,
-            initialBalance: parseFloat(ca.balance) || 0,
-            notes: meta.notes || '',
-            active: ca.is_active !== false,
-            liabV2: meta.liabV2 || undefined,
-            createdAt: meta.createdAt || undefined
-          });
-        });
-        // V2.0.4: order = cloud sort_order (set by drag reorder). New accounts with no order go last.
-        var orderOf = {};
-        cloudAccounts.forEach(function(ca) { orderOf[String(ca.id)] = (ca.sort_order === 0 || ca.sort_order) ? ca.sort_order : 1e9; });
-        localAccounts.sort(function(a, b) {
-          var oa = orderOf[String(a.id)] !== undefined ? orderOf[String(a.id)] : 1e9;
-          var ob = orderOf[String(b.id)] !== undefined ? orderOf[String(b.id)] : 1e9;
-          if (oa !== ob) return oa - ob;
-          return 0;
-        });
-        safeSave('ft_accounts', JSON.stringify(localAccounts));
-      }
-
-      // --- MERGE goals ---
-      if (cloudGoals.length) {
-        var localGoals = JSON.parse(safeGet('ft_goals') || '[]');
-        var localGoalMap = {};
-        localGoals.forEach(function(g) { localGoalMap[String(g.id)] = true; });
-
-        cloudGoals.forEach(function(cg) {
-          if (localGoalMap[String(cg.id)]) return;
-          var meta = {};
-          try { meta = JSON.parse(cg.note || '{}'); } catch(e) {}
-          // V2.0.5: rebuild in the app's own field names (n/t/c/due/e). Old code used name/target/current,
-          // which goals.js never reads, so pulled goals showed blank.
-          localGoals.push({
-            id: isNaN(Number(cg.id)) ? cg.id : Number(cg.id),
-            n: cg.name || '',
-            e: cg.icon || '🎯',
-            t: parseFloat(cg.target_amount) || 0,
-            c: parseFloat(cg.current_amount) || 0,
-            due: cg.deadline || '',
-            priority: cg.priority || 'medium',
-            paused: cg.status === 'paused',
-            completed: cg.status === 'completed',
-            linkedCats: meta.linkedCats || [],
-            linkedCat: meta.linkedCat || '',
-            notes: meta.notes || '',
-            acc: meta.acc || '',
-            accs: meta.accs || [],
-            shares: (meta.shares && typeof meta.shares === 'object' && !Array.isArray(meta.shares)) ? meta.shares : {},
-            base: meta.base || 0,
-            created: meta.created || ''
-          });
-        });
-        safeSave('ft_goals', JSON.stringify(localGoals));
-      }
-
-      // --- MERGE budgets (V2.0.5: budgets were pushed but never pulled). Local months always win. ---
-      try {
-        var bRes = await _supabase.from('budgets').select('*').eq('user_id', uid).limit(5000);
-        if (bRes.error) throw new Error(bRes.error.message);
-        var cloudBudgets = bRes.data || [];
-        if (cloudBudgets.length) {
-          var localPlans = {};
-          try { localPlans = JSON.parse(safeGet('ft_budget_plans') || '{}') || {}; } catch (e) { localPlans = {}; }
-          if (typeof localPlans !== 'object' || Array.isArray(localPlans)) localPlans = {};
-          var bAdded = 0;
-          cloudBudgets.forEach(function(b) {
-            var y = String(b.year), m = String(b.month);
-            if (!b.year && b.year !== 0) return;
-            if (!localPlans[y] || typeof localPlans[y] !== 'object') localPlans[y] = {};
-            if (localPlans[y][m]) return;
-            var bm = {}; try { bm = JSON.parse(b.note || '{}') || {}; } catch (e) {}
-            localPlans[y][m] = { i: parseFloat(b.income_target) || 0, e: parseFloat(b.expense_target) || 0, s: parseFloat(b.savings_target) || 0, incCats: bm.incCats || {}, expCats: bm.expCats || {}, savCats: bm.savCats || {} };
-            bAdded++;
-          });
-          if (bAdded) safeSave('ft_budget_plans', JSON.stringify(localPlans));
-        }
-      } catch (e) { console.warn('[FinTrack] Budget pull skipped:', e.message); }
-
-      this.lastSyncAt = new Date().toISOString();
-      safeSave('lastCloudSync', this.lastSyncAt);
-      console.log('[FinTrack] Pull (merge) complete at', this.lastSyncAt);
-
-      // Reload all in-memory data from updated storage
-      loadAllModuleData();
-      if (typeof refresh === 'function') refresh();
-    } catch (e) {
-      // Nothing merged and lastCloudSync not updated, so the next auto-pull retries
-      console.error('[FinTrack] Pull error:', e);
-      if (opts && opts.throwOnError) throw e;
-    } finally {
-      this.isSyncing = false;
+    // --- base currency: amounts are saved in it, so two different bases never mix ---
+    if (cloudBase && cloudBase !== FT_BASE) {
+      var empty = !(typeof TXN !== 'undefined' && TXN.length) && !(typeof ACCOUNTS !== 'undefined' && ACCOUNTS.length);
+      if (empty && typeof CURRENCY_CONFIG !== 'undefined' && CURRENCY_CONFIG[cloudBase] && typeof ftSetBase === 'function') ftSetBase(cloudBase, true);
+      else throw new Error('Your cloud data is saved in ' + cloudBase + ' but this phone uses ' + FT_BASE + '. Nothing was synced, your data is safe.');
     }
-  },
+    var pushBase = full ? !cloudBase : !snap.base;
 
-  // Incremental sync: push single transaction after save
-  async pushTransaction(tx) {
-    if (!ftCloudAllowed()) return; // not signed in (fullPush covers it later) or another account's device
-    try {
-      // V2.0.5: Supabase returns {error} instead of throwing, so check it
-      ftCheck(await _supabase.from('transactions').upsert(this._mapTxForCloud(tx), { onConflict: 'id' }), 'Transaction push');
-    } catch (e) {
-      this.pendingChanges.push({ table: 'transactions', data: this._mapTxForCloud(tx) });
-      console.warn('[FinTrack] Queued for sync:', e.message);
-    }
-  },
-
-  // Incremental sync: push goal update
-  async pushGoal(goal) {
-    if (!ftCloudAllowed()) return;
-    try {
-      ftCheck(await _supabase.from('goals').upsert({
-        id: String(goal.id),
-        user_id: ftAuth.uid(),
-        name: goal.name || goal.n || '',
-        icon: goal.icon || goal.e || goal.emoji || '',
-        target_amount: goal.target || goal.t || 0,
-        current_amount: goal.current || goal.c || 0,
-        deadline: goal.due || goal.deadline || goal.dl || null,
-        priority: goal.priority || goal.pri || 'medium',
-        status: goal.paused ? 'paused' : (goal.completed ? 'completed' : 'active'),
-        note: JSON.stringify({ linkedCats: goal.linkedCats || [], linkedCat: goal.linkedCat || '', notes: goal.notes || '', acc: goal.acc || '', accs: goal.accs || [], shares: goal.shares || {}, base: goal.base || 0, created: goal.created || '' })
-      }, { onConflict: 'id' }), 'Goal push');
-    } catch (e) {
-      console.warn('[FinTrack] Goal sync failed (next full push retries):', e.message);
-    }
-  },
-
-  // Delete from cloud (V2.0.5: always remembered locally, so it can't come back on pull)
-  async deleteTransaction(txId) {
-    ftAddTombstone(txId);
-    if (!ftCloudAllowed()) return;
-    try {
-      ftCheck(await _supabase.from('transactions').delete().eq('id', String(txId)).eq('user_id', ftAuth.uid()), 'Delete');
-    } catch (e) {
-      console.warn('[FinTrack] Delete sync failed (next full push retries):', e.message);
-    }
-  },
-
-  // Flush pending changes (call when back online)
-  async flushPending() {
-    if (!ftCloudAllowed() || !this.pendingChanges.length) return;
-    var pending = this.pendingChanges.splice(0);
-    for (var i = 0; i < pending.length; i++) {
-      var item = pending[i];
-      try {
-        ftCheck(await _supabase.from(item.table).upsert(item.data, { onConflict: 'id' }), 'Pending push');
-      } catch (e) {
-        this.pendingChanges.push(item);
+    // --- decide ---
+    var tomb = {}; ftGetTombstones().forEach(function(k) { tomb[String(k)] = 1; });
+    var L = ftSyncLocal();
+    var P = ftSyncPlan(L, C, snap.h, { full: full, first: first, tomb: tomb });
+    if (P.needFull && !full) return { needFull: true };
+    var total = Math.max(ftSyncRecCount(snap.h), ftSyncRecCount(L));
+    if (ftSyncSuspicious(P.upDel.length, total)) {
+      if (!full) return { needFull: true }; // double-check against the whole cloud before asking
+      if (!confirm('This phone is missing ' + P.upDel.length + ' records that are still in the cloud.\n\nOK = delete them from the cloud too\nCancel = bring them back to this phone')) {
+        P.upDel.forEach(function(it) { if (it.c && !it.c.del) P.down.push(it); });
+        P.upDel = [];
       }
     }
+    if (ftSyncSuspicious(P.downDel.length, total)) {
+      if (!confirm('The cloud says ' + P.downDel.length + ' records were deleted on another device.\n\nOK = delete them on this phone too\nCancel = keep them (they go back to the cloud)')) {
+        P.downDel.forEach(function(it) { if (it.l) P.up.push(it); });
+        P.downDel = [];
+      }
+    }
+    if (P.conflicts.length) {
+      var useCloud = confirm(P.conflicts.length + ' records are different on this phone and in the cloud.\n\nOK = use the CLOUD version\nCancel = keep this PHONE\'s version');
+      P.conflicts.forEach(function(it) { (useCloud ? P.down : P.up).push(it); });
+      P.conflicts = [];
+    }
+
+    // --- build the work (snapshot = what both sides hold once this sync finishes) ---
+    var sets = {}, dels = {}, ups = [], ns = P.snap, down = 0;
+    FT_SYNC_KINDS.forEach(function(k) { sets[k] = {}; dels[k] = {}; });
+    P.down.forEach(function(it) { sets[it.kind][it.rid] = it.c.v; ns[it.kind][it.rid] = it.c.h; down++; });
+    P.downDel.forEach(function(it) { dels[it.kind][it.rid] = 1; delete ns[it.kind][it.rid]; down++; });
+    P.up.forEach(function(it) {
+      if (it.merge) {
+        var m = ftSyncMergeRaw(ftSyncText(it.l), it.c.s);
+        if (m !== ftSyncText(it.l)) { sets.store[it.rid] = m; down++; }
+        ups.push({ kind: 'store', rid: it.rid, data: m });
+        ns.store[it.rid] = ftSyncFp('store', m, m);
+      } else {
+        ups.push({ kind: it.kind, rid: it.rid, data: ftSyncText(it.l) });
+        ns[it.kind][it.rid] = it.l.h;
+      }
+    });
+    P.upDel.forEach(function(it) { ups.push({ kind: it.kind, rid: it.rid, deleted: true }); delete ns[it.kind][it.rid]; });
+    var upN = ups.length;
+    if (pushBase) ups.push({ kind: 'store', rid: '_base', data: FT_BASE });
+
+    // --- apply downloads here (no waiting in between), then upload ---
+    if (down) {
+      this._applying = true;
+      try { ftSyncWrite(sets, dels); } finally { this._applying = false; }
+      if (typeof loadAllModuleData === 'function') loadAllModuleData();
+      ftSyncBumpCounters();
+      try { if (typeof refresh === 'function') refresh(); } catch (e) {}
+    }
+    if (ups.length) await ftSyncPush(uid, ups);
+    // Snapshot + cursor are saved only after the upload worked, so a failed sync simply runs again
+    var moved = cursor !== (snap.cursor || '');
+    var seen = moved ? Date.now() : (snap.seen || Date.now());
+    var safe = !moved && (!!snap.safe || Date.now() - seen >= 60000);
+    safeSave('ft_sync_snap', JSON.stringify({ uid: uid, base: FT_BASE, cursor: cursor, seen: seen, safe: safe, h: ns }));
+    return { down: down, up: upN };
   },
 
-  // Auto-sync: push every 72 hours
+  // --- old names kept so every page keeps working ---
+  fullPush(opts) { return this.sync(Object.assign({}, opts || {}, { full: true })); },
+  fullPull(opts) { return this.sync(Object.assign({}, opts || {}, { full: true })); },
+  markAccountsDirty() { ftCloudDirty(); },
+  pushTransaction() { ftCloudDirty(); return Promise.resolve(); },
+  pushGoal() { ftCloudDirty(); return Promise.resolve(); },
+  deleteTransaction(txId) { ftAddTombstone(txId); ftCloudDirty(); return Promise.resolve(); },
+  flushPending() { ftCloudDirty(); return Promise.resolve(); },
+  // Safety net: sync if the last one was over 6 hours ago
   checkAutoSync() {
-    if (!ftAuth.isLoggedIn()) return;
-    var lastSync = safeGet('lastCloudSync');
-    var interval = 72 * 60 * 60 * 1000; // 72 hours
-    if (!lastSync || (Date.now() - new Date(lastSync).getTime()) > interval) {
-      console.log('[FinTrack] Auto-sync triggered (72h interval)');
-      this.fullPush();
-    }
+    if (typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return;
+    var last = safeGet('lastCloudSync');
+    if (!last || (Date.now() - new Date(last).getTime()) > 6 * 60 * 60 * 1000) this.sync({ auto: true });
   }
 };
 
 // =====================================================
-// ONLINE/OFFLINE DETECTION
+// ONLINE / BACK TO THE APP
 // =====================================================
-window.addEventListener('online', function() {
-  console.log('[FinTrack] Back online, flushing pending sync...');
-  ftSync.flushPending();
+window.addEventListener('online', function() { ftCloudDirty(); });
+// Opening the app again (phone unlocked, tab switched back) pulls changes made on other devices
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible' || typeof ftAuth === 'undefined' || !ftAuth.isLoggedIn()) return;
+  var last = safeGet('lastCloudSync');
+  if (!last || (Date.now() - new Date(last).getTime()) > 2 * 60 * 1000) ftSync.sync({ auto: true });
 });
 
 // =====================================================
@@ -585,7 +654,7 @@ window.addEventListener('online', function() {
 // =====================================================
 var _ftCloudInited = false;
 async function ftCloudInit() {
-  // V2.0.5: initApp runs again after every unlock; start auth listener + hourly timer only once
+  // initApp runs again after every unlock; start the auth listener + hourly timer only once
   if (_ftCloudInited) return;
   _ftCloudInited = true;
   try {
@@ -593,17 +662,10 @@ async function ftCloudInit() {
     if (ftAuth.isLoggedIn() && !(await ftCloudClaim())) return;
     if (ftAuth.isLoggedIn()) {
       console.log('[FinTrack] Cloud connected as:', ftAuth.user.email);
-      // Auto-pull if last sync > 5 min ago
-      var lastSync = safeGet('lastCloudSync');
-      var fiveMin = 5 * 60 * 1000;
-      if (!lastSync || (Date.now() - new Date(lastSync).getTime()) > fiveMin) {
-        ftSync.fullPull();
-      }
-      // Auto-push every 72 hours
-      ftSync.checkAutoSync();
-      // Check again every hour (in case app stays open long)
-      setInterval(function() { ftSync.checkAutoSync(); }, 60 * 60 * 1000);
+      var last = safeGet('lastCloudSync');
+      if (!last || (Date.now() - new Date(last).getTime()) > 5 * 60 * 1000) ftSync.sync({ auto: true });
     }
+    setInterval(function() { ftSync.checkAutoSync(); }, 60 * 60 * 1000);
   } catch (e) {
     console.warn('[FinTrack] Cloud init skipped:', e.message);
   }
