@@ -29,7 +29,7 @@ function renderMobileTransactions(c) {
 
   const inc = allTxn.filter(tx => tx.t === 'Income').reduce((s, tx) => s + tx.a, 0);
   const exp = allTxn.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
-  const bal = inc - exp;
+  const bal = allTxn.reduce((s, tx) => s + ftTxnNet(tx), 0); // V2.0.4: same net rule everywhere
 
   // Category emoji map
   const catEmoji = (cat) => {
@@ -141,7 +141,8 @@ function renderTxnTable() {
   const inc = f.filter(tx => tx.t === 'Income').reduce((s, tx) => s + tx.a, 0);
   const exp = f.filter(tx => tx.t === 'Expense').reduce((s, tx) => s + tx.a, 0);
   const sav = f.filter(tx => tx.t === 'Savings').reduce((s, tx) => s + tx.a, 0);
-  const net = inc - exp - sav;
+  // V2.0.4: transfers between your own accounts don't reduce net (same rule as dashboard)
+  const net = f.reduce((s, tx) => s + ftTxnNet(tx), 0);
   const sm = document.getElementById('txsm');
   if (sm) sm.innerHTML = `<div class="tsi txn-kpi-count"><div class="tsl">${t('txn_count')}</div><div class="tsv">${f.length}</div></div><div class="tsi txn-kpi-income"><div class="tsl">${t('dash_income')}</div><div class="tsv" style="color:var(--emerald)">${fmt(inc)}</div></div><div class="tsi txn-kpi-expense"><div class="tsl">${t('dash_expense')}</div><div class="tsv" style="color:var(--rose)">${fmt(exp)}</div></div><div class="tsi txn-kpi-savings"><div class="tsl">${t('dash_savings')}</div><div class="tsv" style="color:var(--blue)">${fmt(sav)}</div></div><div class="tsi txn-kpi-net"><div class="tsl">${t('txn_net')}</div><div class="tsv" style="color:${net >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${fmt(net)}</div></div>`;
   const pp = 50, start = (txnPg - 1) * pp, pg = f.slice(start, start + pp);
@@ -169,7 +170,7 @@ function openAdd() {
   const assetOpts = ACCOUNTS.filter(a => a.type === 'asset').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const liabOpts = ACCOUNTS.filter(a => a.type === 'liability').map(a => `<option value="${a.id}">${a.name}</option>`).join('');
   const currencyOpts = Object.entries(CURRENCY_CONFIG).map(([code, cfg]) => `<option value="${code}"${code === displayCurrency ? ' selected' : ''}>${code} (${cfg.symbol})</option>`).join('');
-  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',' + editId + ')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr" id="catRow"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl" id="accLabel">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="toAccRow" style="display:none"><label class="fl">To Account *</label><select class="fi" id="f_toAcc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><div style="display:flex;gap:6px;align-items:center"><span id="feeCurLabel" style="font-size:12px;font-weight:700;color:var(--text-tertiary);min-width:30px"></span><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)" style="flex:1"></div></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="madd" onclick="if(event.target===this)tryClose()"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? t('txn_edit_title') : t('txn_add_title')}</div><div class="mds">${t('txn_cascade')}</div></div><div style="display:flex;align-items:center;gap:8px">${isEdit ? '<button type="button" class="mx" style="background:var(--rose-light);color:var(--rose);border:1px solid var(--rose);min-width:32px;min-height:32px;display:flex;align-items:center;justify-content:center" onclick="tryClose();doAuth(\'delete\',\'' + String(editId).replace(/[^\w-]/g, '') + '\')" title="Delete"><i data-lucide="trash-2" width="14" height="14"></i></button>' : ''}<button class="mx" onclick="tryClose()">✕</button></div></div><form id="aform" onsubmit="saveTxn(event)"><div class="fr"><div class="fg"><label class="fl">${t('txn_date_label')} *</label><input class="fi" type="date" id="f_d" required value="${new Date().toISOString().split('T')[0]}"></div><div class="fg"><label class="fl">${t('txn_type_label')} *</label><select class="fi" id="f_t" required onchange="cascType()"><option value="">${t('txn_select')}</option><option value="Income">${t('dash_income')}</option><option value="Expense">${t('dash_expense')}</option><option value="Savings">Transfer</option></select></div></div><div class="fr" id="catRow"><div class="fg"><label class="fl">${t('txn_cat_label')} *</label><select class="fi" id="f_c" required onchange="cascCat()"><option value="">${t('txn_select_type')}</option></select></div><div class="fg"><label class="fl">${t('txn_sub_label')}</label><select class="fi" id="f_s"><option value="">${t('txn_select_cat')}</option></select></div></div><div class="fg" id="accRow" style="display:none"><label class="fl" id="accLabel">${t('txn_account')} *</label><select class="fi" id="f_acc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="toAccRow" style="display:none"><label class="fl">To Account *</label><select class="fi" id="f_toAcc"><option value="">${t('txn_select_account')}</option>${assetOpts}</select></div><div class="fg" id="liabRow" style="display:none"><label class="fl">${t('txn_pay_liability')}</label><select class="fi" id="f_liab"><option value="">${t('txn_none_regular')}</option>${liabOpts}</select></div><div class="fg" id="feeRow" style="display:none"><label class="fl">Transfer Fee</label><div style="display:flex;gap:6px;align-items:center"><span id="feeCurLabel" style="font-size:12px;font-weight:700;color:var(--text-tertiary);min-width:30px"></span><input class="fi" type="number" step="0.01" id="f_fee" placeholder="0.00 (optional)" style="flex:1"></div></div><div class="fr"><div class="fg" style="flex:1.5"><label class="fl">${t('txn_amount_label')} *</label><div style="display:flex;gap:6px"><select class="fi" id="f_cur" style="width:90px;flex-shrink:0;padding:9px 6px">${currencyOpts}</select><input class="fi" type="number" step="0.01" id="f_a" required placeholder="0.00" style="flex:1"></div></div><div class="fg"><label class="fl">${t('txn_desc_label')}</label><input class="fi" id="f_dt" placeholder="${t('txn_details_ph')}" oninput="debounceCatSuggest()"></div></div><div id="catSuggestWrap" style="display:none;margin:-8px 0 12px;padding:8px 12px;background:var(--accent-light);border-radius:8px;font-size:11px;display:none;align-items:center;gap:8px;flex-wrap:wrap"><span id="catSuggestText" style="color:var(--accent);font-weight:500"></span><button type="button" class="btn bp" style="font-size:10px;padding:3px 10px;min-height:auto" onclick="acceptCatSuggestion()">Accept</button><button type="button" style="border:none;background:none;color:var(--text-tertiary);font-size:14px;cursor:pointer;padding:2px 4px" onclick="dismissCatSuggestion()">✕</button></div><div class="ma"><button type="button" class="btn bs" onclick="tryClose()">${t('txn_cancel')}</button><button type="submit" class="btn bp">${isEdit ? t('txn_update') : t('txn_save')}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
   lucide.createIcons();
@@ -210,7 +211,7 @@ function cascType() {
     accRow.style.display = (tp === 'Income' || tp === 'Expense' || tp === 'Savings') ? 'block' : 'none';
     const accSel = document.getElementById('f_acc');
     if (accSel) {
-      accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || 'MYR') + ')</option>').join('');
+      accSel.innerHTML = '<option value="">Select account</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || FT_BASE) + ')</option>').join('');
       // Auto-sync currency when account is selected
       accSel.onchange = function() {
         const acc = ACCOUNTS.find(a => a.id === accSel.value);
@@ -226,6 +227,7 @@ function cascType() {
     const liabSel = document.getElementById('f_liab');
     if (liabSel) {
       liabSel.innerHTML = '<option value="">None (regular expense)</option>' + ACCOUNTS.filter(a => a.type === 'liability').map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+      liabSel.dataset.need = ''; liabSel.style.border = ''; // V2.0.5: reset the "pick a loan" rule on type change
     }
   }
   // Show "To Account" for transfers
@@ -234,7 +236,7 @@ function cascType() {
     toAccRow.style.display = tp === 'Savings' ? 'block' : 'none';
     const toAccSel = document.getElementById('f_toAcc');
     if (toAccSel) {
-      toAccSel.innerHTML = '<option value="">Select destination</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || 'MYR') + ')</option>').join('');
+      toAccSel.innerHTML = '<option value="">Select destination</option>' + ACCOUNTS.filter(a => a.type === 'asset').map(a => '<option value="' + a.id + '">' + a.name + ' (' + (a.currency || FT_BASE) + ')</option>').join('');
     }
   }
   // Show fee field for Transfers only
@@ -262,19 +264,23 @@ function cascCat() {
   if (s) {
     s.onchange = function() {
       if (tp !== 'Expense') return;
-      const sub = s.value;
-      if (!sub) return;
-      const matches = typeof getMatchingLiabilities === 'function' ? getMatchingLiabilities(cat, sub) : [];
       const liabEl = document.getElementById('f_liab');
       if (!liabEl) return;
-      if (matches.length === 1) {
-        // Single match: auto-select
-        liabEl.value = matches[0].id;
-      } else if (matches.length > 1) {
-        // Multiple matches: highlight the dropdown and show options
-        liabEl.innerHTML = '<option value="">Select liability (' + matches.length + ' match)</option>' + matches.map(a => '<option value="' + a.id + '">⭐ ' + a.name + '</option>').join('') + ACCOUNTS.filter(a => a.type === 'liability' && !matches.find(m => m.id === a.id)).map(a => '<option value="' + a.id + '">' + a.name + '</option>').join('');
+      const sub = s.value;
+      const all = ACCOUNTS.filter(a => a.type === 'liability');
+      const matches = sub && typeof getMatchingLiabilities === 'function' ? getMatchingLiabilities(cat, sub) : [];
+      const opt = a => '<option value="' + ftEsc(a.id) + '">' + ftEsc(a.name) + '</option>';
+      if (matches.length > 1) {
+        // V2.0.5: several loans share this subcategory. No guessing: the user must say which loan was paid.
+        liabEl.innerHTML = '<option value="">⚠️ Pick which loan you paid</option>' + matches.map(a => '<option value="' + ftEsc(a.id) + '">⭐ ' + ftEsc(a.name) + '</option>').join('') + all.filter(a => !matches.find(m => m.id === a.id)).map(opt).join('') + '<option value="__none">Not a loan payment</option>';
+        liabEl.value = '';
+        liabEl.dataset.need = '1';
         liabEl.style.border = '1px solid var(--amber)';
-        setTimeout(() => { liabEl.style.border = ''; }, 3000);
+      } else {
+        liabEl.innerHTML = '<option value="">None (regular expense)</option>' + all.map(opt).join('');
+        liabEl.value = matches.length === 1 ? matches[0].id : '';
+        liabEl.dataset.need = '';
+        liabEl.style.border = '';
       }
     };
   }
@@ -292,59 +298,45 @@ function saveTxn(e) {
   // Currency for this transaction
   const curEl = document.getElementById('f_cur');
   const txnCurrency = curEl ? curEl.value : displayCurrency;
-  // Convert to MYR (base currency) for storage if different
-  if (txnCurrency !== 'MYR') {
-    const rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
-    data.a = Math.round((data.a / rate) * 100) / 100;
+  // Convert to the user's base currency (FT_BASE) for storage if different
+  if (txnCurrency !== FT_BASE) {
+    data.a = Math.round(convertFromTo(data.a, txnCurrency, FT_BASE) * 100) / 100;
     data.cur = txnCurrency; // Store original currency for reference
     data.origAmt = parseFloat(document.getElementById('f_a').value); // Store original amount
   }
-  // Account linking
+  else { data.cur = undefined; data.origAmt = undefined; } // V2.0.4: editing back to base clears the old foreign amount
+  // Account linking. V2.0.4: always set every link field, so an edit can also REMOVE a link
+  // (old code kept the previous liab/fee when you changed type, e.g. Expense -> Transfer).
   const accEl = document.getElementById('f_acc');
   const liabEl = document.getElementById('f_liab');
   const toAccEl = document.getElementById('f_toAcc');
-  if (accEl && accEl.value) data.acc = accEl.value;
-  if (liabEl && liabEl.value) data.liab = liabEl.value;
+  data.acc = (accEl && accEl.value) ? accEl.value : undefined;
+  // V2.0.5: when several loans share the subcategory, saving is blocked until one is picked
+  if (data.t === 'Expense' && liabEl && liabEl.dataset.need === '1' && !liabEl.value) { toast('❌ Pick which loan you paid (or "Not a loan payment")'); liabEl.focus(); return; }
+  data.liab = (data.t === 'Expense' && liabEl && liabEl.value && liabEl.value !== '__none') ? liabEl.value : undefined;
   data.toAcc = (data.t === 'Savings' && toAccEl && toAccEl.value) ? toAccEl.value : undefined;
-  // Transfer fee: store on txn and create a separate expense entry
+  if (data.toAcc && data.toAcc === data.acc) { toast('❌ From and To account must be different'); return; }
+  // Transfer fee: stored on the transfer + a separate linked expense entry
   const feeEl = document.getElementById('f_fee');
   const feeAmt = feeEl ? parseFloat(feeEl.value) : 0;
-  if (feeAmt > 0 && data.t === 'Savings') {
-    data.fee = feeAmt;
-  }
-  if (editId) { const i = TXN.findIndex(tx => tx.id === editId); if (i >= 0) TXN[i] = { ...TXN[i], ...data }; toast(t('txn_updated')); }
-  else {
-    data.id = generateTxnId(); TXN.push(data);
-    // Auto-create fee expense transaction if transfer has a fee
-    if (feeAmt > 0 && data.t === 'Savings') {
-      const feeTxn = { id: generateTxnId(), d: data.d, t: 'Expense', c: 'Bills', s: 'Transfer Fee', a: feeAmt, dt: 'Fee for transfer: ' + (data.dt || data.c), feeLinkedTo: data.id };
-      if (txnCurrency !== 'MYR') {
-        const rate = exchangeRates[txnCurrency] || FALLBACK_RATES[txnCurrency] || 1;
-        feeTxn.a = Math.round((feeAmt / rate) * 100) / 100;
-        feeTxn.cur = txnCurrency;
-        feeTxn.origAmt = feeAmt;
-      }
-      if (data.acc) feeTxn.acc = data.acc;
-      TXN.push(feeTxn);
-    }
+  data.fee = (feeAmt > 0 && data.t === 'Savings') ? feeAmt : undefined;
+  let saved;
+  if (editId) {
+    const i = TXN.findIndex(tx => tx.id === editId);
+    if (i >= 0) { const before = { ...TXN[i] }; TXN[i] = { ...TXN[i], ...data }; saved = TXN[i]; ftSyncFeeTxn(saved, before, txnCurrency); }
+    toast(t('txn_updated'));
+  } else {
+    data.id = generateTxnId(); TXN.push(data); saved = data;
+    ftSyncFeeTxn(saved, null, txnCurrency);
     toast(t('txn_added'));
   }
-  // If liability payment: create a reduction on the liability account
-  if (data.t === 'Expense' && data.liab) {
-    const liabAcc = ACCOUNTS.find(a => a.id === data.liab);
-    if (liabAcc) {
-      const liabCur = liabAcc.currency || 'MYR';
-      // data.a is in MYR; convert to liability's native currency before subtracting
-      const reductionInNative = liabCur === 'MYR' ? data.a : convertFromTo(data.a, 'MYR', liabCur);
-      liabAcc.initialBalance = Math.max(0, liabAcc.initialBalance - reductionInNative);
-      saveACCOUNTS();
-    }
-  }
+  // V2.0.4: liability payments are NOT subtracted from the loan here any more.
+  // The loan balance is calculated from linked payments (data.js ftLiabOwed), so edit/delete stay correct.
   // Learn from this transaction for auto-categorization
   if (typeof learnFromTransaction === 'function') learnFromTransaction(data);
   saveTXN(); tryClose();
   // Cloud sync: push transaction incrementally
-  if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(data);
+  if (saved && typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(saved);
   // Sync goals immediately after save
   if (typeof syncGoalsWithSavings === 'function') syncGoalsWithSavings();
   // v15.3.0: Refresh current view (stays on current tab)
@@ -416,6 +408,7 @@ function applyCatSuggestion(suggestion) {
     // Set subcategory
     setTimeout(() => {
       if (suggestion.s) subEl.value = suggestion.s;
+      if (suggestion.s && typeof subEl.onchange === 'function') subEl.onchange(); // V2.0.5: link the loan too
     }, 20);
   }, 20);
 }
@@ -442,7 +435,8 @@ function hideCatSuggestion() {
 
 // === AUTH + DELETE ===
 function doAuth(action, id) {
-  if (Date.now() < lockUntil) { toast(t('auth_locked')); return; }
+  var lockWait = ftLockoutRemaining();
+  if (lockWait > 0) { toast(ftLockMsg(lockWait)); return; }
   pendAct = { action, id };
   const h = `<div class="mo show" id="mauth" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${t('auth_title')}</div><div class="mds">${t('auth_desc')}</div></div></div><div class="fg"><label class="fl">${t('auth_passkey')}</label><input class="fi" type="password" id="f_pk" placeholder="${t('auth_enter')}" autofocus></div><div class="ferr" id="pkerr"></div><div id="pklck"></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mauth').remove();document.body.style.overflow=''">${t('auth_cancel')}</button><button class="btn bp" onclick="verifyPK()">${t('auth_confirm')}</button></div><div style="text-align:center;margin-top:10px"><button onclick="forgotPINFromAuth()" style="border:none;background:none;color:var(--text-tertiary);font-size:11px;cursor:pointer;font-family:var(--font);text-decoration:underline">Forgot PIN?</button></div></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
@@ -461,47 +455,32 @@ function forgotPINFromAuth() {
     // Has recovery method: redirect to recovery flow
     showForgotPIN();
   } else {
-    // No recovery: show emergency reset confirmation
-    const h = `<div class="mo show" id="mauthReset" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" style="max-width:380px" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">Reset PIN</div><div class="mds">No recovery method set up. Type RESET to clear your PIN.</div></div><button class="mx" onclick="document.getElementById('mauthReset').remove();document.body.style.overflow=''">✕</button></div><div class="fg"><input class="fi" type="text" id="authResetInput" placeholder="Type RESET to confirm" style="text-align:center;text-transform:uppercase;letter-spacing:2px"></div><div class="ma"><button class="btn bs" onclick="document.getElementById('mauthReset').remove();document.body.style.overflow=''">Cancel</button><button class="btn bd" onclick="executeAuthPINReset()">Reset PIN</button></div></div></div>`;
-    document.body.insertAdjacentHTML('beforeend', h);
-    document.body.style.overflow = 'hidden';
-    setTimeout(() => document.getElementById('authResetInput')?.focus(), 50);
+    // V2.0.4: no free RESET. Cloud password, or erase this phone.
+    ftShowPinResetNoRecovery();
   }
 }
 
-function executeAuthPINReset() {
-  const input = document.getElementById('authResetInput');
-  const val = input ? input.value.trim().toUpperCase() : '';
-  if (val !== 'RESET') { toast('❌ Type RESET to confirm'); return; }
-  // Clear PIN
-  localStorage.removeItem('ft_pk_hash');
-  localStorage.removeItem('ft_pk');
-  safeSave('ft_pk_hash', '');
-  safeSave('ft_pk', '');
-  // Close modal
-  const modal = document.getElementById('mauthReset');
-  if (modal) { modal.remove(); document.body.style.overflow = ''; }
-  toast('✅ PIN cleared. Set a new one in Settings → Security');
-  // Now re-attempt the pending action (no PIN = passes through)
-  if (pendAct) {
-    if (pendAct.action === 'edit') doEdit(pendAct.id);
-    else doDelConfirm(pendAct.id);
-  }
-}
+// V2.0.4: old RESET bypass removed. Name kept so nothing breaks.
+function executeAuthPINReset() { ftShowPinResetNoRecovery(); }
 
+// V2.0.4: uses the shared lockout (same counter as the lock screen, survives reload)
+var _ftPkBusy = false;
 function verifyPK() {
-  if (Date.now() < lockUntil) return;
-  const v = document.getElementById('f_pk').value;
+  const pkEl = document.getElementById('f_pk');
+  const v = pkEl ? pkEl.value : '';
+  if (!v || _ftPkBusy || ftLockGuard('pkerr')) { if (pkEl) pkEl.value = ''; return; }
+  _ftPkBusy = true;
   verifyPIN(v).then(function(valid) {
-    if (valid) { authAtt = 0; document.getElementById('mauth').remove(); document.body.style.overflow = ''; if (pendAct.action === 'edit') doEdit(pendAct.id); else doDelConfirm(pendAct.id); }
-    else { authAtt++; if (authAtt >= 3) { lockUntil = Date.now() + 30000; document.getElementById('pklck').innerHTML = `<div style="color:var(--rose);font-size:12px;padding:8px;background:var(--rose-light);border-radius:6px;margin-top:8px;text-align:center">${t('auth_locked_30')}</div>`; setTimeout(() => { authAtt = 0; }, 30000); } else { const e = document.getElementById('pkerr'); e.textContent = t('auth_incorrect') + ' ' + (3 - authAtt) + ' ' + t('auth_left'); e.classList.add('show'); } }
-  });
+    _ftPkBusy = false;
+    if (valid) { ftRegisterSuccess(); document.getElementById('mauth').remove(); document.body.style.overflow = ''; if (pendAct.action === 'edit') doEdit(pendAct.id); else doDelConfirm(pendAct.id); }
+    else { ftFailMsg('pkerr', t('auth_incorrect')); if (pkEl) { pkEl.value = ''; pkEl.focus(); } }
+  }, function() { _ftPkBusy = false; });
 }
 
 function doEdit(id) {
   const tx = TXN.find(x => String(x.id) === String(id)); if (!tx) return;
   editId = tx.id; openAdd();
-  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || 'MYR'; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.toAcc) { const toAccEl = document.getElementById('f_toAcc'); if (toAccEl) toAccEl.value = tx.toAcc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } if (tx.fee) { const feeEl = document.getElementById('f_fee'); if (feeEl) feeEl.value = tx.fee; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
+  setTimeout(() => { document.getElementById('f_d').value = tx.d; document.getElementById('f_t').value = tx.t; cascType(); setTimeout(() => { document.getElementById('f_c').value = tx.c; cascCat(); setTimeout(() => { document.getElementById('f_s').value = tx.s || ''; }, 20); }, 20); document.getElementById('f_a').value = tx.origAmt || tx.a; document.getElementById('f_dt').value = tx.dt || ''; const curEl = document.getElementById('f_cur'); if (curEl) curEl.value = tx.cur || FT_BASE; if (tx.acc) { const accEl = document.getElementById('f_acc'); if (accEl) accEl.value = tx.acc; } if (tx.toAcc) { const toAccEl = document.getElementById('f_toAcc'); if (toAccEl) toAccEl.value = tx.toAcc; } if (tx.liab) { const liabEl = document.getElementById('f_liab'); if (liabEl) liabEl.value = tx.liab; } if (tx.fee) { const feeEl = document.getElementById('f_fee'); if (feeEl) feeEl.value = tx.fee; } document.querySelector('.mti').textContent = t('txn_edit_title'); }, 30);
 }
 
 function doDelConfirm(id) {
@@ -512,25 +491,47 @@ function doDelConfirm(id) {
   document.body.style.overflow = 'hidden';
 }
 
+// === TRANSFER FEE LINK (V2.0.4) ===
+// Find the fee expense that belongs to a transfer. Linked by id (date no longer required,
+// so editing the transfer date doesn't orphan it). Old fees without feeLinkedTo: date + description match.
+function ftFindFeeIdx(parent) {
+  if (!parent) return -1;
+  let i = TXN.findIndex(tx => tx.feeLinkedTo !== undefined && String(tx.feeLinkedTo) === String(parent.id));
+  if (i < 0 && parent.fee) i = TXN.findIndex(tx => !tx.feeLinkedTo && tx.t === 'Expense' && tx.s === 'Transfer Fee' && tx.d === parent.d && tx.dt && tx.dt.includes(parent.dt || parent.c));
+  return i;
+}
+
+// Keep the fee expense in step with its transfer: create, update or remove it.
+// before = the transfer as it was before an edit (null when adding), used to find old-style fees.
+function ftSyncFeeTxn(tx, before, txnCurrency) {
+  const idx = ftFindFeeIdx(before || tx);
+  const wantFee = tx.t === 'Savings' && tx.fee > 0;
+  const canSync = typeof ftSync !== 'undefined';
+  if (!wantFee) {
+    if (idx >= 0) { const gone = TXN.splice(idx, 1)[0]; if (canSync && ftSync.deleteTransaction) ftSync.deleteTransaction(gone.id); }
+    return;
+  }
+  const fee = idx >= 0 ? TXN[idx] : { id: generateTxnId(), t: 'Expense', c: 'Bills', s: 'Transfer Fee' };
+  fee.feeLinkedTo = tx.id;
+  fee.d = tx.d;
+  fee.dt = 'Fee for transfer: ' + (tx.dt || tx.c);
+  if (txnCurrency && txnCurrency !== FT_BASE) {
+    fee.a = Math.round(convertFromTo(tx.fee, txnCurrency, FT_BASE) * 100) / 100; fee.cur = txnCurrency; fee.origAmt = tx.fee;
+  } else { fee.a = tx.fee; delete fee.cur; delete fee.origAmt; }
+  if (tx.acc) fee.acc = tx.acc; else delete fee.acc;
+  if (idx < 0) TXN.push(fee);
+  if (canSync && ftSync.pushTransaction) ftSync.pushTransaction(fee);
+}
+
 function execDel() {
   const delId = pendAct.id;
-  // Also delete linked fee transaction if this is a Transfer with a fee
+  // Also delete the linked fee expense if this is a transfer with a fee
   const parentTx = TXN.find(tx => String(tx.id) === String(delId));
-  if (parentTx && parentTx.t === 'Savings' && parentTx.fee) {
-    // Find the fee expense created at the same date with matching description
-    const feeIdx = TXN.findIndex(tx => tx.t === 'Expense' && tx.s === 'Transfer Fee' && tx.d === parentTx.d && tx.feeLinkedTo === delId);
+  if (parentTx && parentTx.t === 'Savings') {
+    const feeIdx = ftFindFeeIdx(parentTx);
     if (feeIdx >= 0) {
-      const feeTx = TXN[feeIdx];
-      TXN.splice(feeIdx, 1);
+      const feeTx = TXN.splice(feeIdx, 1)[0];
       if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(feeTx.id);
-    } else {
-      // Fallback: match by date + description pattern (for txns created before feeLinkedTo was added)
-      const feeIdx2 = TXN.findIndex(tx => tx.t === 'Expense' && tx.s === 'Transfer Fee' && tx.d === parentTx.d && tx.dt && tx.dt.includes(parentTx.dt || parentTx.c));
-      if (feeIdx2 >= 0) {
-        const feeTx = TXN[feeIdx2];
-        TXN.splice(feeIdx2, 1);
-        if (typeof ftSync !== 'undefined') ftSync.deleteTransaction(feeTx.id);
-      }
     }
   }
   TXN = TXN.filter(tx => String(tx.id) !== String(delId)); saveTXN();
