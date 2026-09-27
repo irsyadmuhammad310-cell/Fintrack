@@ -51,10 +51,10 @@ function renderReports(c) {
           '<option value="lastyear"' + (rptPeriod==='lastyear'?' selected':'') + '>' + t('rpt_yearly') + ' (' + (year-1) + ')</option>' +
           '<option value="custom"' + (rptPeriod==='custom'?' selected':'') + '>Custom</option>' +
         '</select></div>' +
-        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">' + t('txn_account') + '</label><select class="fi" id="rptAccount" onchange="rptAccount=this.value;rptRefresh()"><option value="all">' + t('txn_all') + '</option>' + ACCOUNTS.map(function(a) { return '<option value="' + a.id + '"' + (rptAccount===a.id?' selected':'') + '>' + a.name + '</option>'; }).join('') + '</select></div>' +
+        '<div class="fg" style="flex:1;min-width:120px"><label class="fl">' + t('txn_account') + '</label><select class="fi" id="rptAccount" onchange="rptAccount=this.value;rptRefresh()"><option value="all">' + t('txn_all') + '</option>' + ACCOUNTS.map(function(a) { return '<option value="' + ftEsc(a.id) + '"' + (rptAccount===a.id?' selected':'') + '>' + ftEsc(a.name) + '</option>'; }).join('') + '</select></div>' +
         '<div class="fg" style="flex:1;min-width:120px"><label class="fl">' + t('txn_category') + '</label><select class="fi" id="rptCategory" onchange="rptCategory=this.value;rptRefresh()"><option value="all">' + t('txn_all') + '</option><option value="income"' + (rptCategory==='income'?' selected':'') + '>' + t('dash_income') + '</option><option value="expense"' + (rptCategory==='expense'?' selected':'') + '>' + t('dash_expense') + '</option><option value="savings"' + (rptCategory==='savings'?' selected':'') + '>' + t('dash_savings') + '</option></select></div>' +
       '</div>' +
-      (rptPeriod === 'custom' ? '<div class="rpt-filter-row" style="margin-top:8px"><div class="fg" style="flex:1"><label class="fl">From</label><input class="fi" type="date" id="rptFrom" value="' + (rptCustomFrom || year + '-01-01') + '" onchange="rptCustomFrom=this.value;rptRefresh()"></div><div class="fg" style="flex:1"><label class="fl">To</label><input class="fi" type="date" id="rptTo" value="' + (rptCustomTo || year + '-12-31') + '" onchange="rptCustomTo=this.value;rptRefresh()"></div></div>' : '') +
+      (rptPeriod === 'custom' ? '<div class="rpt-filter-row" style="margin-top:8px"><div class="fg" style="flex:1"><label class="fl">From</label><input class="fi" type="date" id="rptFrom" value="' + ftEsc(rptCustomFrom || year + '-01-01') + '" onchange="rptCustomFrom=this.value;rptRefresh()"></div><div class="fg" style="flex:1"><label class="fl">To</label><input class="fi" type="date" id="rptTo" value="' + ftEsc(rptCustomTo || year + '-12-31') + '" onchange="rptCustomTo=this.value;rptRefresh()"></div></div>' : '') +
     '</div>' +
     '<div class="rpt-actions">' +
       '<button class="btn bp" onclick="rptPrint()"><i data-lucide="printer" width="13" height="13"></i> Print</button>' +
@@ -73,23 +73,37 @@ function rptRefresh() {
 }
 
 // === DATE RANGE HELPERS ===
+// V2.0.5: compare dates as 'YYYY-MM-DD' strings (no timezone drift, end day included)
+function rptYmd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 function rptGetDateRange() {
+  var r = rptGetDateRangeRaw();
+  r.fromS = (r.from instanceof Date) ? rptYmd(r.from) : String(r.from);
+  r.toS = (r.to instanceof Date) ? rptYmd(r.to) : String(r.to);
+  if (r.fromS > r.toS) { var tmp = r.fromS; r.fromS = r.toS; r.toS = tmp; }
+  return r;
+}
+function rptGetDateRangeRaw() {
   var year = getSelectedYear();
   var now = new Date();
-  if (rptPeriod === 'month') { var m = now.getMonth(); return { from: new Date(year, m, 1), to: new Date(year, m + 1, 0), label: MONTH_NAMES[m] + ' ' + year }; }
-  if (rptPeriod === 'lastmonth') { var m = now.getMonth() - 1; var y = m < 0 ? year - 1 : year; m = m < 0 ? 11 : m; return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0), label: MONTH_NAMES[m] + ' ' + y }; }
+  // V2.0.5: follow the month picked in the header (#mf = 0-11), else this month
+  var mfEl = document.getElementById('mf');
+  var mfV = mfEl ? parseInt(mfEl.value, 10) : NaN;
+  var baseM = (mfV >= 0 && mfV <= 11) ? mfV : now.getMonth();
+  if (rptPeriod === 'month') { var m = baseM; return { from: new Date(year, m, 1), to: new Date(year, m + 1, 0), label: MONTH_NAMES[m] + ' ' + year }; }
+  if (rptPeriod === 'lastmonth') { var m = baseM - 1; var y = m < 0 ? year - 1 : year; m = m < 0 ? 11 : m; return { from: new Date(y, m, 1), to: new Date(y, m + 1, 0), label: MONTH_NAMES[m] + ' ' + y }; }
   if (rptPeriod === 'year') return { from: new Date(year, 0, 1), to: new Date(year, 11, 31), label: 'Year ' + year };
   if (rptPeriod === 'lastyear') return { from: new Date(year - 1, 0, 1), to: new Date(year - 1, 11, 31), label: 'Year ' + (year - 1) };
-  if (rptPeriod === 'custom') return { from: new Date(rptCustomFrom || year + '-01-01'), to: new Date(rptCustomTo || year + '-12-31'), label: (rptCustomFrom || year + '-01-01') + ' to ' + (rptCustomTo || year + '-12-31') };
+  if (rptPeriod === 'custom') return { from: (rptCustomFrom || year + '-01-01'), to: (rptCustomTo || year + '-12-31'), label: (rptCustomFrom || year + '-01-01') + ' to ' + (rptCustomTo || year + '-12-31') };
   return { from: new Date(year, 0, 1), to: new Date(year, 11, 31), label: 'Year ' + year };
 }
 
 function rptFilterTXN() {
   var range = rptGetDateRange();
   return TXN.filter(function(tx) {
-    var d = new Date(tx.d);
-    if (d < range.from || d > range.to) return false;
-    if (rptAccount !== 'all' && tx.acc !== rptAccount) return false;
+    var d = String(tx.d || '').slice(0, 10);
+    if (!d || d < range.fromS || d > range.toS) return false;
+    // V2.0.5: money moved INTO the account also belongs to its report
+    if (rptAccount !== 'all' && tx.acc !== rptAccount && tx.toAcc !== rptAccount) return false;
     if (rptCategory === 'income' && tx.t !== 'Income') return false;
     if (rptCategory === 'expense' && tx.t !== 'Expense') return false;
     if (rptCategory === 'savings' && tx.t !== 'Savings') return false;
@@ -112,7 +126,7 @@ function rptGeneratePreview() {
   // Letterhead
   html += '<div class="rpt-letterhead"><div class="rpt-lh-left"><div class="rpt-lh-logo"><i data-lucide="wallet" width="22" height="22"></i></div><div class="rpt-lh-brand"><div class="rpt-lh-title">FinTrack Premium</div><div class="rpt-lh-tagline">Personal Finance Management</div></div></div><div class="rpt-lh-right"><div class="rpt-lh-label">CONFIDENTIAL</div></div></div>';
   // Report title block
-  html += '<div class="rpt-title-block"><h1 class="rpt-main-title">' + title + '</h1><div class="rpt-title-meta"><span>Prepared for: <b>' + userName + '</b></span><span>Period: <b>' + range.label + '</b></span><span>Generated: <b>' + genDate + ' at ' + genTime + '</b></span></div></div>';
+  html += '<div class="rpt-title-block"><h1 class="rpt-main-title">' + title + '</h1><div class="rpt-title-meta"><span>Prepared for: <b>' + ftEsc(userName) + '</b></span><span>Period: <b>' + ftEsc(range.label) + '</b></span><span>Generated: <b>' + genDate + ' at ' + genTime + '</b></span></div></div>';
   // Divider
   html += '<div class="rpt-divider"></div>';
   // Executive Summary
@@ -122,7 +136,7 @@ function rptGeneratePreview() {
   // Detail section
   html += '<div class="rpt-section"><div class="rpt-section-title">Detailed Breakdown</div><div class="rpt-table-wrap">' + rptGetTable(txns) + '</div></div>';
   // Footer
-  html += '<div class="rpt-doc-footer"><div class="rpt-footer-left"><span>FinTrack Premium V13.0</span><span class="rpt-footer-sep">|</span><span>' + title + '</span><span class="rpt-footer-sep">|</span><span>' + range.label + '</span></div><div class="rpt-footer-right">Page 1 of 1</div></div>';
+  html += '<div class="rpt-doc-footer"><div class="rpt-footer-left"><span>FinTrack Premium V13.0</span><span class="rpt-footer-sep">|</span><span>' + title + '</span><span class="rpt-footer-sep">|</span><span>' + ftEsc(range.label) + '</span></div><div class="rpt-footer-right">Page 1 of 1</div></div>';
   html += '</div>';
   return html;
 }
@@ -143,12 +157,12 @@ function rptGetSummaryCards(txns) {
   if (rptType === 'income') {
     var catBreak = {}; txns.filter(function(t){return t.t==='Income';}).forEach(function(t){ if(!catBreak[t.c])catBreak[t.c]=0; catBreak[t.c]+=t.a; });
     var topCat = Object.entries(catBreak).sort(function(a,b){return b[1]-a[1];})[0];
-    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Income</div><div class="rpt-kpi-value" style="color:var(--emerald)">' + fmt(inc) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Income';}).length + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Top Source</div><div class="rpt-kpi-value">' + (topCat ? topCat[0] : '-') + '</div></div></div>';
+    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Income</div><div class="rpt-kpi-value" style="color:var(--emerald)">' + fmt(inc) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Income';}).length + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Top Source</div><div class="rpt-kpi-value">' + (topCat ? ftEsc(topCat[0]) : '-') + '</div></div></div>';
   }
   if (rptType === 'expense') {
     var catBreak = {}; txns.filter(function(t){return t.t==='Expense';}).forEach(function(t){ if(!catBreak[t.c])catBreak[t.c]=0; catBreak[t.c]+=t.a; });
     var topCat = Object.entries(catBreak).sort(function(a,b){return b[1]-a[1];})[0];
-    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Expense</div><div class="rpt-kpi-value" style="color:var(--rose)">' + fmt(exp) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Expense';}).length + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Top Category</div><div class="rpt-kpi-value">' + (topCat ? topCat[0] : '-') + '</div></div></div>';
+    return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Expense</div><div class="rpt-kpi-value" style="color:var(--rose)">' + fmt(exp) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transactions</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Expense';}).length + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Top Category</div><div class="rpt-kpi-value">' + (topCat ? ftEsc(topCat[0]) : '-') + '</div></div></div>';
   }
   if (rptType === 'savings') {
     return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Savings</div><div class="rpt-kpi-value" style="color:var(--blue)">' + fmt(sav) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Savings Rate</div><div class="rpt-kpi-value">' + (inc > 0 ? (sav/inc*100).toFixed(1) + '%' : '0%') + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Set Aside</div><div class="rpt-kpi-value" style="color:var(--blue)">' + fmt(setAside) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Transfers</div><div class="rpt-kpi-value">' + txns.filter(function(t){return t.t==='Savings';}).length + '</div></div></div>';
@@ -162,8 +176,8 @@ function rptGetSummaryCards(txns) {
   if (rptType === 'goal') {
     var activeGoals = typeof GOALS !== 'undefined' ? GOALS.filter(function(g){return g.c < g.t;}).length : 0;
     var totalGoals = typeof GOALS !== 'undefined' ? GOALS.length : 0;
-    var totalSaved = typeof GOALS !== 'undefined' ? GOALS.reduce(function(s,g){return s+g.c;},0) : 0;
-    var totalTarget = typeof GOALS !== 'undefined' ? GOALS.reduce(function(s,g){return s+g.t;},0) : 0;
+    var totalSaved = typeof GOALS !== 'undefined' ? GOALS.reduce(function(s,g){return s+(isFinite(+g.c)?+g.c:0);},0) : 0;
+    var totalTarget = typeof GOALS !== 'undefined' ? GOALS.reduce(function(s,g){return s+(isFinite(+g.t)?+g.t:0);},0) : 0;
     return '<div class="rpt-kpis"><div class="rpt-kpi"><div class="rpt-kpi-label">Total Goals</div><div class="rpt-kpi-value">' + totalGoals + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Active</div><div class="rpt-kpi-value">' + activeGoals + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Saved</div><div class="rpt-kpi-value" style="color:var(--emerald)">' + fmt(totalSaved) + '</div></div><div class="rpt-kpi"><div class="rpt-kpi-label">Remaining</div><div class="rpt-kpi-value">' + fmt(totalTarget - totalSaved) + '</div></div></div>';
   }
   if (rptType === 'investment') {
@@ -202,7 +216,7 @@ function rptGetTable(txns) {
   var html = '<table class="rpt-tbl"><thead><tr><th>Date</th><th>Type</th><th>Category</th><th>Subcategory</th><th>Description</th><th style="text-align:right">Amount</th></tr></thead><tbody>';
   sorted.forEach(function(tx) {
     var cls = tx.t === 'Income' ? 'ai' : tx.t === 'Expense' ? 'ae' : 'as';
-    html += '<tr><td>' + tx.d + '</td><td><span class="tb ' + (tx.t==='Income'?'i':tx.t==='Expense'?'e':'s') + '">' + tx.t + '</span></td><td>' + tx.c + '</td><td>' + (tx.s||'-') + '</td><td>' + (tx.dt||'-') + '</td><td class="' + cls + '" style="text-align:right">' + fmt(tx.a) + '</td></tr>';
+    html += '<tr><td>' + ftEsc(tx.d) + '</td><td><span class="tb ' + (tx.t==='Income'?'i':tx.t==='Expense'?'e':'s') + '">' + ftEsc(tx.t) + '</span></td><td>' + ftEsc(tx.c) + '</td><td>' + ftEsc(tx.s||'-') + '</td><td>' + ftEsc(tx.dt||'-') + '</td><td class="' + cls + '" style="text-align:right">' + fmt(tx.a) + '</td></tr>';
   });
   html += '</tbody><tfoot><tr><td colspan="5" style="font-weight:700;text-align:right">Total</td><td style="text-align:right;font-weight:700">' + fmt(total) + '</td></tr></tfoot></table>';
   return html;
@@ -213,7 +227,7 @@ function rptGoalTable() {
   var html = '<table class="rpt-tbl"><thead><tr><th>Goal</th><th style="text-align:right">Target</th><th style="text-align:right">Saved</th><th style="text-align:right">Remaining</th><th style="text-align:right">Progress</th><th>Deadline</th></tr></thead><tbody>';
   GOALS.forEach(function(g) {
     var pct = g.t > 0 ? (g.c/g.t*100).toFixed(0) : 0;
-    html += '<tr><td>' + g.e + ' ' + g.n + '</td><td style="text-align:right">' + fmt(g.t) + '</td><td style="text-align:right;color:var(--emerald)">' + fmt(g.c) + '</td><td style="text-align:right">' + fmt(g.t-g.c) + '</td><td style="text-align:right;font-weight:600">' + pct + '%</td><td>' + (g.due||'-') + '</td></tr>';
+    html += '<tr><td>' + ftEsc(g.e) + ' ' + ftEsc(g.n) + '</td><td style="text-align:right">' + fmt(g.t) + '</td><td style="text-align:right;color:var(--emerald)">' + fmt(g.c) + '</td><td style="text-align:right">' + fmt(g.t-g.c) + '</td><td style="text-align:right;font-weight:600">' + pct + '%</td><td>' + ftEsc(g.due||'-') + '</td></tr>';
   });
   html += '</tbody></table>';
   return html;
@@ -224,10 +238,11 @@ function rptInvestmentTable() {
   var html = '<table class="rpt-tbl"><thead><tr><th>Investment</th><th>Type</th><th style="text-align:right">Deposit</th><th style="text-align:right">Value</th><th style="text-align:right">P&L</th><th style="text-align:right">Return</th></tr></thead><tbody>';
   var totalDep = 0, totalVal = 0;
   INVESTMENTS.forEach(function(inv) {
-    var pnl = inv.currentValue - inv.costBasis;
-    var ret = inv.costBasis > 0 ? (pnl/inv.costBasis*100).toFixed(1) : '0.0';
-    totalDep += inv.costBasis; totalVal += inv.currentValue;
-    html += '<tr><td>' + inv.name + '</td><td>' + inv.type + '</td><td style="text-align:right">' + fmt(inv.costBasis) + '</td><td style="text-align:right">' + fmt(inv.currentValue) + '</td><td style="text-align:right;color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + '">' + (pnl>=0?'+':'') + fmt(pnl) + '</td><td style="text-align:right;font-weight:600">' + ret + '%</td></tr>';
+    var cb = rptNum(inv.costBasis), cv = rptNum(inv.currentValue);
+    var pnl = cv - cb;
+    var ret = cb > 0 ? (pnl/cb*100).toFixed(1) : '0.0';
+    totalDep += cb; totalVal += cv;
+    html += '<tr><td>' + ftEsc(inv.name) + '</td><td>' + ftEsc(inv.type) + '</td><td style="text-align:right">' + fmt(inv.costBasis) + '</td><td style="text-align:right">' + fmt(inv.currentValue) + '</td><td style="text-align:right;color:' + (pnl>=0?'var(--emerald)':'var(--rose)') + '">' + (pnl>=0?'+':'') + fmt(pnl) + '</td><td style="text-align:right;font-weight:600">' + ret + '%</td></tr>';
   });
   var totalPnl = totalVal - totalDep;
   html += '</tbody><tfoot><tr><td colspan="2" style="font-weight:700">Total</td><td style="text-align:right;font-weight:700">' + fmt(totalDep) + '</td><td style="text-align:right;font-weight:700">' + fmt(totalVal) + '</td><td style="text-align:right;font-weight:700;color:' + (totalPnl>=0?'var(--emerald)':'var(--rose)') + '">' + (totalPnl>=0?'+':'') + fmt(totalPnl) + '</td><td></td></tr></tfoot></table>';
@@ -239,11 +254,11 @@ function rptNetWorthTable() {
   var totalA = 0, totalL = 0;
   ACCOUNTS.filter(function(a){return a.type==='asset';}).forEach(function(a) {
     var bal = ftAccBalanceMYR(a.id); totalA += bal;
-    html += '<tr><td>' + a.name + '</td><td style="color:var(--emerald)">' + a.accountType + '</td><td style="text-align:right;font-weight:600">' + fmt(bal) + '</td></tr>';
+    html += '<tr><td>' + ftEsc(a.name) + '</td><td style="color:var(--emerald)">' + ftEsc(a.accountType) + '</td><td style="text-align:right;font-weight:600">' + fmt(bal) + '</td></tr>';
   });
   ACCOUNTS.filter(function(a){return a.type==='liability';}).forEach(function(a) {
     var owed = convertFromTo(ftLiabOwed(a), a.currency || FT_BASE, FT_BASE); totalL += owed;
-    html += '<tr><td>' + a.name + '</td><td style="color:var(--rose)">' + a.accountType + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">-' + fmt(owed) + '</td></tr>';
+    html += '<tr><td>' + ftEsc(a.name) + '</td><td style="color:var(--rose)">' + ftEsc(a.accountType) + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">-' + fmt(owed) + '</td></tr>';
   });
   html += '</tbody><tfoot><tr><td colspan="2" style="font-weight:700">Net Worth</td><td style="text-align:right;font-weight:700;font-size:14px">' + fmt(totalA - totalL) + '</td></tr></tfoot></table>';
   return html;
@@ -257,7 +272,7 @@ function rptBudgetTable() {
   expCats.forEach(function(cat) {
     var remaining = cat.b - cat.a;
     var usage = cat.b > 0 ? (cat.a/cat.b*100).toFixed(0) : '-';
-    html += '<tr><td>' + cat.n + '</td><td style="text-align:right">' + fmt(cat.b) + '</td><td style="text-align:right;color:var(--rose)">' + fmt(cat.a) + '</td><td style="text-align:right;color:' + (remaining>=0?'var(--emerald)':'var(--rose)') + '">' + fmt(remaining) + '</td><td style="text-align:right;font-weight:600">' + usage + '%</td></tr>';
+    html += '<tr><td>' + ftEsc(cat.n) + '</td><td style="text-align:right">' + fmt(cat.b) + '</td><td style="text-align:right;color:var(--rose)">' + fmt(cat.a) + '</td><td style="text-align:right;color:' + (remaining>=0?'var(--emerald)':'var(--rose)') + '">' + fmt(remaining) + '</td><td style="text-align:right;font-weight:600">' + usage + '%</td></tr>';
   });
   html += '</tbody></table>';
   return html;
@@ -283,14 +298,15 @@ function rptCashFlowTable(txns) {
   var totalExp = Object.values(expCats).reduce(function(s,v){return s+v;},0);
   var totalSav = Object.values(savCats).reduce(function(s,v){return s+v;},0);
   var grossProfit = totalInc - totalExp;
-  var netCashFlow = totalInc - totalExp - totalSav;
+  // V2.0.5: money set aside is still yours, so it doesn't reduce cash flow
+  var netCashFlow = totalInc - totalExp;
 
   var html = '<table class="rpt-tbl rpt-pnl">';
 
   // REVENUE / INCOME
   html += '<thead><tr><th colspan="2" style="background:var(--emerald-light);color:var(--emerald);font-size:10px;font-weight:700">REVENUE / INCOME</th></tr></thead><tbody>';
   Object.entries(incCats).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry) {
-    html += '<tr><td style="padding-left:24px">' + entry[0] + '</td><td style="text-align:right;font-weight:600;color:var(--emerald)">' + fmt(entry[1]) + '</td></tr>';
+    html += '<tr><td style="padding-left:24px">' + ftEsc(entry[0]) + '</td><td style="text-align:right;font-weight:600;color:var(--emerald)">' + fmt(entry[1]) + '</td></tr>';
   });
   html += '<tr class="rpt-pnl-subtotal"><td style="font-weight:700">Total Revenue</td><td style="text-align:right;font-weight:800;color:var(--emerald)">' + fmt(totalInc) + '</td></tr>';
   html += '</tbody>';
@@ -298,7 +314,7 @@ function rptCashFlowTable(txns) {
   // EXPENSES
   html += '<thead><tr><th colspan="2" style="background:var(--rose-light);color:var(--rose);font-size:10px;font-weight:700;border-top:none">EXPENSES</th></tr></thead><tbody>';
   Object.entries(expCats).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry) {
-    html += '<tr><td style="padding-left:24px">' + entry[0] + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">(' + fmt(entry[1]) + ')</td></tr>';
+    html += '<tr><td style="padding-left:24px">' + ftEsc(entry[0]) + '</td><td style="text-align:right;font-weight:600;color:var(--rose)">(' + fmt(entry[1]) + ')</td></tr>';
   });
   html += '<tr class="rpt-pnl-subtotal"><td style="font-weight:700">Total Expenses</td><td style="text-align:right;font-weight:800;color:var(--rose)">(' + fmt(totalExp) + ')</td></tr>';
   html += '</tbody>';
@@ -308,11 +324,11 @@ function rptCashFlowTable(txns) {
 
   // SAVINGS / TRANSFERS
   if (Object.keys(savCats).length > 0) {
-    html += '<thead><tr><th colspan="2" style="background:var(--blue-light);color:var(--blue);font-size:10px;font-weight:700;border-top:none">SAVINGS / TRANSFERS OUT</th></tr></thead><tbody>';
+    html += '<thead><tr><th colspan="2" style="background:var(--blue-light);color:var(--blue);font-size:10px;font-weight:700;border-top:none">SET ASIDE (kept, not spent)</th></tr></thead><tbody>';
     Object.entries(savCats).sort(function(a,b){return b[1]-a[1];}).forEach(function(entry) {
-      html += '<tr><td style="padding-left:24px">' + entry[0] + '</td><td style="text-align:right;font-weight:600;color:var(--blue)">(' + fmt(entry[1]) + ')</td></tr>';
+      html += '<tr><td style="padding-left:24px">' + ftEsc(entry[0]) + '</td><td style="text-align:right;font-weight:600;color:var(--blue)">' + fmt(entry[1]) + '</td></tr>';
     });
-    html += '<tr class="rpt-pnl-subtotal"><td style="font-weight:700">Total Savings</td><td style="text-align:right;font-weight:800;color:var(--blue)">(' + fmt(totalSav) + ')</td></tr>';
+    html += '<tr class="rpt-pnl-subtotal"><td style="font-weight:700">Total Set Aside</td><td style="text-align:right;font-weight:800;color:var(--blue)">' + fmt(totalSav) + '</td></tr>';
     html += '</tbody>';
   }
   if (internalMoves > 0) {
@@ -330,7 +346,10 @@ function rptCashFlowTable(txns) {
 function rptPrint() {
   var doc = document.getElementById('rptDoc');
   if (!doc) return;
+  // V2.0.5: hidden mode = don't print real numbers
+  if (rptHiddenBlock()) return false;
   var win = window.open('', '_blank');
+  if (!win) { toast('Allow pop-ups to print'); return false; }
   win.document.write('<!DOCTYPE html><html><head><title>FinTrack Report</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;font-size:11px;color:#1a1a2e;padding:40px 50px;max-width:800px;margin:0 auto;line-height:1.5}table{width:100%;border-collapse:collapse;font-size:10px;margin:14px 0}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #eaeaea}th{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#666;border-bottom:2px solid #1a1a2e;background:#f8f8fa}tfoot td{border-top:2px solid #1a1a2e;border-bottom:none;font-weight:700;background:#f8f8fa}tr:nth-child(even) td{background:#fafafa}.rpt-letterhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.rpt-lh-left{display:flex;align-items:center;gap:10px}.rpt-lh-logo{width:36px;height:36px;border-radius:8px;background:#4f46e5;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px}.rpt-lh-title{font-size:16px;font-weight:800}.rpt-lh-tagline{font-size:9px;color:#888}.rpt-lh-label{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#999;border:1px solid #ddd;padding:3px 8px;border-radius:3px}.rpt-title-block{margin-bottom:16px}.rpt-main-title{font-size:20px;font-weight:800;margin-bottom:6px}.rpt-title-meta{display:flex;gap:16px;font-size:10px;color:#666}.rpt-title-meta b{color:#1a1a2e}.rpt-divider{height:2px;background:linear-gradient(90deg,#4f46e5,#e5e5e5 50%,transparent);margin:16px 0}.rpt-divider-light{height:1px;background:#e5e5e5;margin:16px 0}.rpt-section{margin-bottom:16px}.rpt-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#666;margin-bottom:10px;padding-bottom:4px;border-bottom:1px solid #eee}.rpt-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:12px 0}.rpt-kpi{padding:10px 12px;border:1px solid #eaeaea;border-radius:6px;background:#f8f8fa}.rpt-kpi-label{font-size:8px;font-weight:700;text-transform:uppercase;color:#888;margin-bottom:3px}.rpt-kpi-value{font-size:14px;font-weight:800}.rpt-doc-footer{display:flex;justify-content:space-between;margin-top:20px;padding-top:10px;border-top:2px solid #1a1a2e;font-size:8px;color:#999}.rpt-footer-sep{margin:0 3px;color:#ccc}@media print{body{padding:20px}}</style></head><body>' + doc.innerHTML.replace(/style="color:var\(--emerald\)"/g,'style="color:#059669"').replace(/style="color:var\(--rose\)"/g,'style="color:#dc2626"').replace(/style="color:var\(--blue\)"/g,'style="color:#2563eb"').replace(/style="color:var\(--accent\)"/g,'style="color:#4f46e5"') + '</body></html>');
   win.document.close();
   setTimeout(function() { win.print(); }, 300);
@@ -338,12 +357,39 @@ function rptPrint() {
 
 // === EXPORT: PDF (via print-to-PDF) ===
 function rptExportPDF() {
-  rptPrint();
+  if (rptPrint() === false) return;
   toast('Use "Save as PDF" in the print dialog');
 }
 
+// V2.0.5: safe text for Excel XML and CSV (entities built by concatenation on purpose)
+// V2.0.5: hidden mode blocks print AND every export (real numbers never leave the app while hidden)
+function rptHiddenBlock() {
+  if (typeof safeGet === 'function' && safeGet('ft_hide_amounts') === 'true') { toast('Turn off hidden mode to print or export'); return true; }
+  return false;
+}
+function rptXml(v) {
+  var A = '&';
+  // Drop control characters that XML 1.0 does not allow (they make Excel refuse the file)
+  // (char-code check on purpose: the Doc turns regex escapes into raw characters)
+  var s = String(v == null ? '' : v), out = '';
+  for (var i = 0; i < s.length; i++) {
+    var code = s.charCodeAt(i);
+    if ((code < 32 && code !== 9 && code !== 10 && code !== 13) || code === 65534 || code === 65535) continue;
+    out += s.charAt(i);
+  }
+  return out.replace(/&/g, A + 'amp;').replace(/</g, A + 'lt;').replace(/>/g, A + 'gt;').replace(/"/g, A + 'quot;');
+}
+function rptCsv(v) {
+  var s = String(v == null ? '' : v);
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // stop spreadsheet formula injection
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function rptNum(v) { var n = Number(v); return isFinite(n) ? n : 0; }
+function rptCur() { return (typeof FT_BASE !== 'undefined' && FT_BASE) ? FT_BASE : 'MYR'; }
+
 // === EXPORT: EXCEL ===
 function rptExportExcel() {
+  if (rptHiddenBlock()) return;
   var txns = rptFilterTXN();
   var filtered = txns;
   if (rptType === 'income') filtered = txns.filter(function(t){return t.t==='Income';});
@@ -356,29 +402,32 @@ function rptExportExcel() {
 
   var xml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
   xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
-  xml += '<Worksheet ss:Name="' + title + '"><Table>';
-  xml += '<Row><Cell><Data ss:Type="String">' + title + ' - ' + range.label + '</Data></Cell></Row><Row></Row>';
+  var S = function(v) { return '<Cell><Data ss:Type="String">' + rptXml(v) + '</Data></Cell>'; };
+  var N = function(v) { return '<Cell><Data ss:Type="Number">' + rptNum(v) + '</Data></Cell>'; };
+  xml += '<Worksheet ss:Name="' + rptXml(String(title).slice(0, 31)) + '"><Table>';
+  xml += '<Row>' + S(title + ' - ' + range.label + ' (' + rptCur() + ')') + '</Row><Row></Row>';
 
   if (rptType === 'goal' && typeof GOALS !== 'undefined') {
     xml += '<Row><Cell><Data ss:Type="String">Goal</Data></Cell><Cell><Data ss:Type="String">Target</Data></Cell><Cell><Data ss:Type="String">Saved</Data></Cell><Cell><Data ss:Type="String">Remaining</Data></Cell><Cell><Data ss:Type="String">Progress</Data></Cell><Cell><Data ss:Type="String">Deadline</Data></Cell></Row>';
-    GOALS.forEach(function(g) { xml += '<Row><Cell><Data ss:Type="String">' + g.n + '</Data></Cell><Cell><Data ss:Type="Number">' + g.t + '</Data></Cell><Cell><Data ss:Type="Number">' + g.c + '</Data></Cell><Cell><Data ss:Type="Number">' + (g.t-g.c) + '</Data></Cell><Cell><Data ss:Type="String">' + (g.t>0?(g.c/g.t*100).toFixed(0):'0') + '%</Data></Cell><Cell><Data ss:Type="String">' + (g.due||'') + '</Data></Cell></Row>'; });
+    GOALS.forEach(function(g) { xml += '<Row>' + S(g.n) + N(g.t) + N(g.c) + N(g.t-g.c) + S((g.t>0?(g.c/g.t*100).toFixed(0):'0') + '%') + S(g.due||'') + '</Row>'; });
   } else if (rptType === 'investment' && typeof INVESTMENTS !== 'undefined') {
-    xml += '<Row><Cell><Data ss:Type="String">Investment</Data></Cell><Cell><Data ss:Type="String">Type</Data></Cell><Cell><Data ss:Type="Number">Deposit</Data></Cell><Cell><Data ss:Type="Number">Value</Data></Cell><Cell><Data ss:Type="Number">P&L</Data></Cell><Cell><Data ss:Type="String">Return</Data></Cell></Row>';
-    INVESTMENTS.forEach(function(inv) { var pnl = inv.currentValue-inv.costBasis; xml += '<Row><Cell><Data ss:Type="String">' + inv.name + '</Data></Cell><Cell><Data ss:Type="String">' + inv.type + '</Data></Cell><Cell><Data ss:Type="Number">' + inv.costBasis + '</Data></Cell><Cell><Data ss:Type="Number">' + inv.currentValue + '</Data></Cell><Cell><Data ss:Type="Number">' + pnl + '</Data></Cell><Cell><Data ss:Type="String">' + (inv.costBasis>0?(pnl/inv.costBasis*100).toFixed(1):'0') + '%</Data></Cell></Row>'; });
+    xml += '<Row>' + S('Investment') + S('Type') + S('Deposit') + S('Value') + S('Profit/Loss') + S('Return') + '</Row>';
+    INVESTMENTS.forEach(function(inv) { var pnl = inv.currentValue-inv.costBasis; xml += '<Row>' + S(inv.name) + S(inv.type) + N(inv.costBasis) + N(inv.currentValue) + N(pnl) + S((inv.costBasis>0?(pnl/inv.costBasis*100).toFixed(1):'0') + '%') + '</Row>'; });
   } else {
-    xml += '<Row><Cell><Data ss:Type="String">Date</Data></Cell><Cell><Data ss:Type="String">Type</Data></Cell><Cell><Data ss:Type="String">Category</Data></Cell><Cell><Data ss:Type="String">Subcategory</Data></Cell><Cell><Data ss:Type="String">Description</Data></Cell><Cell><Data ss:Type="Number">Amount</Data></Cell></Row>';
-    filtered.sort(function(a,b){return new Date(b.d)-new Date(a.d);}).forEach(function(tx) { xml += '<Row><Cell><Data ss:Type="String">' + tx.d + '</Data></Cell><Cell><Data ss:Type="String">' + tx.t + '</Data></Cell><Cell><Data ss:Type="String">' + tx.c + '</Data></Cell><Cell><Data ss:Type="String">' + (tx.s||'') + '</Data></Cell><Cell><Data ss:Type="String">' + (tx.dt||'') + '</Data></Cell><Cell><Data ss:Type="Number">' + tx.a + '</Data></Cell></Row>'; });
+    xml += '<Row>' + S('Date') + S('Type') + S('Category') + S('Subcategory') + S('Description') + S('Amount (' + rptCur() + ')') + '</Row>';
+    filtered.sort(function(a,b){return String(b.d).localeCompare(String(a.d));}).forEach(function(tx) { xml += '<Row>' + S(tx.d) + S(tx.t) + S(tx.c) + S(tx.s||'') + S(tx.dt||'') + N(tx.a) + '</Row>'; });
   }
 
   xml += '</Table></Worksheet></Workbook>';
   var blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
   var url = URL.createObjectURL(blob);
-  var a = document.createElement('a'); a.href = url; a.download = 'fintrack-' + rptType + '-' + new Date().toISOString().split('T')[0] + '.xls'; a.click(); URL.revokeObjectURL(url);
+  var a = document.createElement('a'); a.href = url; a.download = 'fintrack-' + rptType + '-' + ftLocalISO() + '.xls'; a.click(); URL.revokeObjectURL(url);
   toast('Excel exported');
 }
 
 // === EXPORT: CSV ===
 function rptExportCSV() {
+  if (rptHiddenBlock()) return;
   var txns = rptFilterTXN();
   var filtered = txns;
   if (rptType === 'income') filtered = txns.filter(function(t){return t.t==='Income';});
@@ -387,19 +436,19 @@ function rptExportCSV() {
 
   var rows = [];
   if (rptType === 'goal' && typeof GOALS !== 'undefined') {
-    rows.push('Goal,Target,Saved,Remaining,Progress,Deadline');
-    GOALS.forEach(function(g) { rows.push('"' + g.n + '",' + g.t + ',' + g.c + ',' + (g.t-g.c) + ',' + (g.t>0?(g.c/g.t*100).toFixed(0):'0') + '%,' + (g.due||'')); });
+    rows.push('Goal,Target (' + rptCur() + '),Saved,Remaining,Progress,Deadline');
+    GOALS.forEach(function(g) { rows.push(rptCsv(g.n) + ',' + rptNum(g.t) + ',' + rptNum(g.c) + ',' + rptNum(g.t-g.c) + ',' + (g.t>0?(g.c/g.t*100).toFixed(0):'0') + '%,' + rptCsv(g.due||'')); });
   } else if (rptType === 'investment' && typeof INVESTMENTS !== 'undefined') {
     rows.push('Investment,Type,Deposit,Value,P&L,Return');
-    INVESTMENTS.forEach(function(inv) { var pnl = inv.currentValue-inv.costBasis; rows.push('"' + inv.name + '","' + inv.type + '",' + inv.costBasis + ',' + inv.currentValue + ',' + pnl + ',' + (inv.costBasis>0?(pnl/inv.costBasis*100).toFixed(1):'0') + '%'); });
+    INVESTMENTS.forEach(function(inv) { var pnl = inv.currentValue-inv.costBasis; rows.push(rptCsv(inv.name) + ',' + rptCsv(inv.type) + ',' + rptNum(inv.costBasis) + ',' + rptNum(inv.currentValue) + ',' + rptNum(pnl) + ',' + (inv.costBasis>0?(pnl/inv.costBasis*100).toFixed(1):'0') + '%'); });
   } else {
-    rows.push('Date,Type,Category,Subcategory,Description,Amount');
-    filtered.sort(function(a,b){return new Date(b.d)-new Date(a.d);}).forEach(function(tx) { rows.push(tx.d + ',"' + tx.t + '","' + tx.c + '","' + (tx.s||'') + '","' + (tx.dt||'').replace(/"/g,'""') + '",' + tx.a); });
+    rows.push('Date,Type,Category,Subcategory,Description,Amount (' + rptCur() + ')');
+    filtered.sort(function(a,b){return String(b.d).localeCompare(String(a.d));}).forEach(function(tx) { rows.push(rptCsv(tx.d) + ',' + rptCsv(tx.t) + ',' + rptCsv(tx.c) + ',' + rptCsv(tx.s||'') + ',' + rptCsv(tx.dt||'') + ',' + rptNum(tx.a)); });
   }
 
   var csv = rows.join('\n');
   var blob = new Blob([csv], { type: 'text/csv' });
   var url = URL.createObjectURL(blob);
-  var a = document.createElement('a'); a.href = url; a.download = 'fintrack-' + rptType + '-' + new Date().toISOString().split('T')[0] + '.csv'; a.click(); URL.revokeObjectURL(url);
+  var a = document.createElement('a'); a.href = url; a.download = 'fintrack-' + rptType + '-' + ftLocalISO() + '.csv'; a.click(); URL.revokeObjectURL(url);
   toast('CSV exported');
 }
