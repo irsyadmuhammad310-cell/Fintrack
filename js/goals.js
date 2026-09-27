@@ -12,6 +12,8 @@ let goalNxId = 10;
 function loadGOALS() {
   var raw = safeGet('ft_goals');
   if (raw) { try { GOALS = JSON.parse(raw); } catch(e) {} }
+  if (!Array.isArray(GOALS)) GOALS = [];
+  GOALS = GOALS.filter(g => g && typeof g === 'object');
   var nid = safeGet('ft_goalNxId');
   if (nid) goalNxId = parseInt(nid);
 }
@@ -27,20 +29,24 @@ function renderGoals(c) {
   // Auto-sync goals linked to savings categories
   syncGoalsWithSavings();
   const activeGoals = GOALS.filter(g => g.c < g.t);
-  const totalSaved = GOALS.reduce((s, g) => s + g.c, 0);
-  const totalTarget = GOALS.reduce((s, g) => s + g.t, 0);
+  const totalSaved = GOALS.reduce((s, g) => s + (isFinite(+g.c) ? +g.c : 0), 0);
+  const totalTarget = GOALS.reduce((s, g) => s + (isFinite(+g.t) ? +g.t : 0), 0);
   const totalRemaining = totalTarget - totalSaved;
   const overallPct = totalTarget > 0 ? (totalSaved / totalTarget * 100).toFixed(0) : 0;
 
   // === GOAL SUMMARY (6 KPI cards) ===
-  const budgetTotal = getYearlyBudgetTotal(year);
-  const totalExp = MD.reduce((s, m) => s + m.e, 0);
+  // V2.0.5: follow the month picker. A month selected = that month's budget and spending, not the whole year.
+  const kpiMf = document.getElementById('mf') ? document.getElementById('mf').value : 'total';
+  const kpiMonth = kpiMf !== 'total' && MD[+kpiMf] ? +kpiMf : null;
+  const budgetTotal = kpiMonth === null ? getYearlyBudgetTotal(year) : getMonthlyBudget(year, kpiMonth);
+  const totalExp = kpiMonth === null ? MD.reduce((s, m) => s + m.e, 0) : MD[kpiMonth].e;
   const budgetLeft = budgetTotal - totalExp;
+  const budgetLabel = kpiMonth === null ? t('goal_annual_budget') : 'Budget · ' + MONTH_NAMES[kpiMonth];
   let html = `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;margin-bottom:20px">`;
   html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_total')}</div><div class="goal-kpi-val">${GOALS.length}</div></div>`;
   html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_progress')}</div><div class="goal-kpi-val">${overallPct}%</div></div>`;
   html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_saved')}</div><div class="goal-kpi-val" style="color:var(--emerald)">${fmt(totalSaved)}</div></div>`;
-  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_annual_budget')}</div><div class="goal-kpi-val">${fmt(budgetTotal)}</div></div>`;
+  html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${budgetLabel}</div><div class="goal-kpi-val">${fmt(budgetTotal)}</div></div>`;
   html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_actual_spent')}</div><div class="goal-kpi-val" style="color:var(--rose)">${fmt(totalExp)}</div></div>`;
   html += `<div class="goal-kpi" style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:12px 14px"><div style="font-size:9px;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">${t('goal_budget_left')}</div><div class="goal-kpi-val" style="color:${budgetLeft >= 0 ? 'var(--emerald)' : 'var(--rose)'}">${budgetLeft < 0 ? '-' : ''}${fmt(Math.abs(budgetLeft))}</div></div>`;
   html += `</div>`;
@@ -63,7 +69,7 @@ function renderGoals(c) {
   else if (goalFilter === 'completed') filteredGoals = filteredGoals.filter(g => g.c >= g.t);
   else if (goalFilter === 'paused') filteredGoals = filteredGoals.filter(g => g.paused);
   if (goalSearchVal) filteredGoals = filteredGoals.filter(g => g.n.toLowerCase().includes(goalSearchVal));
-  if (goalSort === 'progress') filteredGoals.sort((a, b) => (b.c / b.t) - (a.c / a.t));
+  if (goalSort === 'progress') filteredGoals.sort((a, b) => ftGoalP(b) - ftGoalP(a));
   else if (goalSort === 'name') filteredGoals.sort((a, b) => a.n.localeCompare(b.n));
   else if (goalSort === 'due') filteredGoals.sort((a, b) => new Date(a.due) - new Date(b.due));
   else if (goalSort === 'amount') filteredGoals.sort((a, b) => b.t - a.t);
@@ -74,7 +80,7 @@ function renderGoals(c) {
   // Goal cards grid (2 columns like reference)
   html += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:12px;margin-bottom:20px">`;
   filteredGoals.forEach(g => {
-    const p = Math.max(0, Math.min(g.c / g.t, 1));
+    const p = ftGoalP(g);
     const pct = (p * 100).toFixed(0);
     const remaining = g.t - g.c;
     const isExpanded = expandedGoal === g.id;
@@ -85,7 +91,7 @@ function renderGoals(c) {
     const today = new Date(); today.setHours(0,0,0,0);
     const dueDate = new Date(g.due); dueDate.setHours(0,0,0,0);
     const daysLeft = Math.ceil((dueDate - today) / (1000*60*60*24));
-    const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+    const monthsLeft = isFinite(daysLeft) ? Math.max(1, Math.ceil(daysLeft / 30)) : 12; // V2.0.5: no deadline -> assume 12 months
     const monthlyReq = remaining > 0 ? remaining / monthsLeft : 0;
     const isSynced = ftGoalIsSynced(g);
     const avgMonthlySav = isSynced ? ftGoalAvgMonthly(g) : 0;
@@ -94,17 +100,17 @@ function renderGoals(c) {
     html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:all 200ms var(--ease-out)">`;
     // Card header
     html += `<div style="padding:14px 16px 12px">`;
-    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">${g.e}</span><span style="font-size:14px;font-weight:600">${g.n}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:9px;font-weight:600;padding:3px 8px;border-radius:4px;background:${statusColor};color:#fff;text-transform:uppercase">${statusLabel}</span><button style="border:none;background:none;color:var(--text-tertiary);cursor:pointer;font-size:14px" onclick="event.stopPropagation();toggleGoalMenu(${g.id})">⋮</button></div></div>`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">${ftEsc(g.e)}</span><span style="font-size:14px;font-weight:600">${ftEsc(g.n)}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:9px;font-weight:600;padding:3px 8px;border-radius:4px;background:${statusColor};color:#fff;text-transform:uppercase">${statusLabel}</span><button style="border:none;background:none;color:var(--text-tertiary);cursor:pointer;font-size:14px" onclick="event.stopPropagation();toggleGoalMenu(${ftRemArg(g.id)})">⋮</button></div></div>`;
     // Progress
     html += `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.04em">Progress</span><span class="goal-card-pct" style="font-weight:700;color:${barColor}">${pct}%</span></div>`;
     html += `<div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:12px"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width 800ms cubic-bezier(0.16,1,0.3,1)"></div></div>`;
     // Saved / Target + Deadline row
     html += `<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-bottom:8px">`;
     html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Saved / Target</div><div class="goal-card-num" style="font-weight:700">${fmt(g.c)} / ${fmt(g.t)}</div></div>`;
-    html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Deadline</div><div class="goal-card-num" style="font-weight:700">${g.due || 'Not set'}</div></div>`;
+    html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Deadline</div><div class="goal-card-num" style="font-weight:700">${ftEsc(g.due || 'Not set')}</div></div>`;
     html += `</div>`;
     // Toggle details button + synced badge
-    html += `<div style="display:flex;justify-content:space-between;align-items:center"><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="expandedGoal=${isExpanded ? 'null' : g.id};renderGoals(document.getElementById('cnt'))">${isExpanded ? t('misc_close') : t('txn_details')}</button>${isSynced ? '<span style="font-size:9px;color:var(--text-tertiary)">' + t('goal_synced') + '</span>' : ''}</div>`;
+    html += `<div style="display:flex;justify-content:space-between;align-items:center"><button class="btn bs" style="font-size:10px;padding:4px 10px" onclick="expandedGoal=${isExpanded ? 'null' : ftRemArg(g.id)};renderGoals(document.getElementById('cnt'))">${isExpanded ? t('misc_close') : t('txn_details')}</button>${isSynced ? '<span style="font-size:9px;color:var(--text-tertiary)">' + t('goal_synced') + '</span>' : ''}</div>`;
     html += `</div>`;
 
     // Expanded details
@@ -112,16 +118,16 @@ function renderGoals(c) {
       html += `<div style="padding:0 16px 14px;border-top:1px solid var(--border-light)">`;
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0">`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_remaining')}</div><div class="goal-detail-num" style="font-weight:700">${fmt(remaining)}</div></div>`;
-      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_days_left')}</div><div class="goal-detail-num" style="font-weight:700;color:${daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)'}">${daysLeft > 0 ? daysLeft : t('goal_overdue')}</div></div>`;
+      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_days_left')}</div><div class="goal-detail-num" style="font-weight:700;color:${daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)'}">${ftGoalDaysLabel(daysLeft, '', isCompleted)}</div></div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_est_completion')}</div><div class="goal-detail-num" style="font-weight:700;color:var(--accent)">${isCompleted ? '✅' : estCompDate}</div></div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_monthly_contrib')}</div><div class="goal-detail-num" style="font-weight:700">${fmt(avgMonthlySav > 0 ? avgMonthlySav : monthlyReq)}</div></div>`;
       html += `</div>`;
       html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_priority')}</div><div class="goal-detail-num" style="font-weight:700">Medium</div></div>`;
-      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + ftGoalLinkLabel(g) : t('goal_manual')}</div></div>`;
+      html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">${t('goal_sync')}</div><div class="goal-detail-num" style="font-weight:700">${isSynced ? t('goal_synced') + ': ' + ftEsc(ftGoalLinkLabel(g)) : t('goal_manual')}</div></div>`;
       html += `</div>`;
       html += `<div style="padding:8px 10px;background:var(--bg-primary);border:1px solid var(--border-light);border-radius:6px;margin-bottom:12px;font-size:11px;color:var(--text-tertiary);font-style:italic">${t('goal_no_notes')}</div>`;
-      html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${g.id})">${t('goal_edit')}</button><button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${g.id})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${g.id})">${t('goal_delete')}</button></div>`;
+      html += `<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:5px 12px" onclick="editGoal(${ftRemArg(g.id)})">${t('goal_edit')}</button><button class="btn bp" style="font-size:10px;padding:5px 12px" onclick="addMoneyToGoal(${ftRemArg(g.id)})"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:5px 12px" onclick="deleteGoal(${ftRemArg(g.id)})">${t('goal_delete')}</button></div>`;
       html += `</div>`;
     }
     html += `</div>`;
@@ -142,7 +148,7 @@ function renderGoals(c) {
   }
   // Income budget: from incCats in budget plan
   const incBudgetForProgress = (() => {
-    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var plans = ftJSON('ft_budget_plans', {});
     var yk = String(year);
     if (mf === 'total') {
       var total = 0;
@@ -157,7 +163,7 @@ function renderGoals(c) {
   const expPct = budgetTotalForProgress > 0 ? (pExp / (mf === 'total' ? budgetTotalForProgress : getMonthlyBudget(year, +mf)) * 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const savBudget = (() => {
-    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var plans = ftJSON('ft_budget_plans', {});
     var yk = String(year);
     if (mf === 'total') {
       var total = 0;
@@ -180,7 +186,7 @@ function renderGoals(c) {
   // === BUDGET STATUS: Overspent Categories (Cover Overspending Flow) ===
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const STATUS_PLANS = ftJSON('ft_budget_plans', {});
   const statusYearKey = String(currentYear);
   const statusYearPlans = STATUS_PLANS[statusYearKey] || {};
   // Keys may be numeric or string after JSON parse; try both
@@ -203,14 +209,14 @@ function renderGoals(c) {
       overspentCats.forEach((item, idx) => {
         const pct = ((item.spent / item.budget) * 100).toFixed(0);
         const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
-        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${item.cat}</div><div class="cover-alert-meta">${fmt(item.spent)} / ${fmt(item.budget)} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(item.over)} over</div><button class="btn bp cover-btn" data-cover-cat="${item.cat.replace(/"/g,'"')}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
+        html += `<div class="cover-alert-card"><div class="cover-alert-top"><div class="cover-alert-icon">${catEmoji}</div><div class="cover-alert-info"><div class="cover-alert-name">${ftEsc(item.cat)}</div><div class="cover-alert-meta">${fmt(item.spent)} / ${fmt(item.budget)} (${pct}%)</div></div></div><div class="cover-alert-bar"><div class="cover-alert-bar-fill" style="width:100%"></div></div><div class="cover-alert-bottom"><div class="cover-alert-over">-${fmt(item.over)} over</div><button class="btn bp cover-btn" data-cover-cat="${ftEsc(item.cat)}" data-cover-over="${item.over}" data-cover-year="${currentYear}" data-cover-month="${currentMonth}"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover</button></div></div>`;
       });
       html += `</div></div>`;
     }
   }
 
   // === BUDGET PLANNER (Editable with Category Breakdown) ===
-  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
@@ -269,7 +275,7 @@ function openGoalModal(editG) {
   const isEdit = !!editG;
   const savCats = Object.keys(SCHEMA.Savings || {});
   const linkedArr = isEdit && editG.linkedCats ? editG.linkedCats : (isEdit && editG.linkedCat ? [editG.linkedCat] : []);
-  const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + cat + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + cat + '</label>').join('');
+  const savChecks = savCats.map(cat => '<label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;padding:4px 0"><input type="checkbox" class="g_linked_chk" value="' + ftEsc(cat) + '"' + (linkedArr.includes(cat) ? ' checked' : '') + '> ' + ftEsc(cat) + '</label>').join('');
   // V2.0.5: optional account link. Progress = that account's live balance.
   // Accounts already used by another goal are greyed out ("used by ...")
   const selAccs = isEdit ? ftGoalAccs(editG) : [];
@@ -280,7 +286,7 @@ function openGoalModal(editG) {
   }).join('') || '<div style="font-size:11px;color:var(--text-tertiary)">No accounts yet</div>';
   const currentLabel = isEdit && linkedArr.length ? 'Initial Balance (untracked)' : 'Current Saved';
   const currentVal = isEdit ? (linkedArr.length ? (editG.base || 0) : editG.c) : '0';
-  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? editG.id : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? editG.n : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? editG.t : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${currentVal}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = total balance of the accounts you tick. Money in goes up, money out goes down. One account can only belong to one goal. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:160px;overflow-y:auto">${accChecks}</div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? editG.due : '2027-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? editG.e : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
+  const h = `<div class="mo show" id="mgoal" onclick="if(event.target===this){this.remove();document.body.style.overflow=''}"><div class="ml" onclick="event.stopPropagation()"><div class="mh"><div><div class="mti">${isEdit ? 'Edit' : 'New'} Goal</div><div class="mds">Set your financial target</div></div><button class="mx" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">✕</button></div><form onsubmit="saveGoal(event,${isEdit ? ftRemArg(editG.id) : 'null'})"><div class="fg"><label class="fl">Goal Name *</label><input class="fi" id="g_name" required value="${isEdit ? ftEsc(editG.n) : ''}" placeholder="e.g. Emergency Fund"></div><div class="fr"><div class="fg"><label class="fl">Target Amount *</label><input class="fi" type="number" step="0.01" id="g_target" required value="${isEdit ? ftEsc(Number(editG.t) || 0) : ''}" placeholder="0.00"></div><div class="fg"><label class="fl">${currentLabel}</label><input class="fi" type="number" step="0.01" id="g_current" value="${ftEsc(Number(currentVal) || 0)}" placeholder="0.00"></div></div><div class="fg"><label class="fl">Link to Accounts (recommended)</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Progress = total balance of the accounts you tick. Money in goes up, money out goes down. One account can only belong to one goal. Categories and Current Saved are ignored.</p><div style="display:grid;grid-template-columns:1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:160px;overflow-y:auto">${accChecks}</div></div><div class="fg"><label class="fl">Or link to Transfer Categories</label><p style="font-size:10px;color:var(--text-tertiary);margin-bottom:6px">Select one or more. Goal auto-syncs from savings transactions. Use "Initial Balance" for money already in account.</p><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-primary);max-height:140px;overflow-y:auto">${savChecks}</div></div><div class="fr"><div class="fg"><label class="fl">Due Date *</label><input class="fi" type="date" id="g_due" required value="${isEdit ? ftEsc(editG.due || '') : (new Date().getFullYear() + 1) + '-12-31'}"></div><div class="fg"><label class="fl">Emoji</label><input class="fi" id="g_emoji" value="${isEdit ? ftEsc(editG.e) : '🎯'}" placeholder="🎯" style="max-width:60px"></div></div><div class="ma"><button type="button" class="btn bs" onclick="document.getElementById('mgoal').remove();document.body.style.overflow=''">Cancel</button><button type="submit" class="btn bp">${isEdit ? 'Update' : 'Create'}</button></div></form></div></div>`;
   document.body.insertAdjacentHTML('beforeend', h);
   document.body.style.overflow = 'hidden';
 }
@@ -312,7 +318,7 @@ function saveGoal(e, editId) {
     toast('✅ Goal updated');
   } else {
     data.id = goalNxId++;
-    data.created = new Date().toISOString().split('T')[0];
+    data.created = ftLocalISO();
     GOALS.push(data);
     toast('✅ Goal created');
   }
@@ -369,7 +375,7 @@ function toggleGoalMenu(id) {
 
 // === BUDGET PLANNER CRUD (with category breakdown) ===
 function editBudgetMonth(year, monthIdx) {
-  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   const monthKey = String(monthIdx);
   const yearData = BUDGET_PLANS[yearKey] || {};
@@ -393,14 +399,14 @@ function editBudgetMonth(year, monthIdx) {
   h += '<div style="font-size:11px;font-weight:700;color:var(--emerald);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Income</div>';
   incCats.forEach(function(cat) {
     var val = existIncCats[cat] || 0;
-    h += '<div class="fg" style="margin-bottom:8px"><label class="fl">' + cat + '</label><input class="fi bp_inc" type="number" step="0.01" data-cat="' + cat + '" value="' + val + '" placeholder="0.00"></div>';
+    h += '<div class="fg" style="margin-bottom:8px"><label class="fl">' + ftEsc(cat) + '</label><input class="fi bp_inc" type="number" step="0.01" data-cat="' + ftEsc(cat) + '" value="' + val + '" placeholder="0.00"></div>';
   });
 
   // Expense categories
   h += '<div style="font-size:11px;font-weight:700;color:var(--rose);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 8px">Expense</div>';
   expCats.forEach(function(cat) {
     var val = existExpCats[cat] || 0;
-    h += '<div class="fg" style="margin-bottom:8px"><label class="fl">' + cat + '</label><input class="fi bp_exp" type="number" step="0.01" data-cat="' + cat + '" value="' + val + '" placeholder="0.00"></div>';
+    h += '<div class="fg" style="margin-bottom:8px"><label class="fl">' + ftEsc(cat) + '</label><input class="fi bp_exp" type="number" step="0.01" data-cat="' + ftEsc(cat) + '" value="' + val + '" placeholder="0.00"></div>';
   });
 
   // Savings (single amount)
@@ -415,7 +421,7 @@ function editBudgetMonth(year, monthIdx) {
 
 function saveBudgetMonth(e, year, monthIdx) {
   e.preventDefault();
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   if (!plans[yearKey]) plans[yearKey] = {};
 
@@ -448,7 +454,7 @@ function saveBudgetMonth(e, year, monthIdx) {
 }
 
 function clearBudgetMonth(year, monthIdx) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   var monthKey = String(monthIdx);
   if (plans[yearKey] && (plans[yearKey][monthKey] || plans[yearKey][monthIdx])) {
@@ -465,6 +471,20 @@ function clearBudgetMonth(year, monthIdx) {
 
 // === V2.0.5 GOAL HELPERS ===
 // Goal modes: account-linked (g.acc: progress = live account balance), category-linked (g.linkedCats), or manual.
+// V2.0.5: safe progress 0..1 (target 0 / negative / NaN never shows NaN%)
+function ftGoalP(g) {
+  const c = Number(g.c), t = Number(g.t);
+  if (!isFinite(c) || !isFinite(t) || t <= 0) return 0; // V2.0.5: no valid target = 0%, never a fake 100%
+  return Math.max(0, Math.min(c / t, 1));
+}
+// V2.0.5: "Today" on the due date (it said Overdue), "—" when there is no deadline, "✅" once completed
+function ftGoalDaysLabel(daysLeft, unit, done) {
+  if (done) return '✅';
+  if (!isFinite(daysLeft)) return '—';
+  if (daysLeft > 0) return daysLeft + (unit || '');
+  if (daysLeft === 0) return 'Today';
+  return t('goal_overdue');
+}
 function ftGoalCats(g) { return g.linkedCats && g.linkedCats.length ? g.linkedCats : (g.linkedCat ? [g.linkedCat] : []); }
 // V2.0.5: g.accs = list of linked asset accounts (old single g.acc still read). Returns the real account ids.
 function ftGoalAccs(g) {
@@ -538,7 +558,8 @@ function checkGoalMilestones(goal, oldAmount, newAmount) {
   const milestones = [100];
   const oldPct = (oldAmount / goal.t) * 100;
   const newPct = (newAmount / goal.t) * 100;
-  const achieved = JSON.parse(safeGet('ft_milestones_' + goal.id) || '[]');
+  let achieved = ftJSON('ft_milestones_' + goal.id, []);
+  if (!Array.isArray(achieved)) achieved = [];
 
   milestones.forEach(m => {
     if (newPct >= m && oldPct < m && !achieved.includes(m)) {
@@ -596,7 +617,7 @@ function showBudgetRowMenu(event, year, monthIdx, hasPlan) {
 }
 
 function copyBudgetToNext(year, monthIdx) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
@@ -625,7 +646,7 @@ function copyBudgetToNext(year, monthIdx) {
 }
 
 function copyBudgetToAll(year, monthIdx) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   var srcPlan = (plans[yearKey] && (plans[yearKey][String(monthIdx)] || plans[yearKey][monthIdx])) || null;
   if (!srcPlan) { toast('❌ No budget to copy'); return; }
@@ -657,7 +678,7 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   // Ensure types are correct
   monthIdx = parseInt(monthIdx);
   year = parseInt(year);
-  const PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const PLANS = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   const yearPlans = PLANS[yearKey] || null;
   if (!yearPlans) { toast('❌ No budget plans for ' + year); return; }
@@ -709,7 +730,7 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   }
 
   // Header
-  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${overspentCat} is ${fmtIn(overAmountReal, FT_BASE)} over budget. Move money from another category.</div></div>`;
+  h += `<div style="margin-bottom:16px"><div style="font-size:16px;font-weight:700;margin-bottom:4px">Cover Overspending</div><div style="font-size:12px;color:var(--text-secondary);line-height:1.4">${ftEsc(overspentCat)} is ${fmtIn(overAmountReal, FT_BASE)} over budget. Move money from another category.</div></div>`;
 
   // Overspent amount display
   h += `<div class="cover-overspent-display"><div style="font-size:10px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Amount to cover</div><div style="font-size:24px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">-${fmtIn(overAmountReal, FT_BASE)}</div></div>`;
@@ -719,7 +740,7 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   h += `<div class="cover-options-list" id="coverOptions">`;
   availableCats.forEach((item, idx) => {
     const maxCoverReal = Math.min(item.remaining, overAmountReal);
-    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${item.cat}" data-max="${maxCoverReal.toFixed(2)}" data-remaining="${item.remaining.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${item.cat}</div><div class="cover-opt-avail">${fmtIn(item.remaining, FT_BASE)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
+    h += `<div class="cover-option-row${idx === 0 ? ' selected' : ''}" data-cat="${ftEsc(item.cat)}" data-max="${maxCoverReal.toFixed(2)}" data-remaining="${item.remaining.toFixed(2)}" onclick="selectCoverSource(this)"><div class="cover-opt-left"><span class="cover-opt-emoji">${item.emoji}</span><div class="cover-opt-info"><div class="cover-opt-name">${ftEsc(item.cat)}</div><div class="cover-opt-avail">${fmtIn(item.remaining, FT_BASE)} available</div></div></div><div class="cover-opt-check"><span></span></div></div>`;
   });
   h += `</div>`;
 
@@ -728,14 +749,14 @@ function openCoverOverspending(overspentCat, overAmount, year, monthIdx) {
   // V2.0.4: budget numbers are stored in the base currency, so the input uses the base symbol
   const currSymbol = (CURRENCY_CONFIG[FT_BASE] || CURRENCY_CONFIG.MYR).symbol;
   const _bc = v => fmtIn(v, FT_BASE);
-  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${firstMaxReal.toFixed(2)}" max="${firstMaxReal.toFixed(2)}"><button class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max">MAX</button></div></div>`;
+  h += `<div class="cover-amount-section"><div style="font-size:10px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Amount</div><div class="cover-amount-wrap"><span class="cover-amt-currency">${currSymbol}</span><input type="number" step="0.01" id="coverAmount" class="cover-amt-input" value="${firstMaxReal.toFixed(2)}" max="${firstMaxReal.toFixed(2)}" min="0" oninput="ftCoverUpdatePreview()"><button type="button" class="cover-amt-max" onclick="document.getElementById('coverAmount').value=document.getElementById('coverAmount').max;ftCoverUpdatePreview()">MAX</button></div></div>`;
 
   // Transfer preview
   const firstCat = availableCats[0];
-  h += `<div class="cover-preview" id="coverPreview"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${firstCat.cat}</div><div class="cover-preview-after">${_bc(firstCat.remaining)} → ${_bc(firstCat.remaining - firstMaxReal)} remaining</div></div><div class="cover-preview-amt negative">-${_bc(firstMaxReal)}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${overspentCat}</div><div class="cover-preview-after">-${_bc(overAmountReal)} → ${overAmountReal <= firstMaxReal ? _bc(0) : '-' + _bc(overAmountReal - firstMaxReal)} remaining</div></div><div class="cover-preview-amt positive">+${_bc(firstMaxReal)}</div></div></div>`;
+  h += `<div class="cover-preview" id="coverPreview" data-over="${Number(overAmountReal) || 0}"><div class="cover-preview-row"><span class="cover-preview-emoji">${firstCat.emoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${ftEsc(firstCat.cat)}</div><div class="cover-preview-after">${_bc(firstCat.remaining)} → ${_bc(firstCat.remaining - firstMaxReal)} remaining</div></div><div class="cover-preview-amt negative">-${_bc(firstMaxReal)}</div></div><div style="text-align:center;color:var(--text-tertiary);font-size:14px;padding:6px 0">↓</div><div class="cover-preview-row"><span class="cover-preview-emoji">${overspentEmoji}</span><div class="cover-preview-detail"><div class="cover-preview-name">${ftEsc(overspentCat)}</div><div class="cover-preview-after">-${_bc(overAmountReal)} → ${overAmountReal <= firstMaxReal ? _bc(0) : '-' + _bc(overAmountReal - firstMaxReal)} remaining</div></div><div class="cover-preview-amt positive">+${_bc(firstMaxReal)}</div></div></div>`;
 
   // Action buttons
-  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer('${firstCat.cat.replace(/'/g,"\\'")}','${overspentCat.replace(/'/g,"\\'")}',${year},${monthIdx})">Cover ${_bc(firstMaxReal)}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
+  h += `<div style="display:flex;flex-direction:column;gap:8px;margin-top:16px"><button class="btn bp" id="coverConfirmBtn" style="width:100%;justify-content:center;padding:12px" onclick="executeCoverTransfer(${ftArg(firstCat.cat)},${ftArg(overspentCat)},${year},${monthIdx})">Cover ${_bc(firstMaxReal)}</button><button class="btn bs" style="width:100%;justify-content:center;padding:12px" onclick="closeCoverSheet()">Leave overspent</button></div>`;
 
   if (isMobile) {
     h += `</div></div>`;
@@ -758,26 +779,38 @@ function selectCoverSource(el) {
   amtInput.max = max.toFixed(2);
   amtInput.value = max.toFixed(2);
 
-  // Update preview source row
+  ftCoverUpdatePreview();
+}
+
+// V2.0.5: keep BOTH preview rows + the button in step with the source AND the typed amount
+// (before, typing a smaller amount left the preview and button showing the old number)
+function ftCoverUpdatePreview() {
+  const el = document.querySelector('.cover-option-row.selected');
+  const amtInput = document.getElementById('coverAmount');
   const preview = document.getElementById('coverPreview');
+  if (!el || !amtInput) return;
+  const max = parseFloat(el.dataset.max) || 0;
+  const remaining = parseFloat(el.dataset.remaining) || 0;
+  let amt = parseFloat(amtInput.value);
+  if (!isFinite(amt) || amt < 0) amt = 0;
+  if (amt > max) amt = max;
+  const bc = v => fmtIn(v, FT_BASE);
   if (preview) {
-    const emoji = el.querySelector('.cover-opt-emoji').textContent;
-    const amt = parseFloat(amtInput.value);
+    const over = parseFloat(preview.dataset.over) || 0;
     const rows = preview.querySelectorAll('.cover-preview-row');
     if (rows[0]) {
-      rows[0].querySelector('.cover-preview-emoji').textContent = emoji;
-      rows[0].querySelector('.cover-preview-name').textContent = cat;
-      rows[0].querySelector('.cover-preview-after').textContent = fmtIn(remaining, FT_BASE) + ' → ' + fmtIn(remaining - amt, FT_BASE) + ' remaining';
-      rows[0].querySelector('.cover-preview-amt').textContent = '-' + fmtIn(amt, FT_BASE);
+      rows[0].querySelector('.cover-preview-emoji').textContent = el.querySelector('.cover-opt-emoji').textContent;
+      rows[0].querySelector('.cover-preview-name').textContent = el.dataset.cat;
+      rows[0].querySelector('.cover-preview-after').textContent = bc(remaining) + ' → ' + bc(remaining - amt) + ' remaining';
+      rows[0].querySelector('.cover-preview-amt').textContent = '-' + bc(amt);
+    }
+    if (rows[1]) {
+      rows[1].querySelector('.cover-preview-after').textContent = '-' + bc(over) + ' → ' + (over <= amt ? bc(0) : '-' + bc(over - amt)) + ' remaining';
+      rows[1].querySelector('.cover-preview-amt').textContent = '+' + bc(amt);
     }
   }
-
-  // Update confirm button text
   const confirmBtn = document.getElementById('coverConfirmBtn');
-  if (confirmBtn) {
-    const amt = parseFloat(amtInput.value);
-    confirmBtn.textContent = 'Cover ' + fmtIn(amt, FT_BASE);
-  }
+  if (confirmBtn) confirmBtn.textContent = 'Cover ' + bc(amt);
 }
 
 function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
@@ -788,7 +821,7 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   const selected = document.querySelector('.cover-option-row.selected');
   if (selected) fromCat = selected.dataset.cat;
 
-  const plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const plans = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   if (!plans[yearKey]) { toast('❌ Budget plan not found'); return; }
   const yearPlans = plans[yearKey];
@@ -800,7 +833,8 @@ function executeCoverTransfer(fromCat, toCat, year, monthIdx) {
   if (!plan.expCats[toCat] && plan.expCats[toCat] !== 0) { toast('❌ Target category not found in budget'); return; }
 
   // Budget values are in real currency. Transfer directly.
-  const actualAmt = Math.min(amountReal, plan.expCats[fromCat]);
+  const selMax = selected ? parseFloat(selected.dataset.max) : NaN; // V2.0.5: never more than the source has left
+  const actualAmt = Math.min(amountReal, plan.expCats[fromCat], isFinite(selMax) ? selMax : Infinity);
   if (actualAmt <= 0) { toast('❌ Source has no budget left to transfer'); return; }
 
   plan.expCats[fromCat] = Math.round((plan.expCats[fromCat] - actualAmt) * 100) / 100;
@@ -869,15 +903,15 @@ function renderMobileGoals(c) {
 
 function renderMobileGoalsTab(MD, year) {
   let html = '';
-  const totalSaved = GOALS.reduce((s, g) => s + g.c, 0);
-  const totalTarget = GOALS.reduce((s, g) => s + g.t, 0);
+  const totalSaved = GOALS.reduce((s, g) => s + (isFinite(+g.c) ? +g.c : 0), 0);
+  const totalTarget = GOALS.reduce((s, g) => s + (isFinite(+g.t) ? +g.t : 0), 0);
   const overallPct = totalTarget > 0 ? (totalSaved / totalTarget * 100).toFixed(0) : 0;
   const onTrack = GOALS.filter(g => {
     if (g.c >= g.t) return true;
     const today = new Date(); today.setHours(0,0,0,0);
     const due = new Date(g.due); due.setHours(0,0,0,0);
     const daysLeft = Math.ceil((due - today) / 86400000);
-    const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+    const monthsLeft = isFinite(daysLeft) ? Math.max(1, Math.ceil(daysLeft / 30)) : 12;
     const remaining = g.t - g.c;
     const monthlyReq = remaining / monthsLeft;
     if (ftGoalIsSynced(g)) return ftGoalAvgMonthly(g) >= monthlyReq * 0.8;
@@ -910,7 +944,7 @@ function renderMobileGoalsTab(MD, year) {
   if (goalFilter === 'active') filtered = filtered.filter(g => g.c < g.t && !g.paused);
   else if (goalFilter === 'completed') filtered = filtered.filter(g => g.c >= g.t);
   else if (goalFilter === 'paused') filtered = filtered.filter(g => g.paused);
-  if (goalSort === 'progress') filtered.sort((a, b) => (b.c / b.t) - (a.c / a.t));
+  if (goalSort === 'progress') filtered.sort((a, b) => ftGoalP(b) - ftGoalP(a));
   else if (goalSort === 'name') filtered.sort((a, b) => a.n.localeCompare(b.n));
   else if (goalSort === 'due') filtered.sort((a, b) => new Date(a.due) - new Date(b.due));
   else if (goalSort === 'amount') filtered.sort((a, b) => b.t - a.t);
@@ -921,7 +955,7 @@ function renderMobileGoalsTab(MD, year) {
   } else {
     html += '<div style="display:flex;flex-direction:column">';
     filtered.forEach(g => {
-      const p = Math.max(0, Math.min(g.c / g.t, 1));
+      const p = ftGoalP(g);
       const pct = (p * 100).toFixed(0);
       const remaining = g.t - g.c;
       const isCompleted = g.c >= g.t;
@@ -933,11 +967,11 @@ function renderMobileGoalsTab(MD, year) {
       const dueDate = new Date(g.due); dueDate.setHours(0,0,0,0);
       const daysLeft = Math.ceil((dueDate - today) / 86400000);
 
-      html += '<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260));cursor:pointer" onclick="expandedGoal=' + (expandedGoal === g.id ? 'null' : g.id) + ';renderGoals(document.getElementById(\'cnt\'))">';
-      html += '<div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:' + bgColor + '">' + g.e + '</div>';
+      html += '<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260));cursor:pointer" onclick="expandedGoal=' + (expandedGoal === g.id ? 'null' : ftRemArg(g.id)) + ';renderGoals(document.getElementById(\'cnt\'))">';
+      html += '<div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;background:' + bgColor + '">' + ftEsc(g.e) + '</div>';
       html += '<div style="flex:1;min-width:0">';
-      html += '<div style="font-size:13px;font-weight:600;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + g.n + '</div>';
-      html += '<div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:1px">' + fmt(g.c) + ' / ' + fmt(g.t) + ' · ' + (g.due || 'No deadline') + '</div>';
+      html += '<div style="font-size:13px;font-weight:600;letter-spacing:-0.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + ftEsc(g.n) + '</div>';
+      html += '<div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\';margin-top:1px">' + fmt(g.c) + ' / ' + fmt(g.t) + ' · ' + ftEsc(g.due || 'No deadline') + '</div>';
       // Segmented bar
       html += '<div style="display:flex;gap:2px;margin-top:6px">';
       for (let i = 0; i < 10; i++) {
@@ -949,17 +983,17 @@ function renderMobileGoalsTab(MD, year) {
 
       // Expanded detail
       if (expandedGoal === g.id) {
-        const monthsLeft = Math.max(1, Math.ceil(daysLeft / 30));
+        const monthsLeft = isFinite(daysLeft) ? Math.max(1, Math.ceil(daysLeft / 30)) : 12;
         const monthlyReq = remaining > 0 ? remaining / monthsLeft : 0;
         const isSynced = ftGoalIsSynced(g);
         html += '<div style="padding:12px 0 14px;border-bottom:1px solid var(--border-light,oklch(0.2 0.015 260))">';
         html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_remaining') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(remaining) + '</div></div>';
-        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_days_left') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\';color:' + (daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)') + '">' + (daysLeft > 0 ? daysLeft + 'd' : t('goal_overdue')) + '</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_days_left') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\';color:' + (daysLeft < 0 ? 'var(--rose)' : daysLeft <= 30 ? 'var(--amber)' : 'var(--text-primary)') + '">' + ftGoalDaysLabel(daysLeft, 'd', isCompleted) + '</div></div>';
         html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_monthly_contrib') + '</div><div style="font-size:12px;font-weight:700;font-feature-settings:\'tnum\'">' + fmt(monthlyReq) + '/mo</div></div>';
-        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? ftGoalLinkLabel(g) : t('goal_manual')) + '</div></div>';
+        html += '<div style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px"><div style="font-size:8px;font-weight:600;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">' + t('goal_sync') + '</div><div style="font-size:12px;font-weight:700">' + (isSynced ? ftEsc(ftGoalLinkLabel(g)) : t('goal_manual')) + '</div></div>';
         html += '</div>';
-        html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + g.id + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + g.id + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + g.id + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
+        html += '<div style="display:flex;gap:8px"><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();editGoal(' + ftRemArg(g.id) + ')"><i data-lucide="pencil" width="10" height="10"></i> ' + t('goal_edit') + '</button><button class="btn bs" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();addMoneyToGoal(' + ftRemArg(g.id) + ')"><i data-lucide="plus" width="10" height="10"></i> Add</button><button class="btn bd" style="font-size:10px;padding:6px 14px" onclick="event.stopPropagation();deleteGoal(' + ftRemArg(g.id) + ')"><i data-lucide="trash-2" width="10" height="10"></i></button></div>';
         html += '</div>';
       }
     });
@@ -987,7 +1021,7 @@ function renderMobileBudgetTab(MD, year) {
   // Progress bars
   // Income budget: sum of incCats from budget plan
   const mobIncBudget = (() => {
-    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var plans = ftJSON('ft_budget_plans', {});
     var yk = String(year);
     if (mf === 'total') {
       var total = 0;
@@ -1002,7 +1036,7 @@ function renderMobileBudgetTab(MD, year) {
   const expPct = monthlyBudget > 0 ? (pExp / monthlyBudget * 100).toFixed(0) : 0;
   // Savings budget progress: actual savings vs planned savings target
   const mobSavBudget = (() => {
-    var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+    var plans = ftJSON('ft_budget_plans', {});
     var yk = String(year);
     if (mf === 'total') {
       var total = 0;
@@ -1028,7 +1062,7 @@ function renderMobileBudgetTab(MD, year) {
   // Overspent categories
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const STATUS_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const STATUS_PLANS = ftJSON('ft_budget_plans', {});
   const statusYearKey = String(currentYear);
   const statusYearPlans2 = STATUS_PLANS[statusYearKey] || {};
   const statusMonthPlan2 = statusYearPlans2[String(currentMonth)] || statusYearPlans2[currentMonth] || null;
@@ -1043,9 +1077,9 @@ function renderMobileBudgetTab(MD, year) {
         const pctOver = ((item.spent / item.budget) * 100).toFixed(0);
         const catEmoji = SCHEMA.Expense && SCHEMA.Expense[item.cat] ? (SCHEMA.Expense[item.cat].emoji || '📦') : '📦';
         html += '<div style="background:var(--bg-card);border:1px solid oklch(0.3 0.05 15);border-radius:12px;padding:14px;margin-bottom:8px">';
-        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:16px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:oklch(0.22 0.04 15);border-radius:8px">' + catEmoji + '</div><div><div style="font-size:12px;font-weight:600">' + item.cat + '</div><div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\'">' + fmt(item.spent) + ' / ' + fmt(item.budget) + ' (' + pctOver + '%)</div></div></div><div style="font-size:12px;font-weight:700;color:var(--rose);font-feature-settings:\'tnum\'">-' + fmt(item.over) + '</div></div>';
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div style="font-size:16px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:oklch(0.22 0.04 15);border-radius:8px">' + catEmoji + '</div><div><div style="font-size:12px;font-weight:600">' + ftEsc(item.cat) + '</div><div style="font-size:10px;color:var(--text-tertiary);font-feature-settings:\'tnum\'">' + fmt(item.spent) + ' / ' + fmt(item.budget) + ' (' + pctOver + '%)</div></div></div><div style="font-size:12px;font-weight:700;color:var(--rose);font-feature-settings:\'tnum\'">-' + fmt(item.over) + '</div></div>';
         html += '<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:10px"><div style="height:100%;width:100%;background:var(--rose);border-radius:2px"></div></div>';
-        html += '<button class="btn bp cover-btn" data-cover-cat="' + item.cat.replace(/"/g, '"') + '" data-cover-over="' + item.over + '" data-cover-year="' + currentYear + '" data-cover-month="' + currentMonth + '" style="font-size:11px;padding:7px 14px"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover from another category</button>';
+        html += '<button class="btn bp cover-btn" data-cover-cat="' + ftEsc(item.cat) + '" data-cover-over="' + item.over + '" data-cover-year="' + currentYear + '" data-cover-month="' + currentMonth + '" style="font-size:11px;padding:7px 14px"><i data-lucide="arrow-right-left" width="11" height="11"></i> Cover from another category</button>';
         html += '</div>';
       });
       html += '</div>';
@@ -1056,7 +1090,7 @@ function renderMobileBudgetTab(MD, year) {
   html += '<div style="height:1px;background:var(--border);margin:0 0 18px"></div>';
   html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:13px;font-weight:700;letter-spacing:-0.01em">' + t('goal_budget_planner') + '</span><select class="fsel" style="font-size:10px;padding:4px 20px 4px 8px" onchange="goalBudgetYear=parseInt(this.value);renderGoals(document.getElementById(\'cnt\'))">' + YEARS.map(y => '<option value="' + y + '"' + (y === year ? ' selected' : '') + '>' + y + '</option>').join('') + '</select></div>';
 
-  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   const yearPlan = BUDGET_PLANS[yearKey] || {};
 
@@ -1093,9 +1127,9 @@ function renderMobileBudgetTab(MD, year) {
 // === BUDGET ALERTS (v15.4 — Actually functional) ===
 function checkBudgetAlerts() {
   if (safeGet('ft_budget_alerts') === 'off') return;
-  const year = getSelectedYear();
+  const year = new Date().getFullYear(); // V2.0.5: this month = this calendar year (was the year picker)
   const currentMonth = new Date().getMonth();
-  const BUDGET_PLANS = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  const BUDGET_PLANS = ftJSON('ft_budget_plans', {});
   const yearKey = String(year);
   const monthPlan = BUDGET_PLANS[yearKey] && (BUDGET_PLANS[yearKey][String(currentMonth)] || BUDGET_PLANS[yearKey][currentMonth]);
   if (!monthPlan || !monthPlan.expCats) return;
@@ -1105,7 +1139,8 @@ function checkBudgetAlerts() {
     return d.getFullYear() === year && d.getMonth() === currentMonth && tx.t === 'Expense';
   });
 
-  const dismissed = JSON.parse(safeGet('ft_budget_alerts_dismissed_' + year + '_' + currentMonth) || '[]');
+  let dismissed = ftJSON('ft_budget_alerts_dismissed_' + year + '_' + currentMonth, []);
+  if (!Array.isArray(dismissed)) dismissed = [];
 
   Object.entries(monthPlan.expCats).forEach(([cat, budget]) => {
     if (budget <= 0) return;
