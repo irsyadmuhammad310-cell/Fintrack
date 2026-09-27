@@ -834,7 +834,7 @@ function buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, per
   return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
     <div style="font-size:12px;font-weight:700;margin-bottom:10px">🤖 AI Insights</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      ${insights.slice(0, 6).map(i => `<div style="display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)"><span style="font-size:13px;flex-shrink:0">${i.icon}</span><span>${i.text}</span></div>`).join('')}
+      ${insights.slice(0, 6).map(i => `<div style="display:flex;align-items:flex-start;gap:8px;font-size:11px;line-height:1.6;color:var(--text-secondary)"><span style="font-size:13px;flex-shrink:0">${i.icon}</span><span class="ft-amt">${i.text}</span></div>`).join('')}
     </div>
   </div>`;
 }
