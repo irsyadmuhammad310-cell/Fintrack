@@ -101,6 +101,37 @@ function ftWriteLS(key, val) {
   try { localStorage.setItem(key, val); return true; } catch(e) { return false; }
 }
 
+// V2.0.5: remember keys whose NEWEST copy is only in localStorage (IndexedDB was not ready or failed).
+// On next boot these win over the older IndexedDB copy, so a save is never lost.
+var FT_LS_NEWER = 'ft_ls_newer';
+function ftGetLSNewer() {
+  try { var m = JSON.parse(localStorage.getItem(FT_LS_NEWER) || '{}'); return m && typeof m === 'object' ? m : {}; } catch(e) { return {}; }
+}
+function ftMarkLSNewer(key) {
+  if (key === FT_LS_NEWER) return true;
+  var m = ftGetLSNewer(); m[key] = 1; // tiny value so the marker still fits when storage is nearly full
+  if (ftWriteLS(FT_LS_NEWER, JSON.stringify(m))) return true;
+  // V2.0.5: marker didn't fit, so next boot can't tell this copy is newer. Tell the user to back up.
+  console.error('[FinTrack] Could not mark newer local copy:', key);
+  ftWarnFull();
+  return false;
+}
+
+// V2.0.5: safe JSON read. Corrupt or wrong-type data returns the fallback instead of crashing a page.
+function ftJSON(key, fallback) {
+  var raw = safeGet(key);
+  if (raw === null || raw === undefined || raw === '') return fallback;
+  try {
+    var v = JSON.parse(raw);
+    if (Array.isArray(fallback)) return Array.isArray(v) ? v : fallback;
+    if (fallback && typeof fallback === 'object') return (v && typeof v === 'object' && !Array.isArray(v)) ? v : fallback;
+    return v === null || v === undefined ? fallback : v;
+  } catch (e) {
+    console.warn('[FinTrack] Corrupt data in', key, '- using default');
+    return fallback;
+  }
+}
+
 function safeSave(key, value) {
   var val = typeof value === 'string' ? value : JSON.stringify(value);
   _ftStore[key] = val;
@@ -110,13 +141,14 @@ function safeSave(key, value) {
   // localStorage: small keys always (dual-write). Big keys only when IndexedDB can't be trusted yet.
   var lsOk = true;
   if (!big || !idbOk) lsOk = ftWriteLS(key, val);
+  if (!idbOk && lsOk) ftMarkLSNewer(key);
 
   if (idbOk) {
     ftDB.set(key, val).catch(function(e) {
       console.error('[FinTrack] IDB write failed:', key, e);
       _ftIDBBroken = true;
       // Last resort: try localStorage so this save is not only in memory
-      if (!ftWriteLS(key, val)) ftWarnFull();
+      if (ftWriteLS(key, val)) ftMarkLSNewer(key); else ftWarnFull();
     });
   } else if (!_ftIDBBroken) {
     // IndexedDB still loading: remember this save and flush it in ftLoadAll
@@ -138,16 +170,36 @@ async function ftLoadAll() {
     // Saves made while IndexedDB was loading are newer: keep them, don't let old IDB values overwrite
     var pendingVals = {};
     Object.keys(_ftPending).forEach(function(k) { pendingVals[k] = _ftStore[k]; });
-    entries.forEach(function(entry) {
-      if (!pendingVals.hasOwnProperty(entry.k)) _ftStore[entry.k] = entry.v;
+    // V2.0.5: keys saved to localStorage while IndexedDB was unavailable are newer than IDB: keep them
+    var lsNewer = ftGetLSNewer();
+    var lsWins = {};
+    Object.keys(lsNewer).forEach(function(k) {
+      if (k === FT_LS_NEWER || pendingVals.hasOwnProperty(k)) return;
+      var v = null; try { v = localStorage.getItem(k); } catch(e) {}
+      if (v !== null) lsWins[k] = v;
     });
+    entries.forEach(function(entry) {
+      if (entry.k === FT_LS_NEWER) return;
+      if (!pendingVals.hasOwnProperty(entry.k) && !lsWins.hasOwnProperty(entry.k)) _ftStore[entry.k] = entry.v;
+    });
+    var flushes = [];
+    Object.keys(lsWins).forEach(function(k) { _ftStore[k] = lsWins[k]; flushes.push(ftDB.set(k, lsWins[k])); });
+    if (Object.keys(lsNewer).length) {
+      // Clear the marker only after IDB has the newer copies (overwrite with {}; never removeItem)
+      Promise.all(flushes).then(function() { ftWriteLS(FT_LS_NEWER, '{}'); }).catch(function(e) { console.error('[FinTrack] IDB newer-copy flush failed:', e); });
+    }
     Object.keys(pendingVals).forEach(function(k) {
-      if (pendingVals[k] !== undefined) ftDB.set(k, pendingVals[k]).catch(function(e) { console.error('[FinTrack] IDB flush failed:', k, e); });
+      if (pendingVals[k] !== undefined) ftDB.set(k, pendingVals[k]).catch(function(e) {
+        console.error('[FinTrack] IDB flush failed:', k, e);
+        // V2.0.5: keep the newer copy in localStorage and mark it, so it survives a reload
+        if (ftWriteLS(k, pendingVals[k])) ftMarkLSNewer(k); else ftWarnFull();
+      });
     });
     _ftPending = {};
     // Backfill: if localStorage has keys that IDB doesn't, copy them in
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
+      if (k === FT_LS_NEWER) continue;
       if (!_ftStore.hasOwnProperty(k)) {
         _ftStore[k] = localStorage.getItem(k);
         ftDB.set(k, localStorage.getItem(k)).catch(function(){});
@@ -169,7 +221,11 @@ async function ftLoadAll() {
 // === GLOBAL YEAR MANAGEMENT (v11.5) ===
 const DEFAULT_YEARS = [2024, 2025, 2026, 2027, 2028];
 let YEARS = [...DEFAULT_YEARS];
-function loadYEARS() { var raw = safeGet('ft_years'); if (raw) { try { YEARS = JSON.parse(raw); } catch(e) {} } }
+function loadYEARS() {
+  var v = ftJSON('ft_years', []);
+  v = v.map(function(y) { return parseInt(y); }).filter(function(y) { return y >= 1900 && y <= 2100; });
+  YEARS = v.length ? v : [...DEFAULT_YEARS];
+}
 function saveYEARS() { safeSave('ft_years', JSON.stringify(YEARS)); }
 function addYear(year) {
   year = parseInt(year);
@@ -210,14 +266,14 @@ const CATEGORY_BUDGETS = {
 
 // === BUDGET PLANNER HELPERS (master data for all budget) ===
 function getBudgetPlan(year, monthIdx) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   if (plans[yearKey] && plans[yearKey][monthIdx]) return plans[yearKey][monthIdx];
   return null;
 }
 
 function getYearlyBudgetTotal(year) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   var total = 0;
   var hasAnyPlan = false;
@@ -244,7 +300,7 @@ function getMonthlyBudget(year, monthIdx) {
 }
 
 function getCategoryBudget(year, category) {
-  var plans = JSON.parse(safeGet('ft_budget_plans') || '{}');
+  var plans = ftJSON('ft_budget_plans', {});
   var yearKey = String(year);
   var total = 0;
   if (plans[yearKey]) {
@@ -263,7 +319,16 @@ const DEFAULT_SCHEMA = {
   Savings: {}
 };
 let SCHEMA = JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
-function loadSCHEMA() { var raw = safeGet('ft_schema'); if (raw) { try { SCHEMA = JSON.parse(raw); } catch(e) {} } }
+function loadSCHEMA() {
+  var s = ftJSON('ft_schema', null);
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = JSON.parse(JSON.stringify(DEFAULT_SCHEMA));
+  // V2.0.5: every type must be an object of arrays, or Categories/Add forms crash
+  ['Income', 'Expense', 'Savings'].forEach(function(tp) {
+    if (!s[tp] || typeof s[tp] !== 'object' || Array.isArray(s[tp])) s[tp] = {};
+    Object.keys(s[tp]).forEach(function(c) { if (!Array.isArray(s[tp][c])) s[tp][c] = []; });
+  });
+  SCHEMA = s;
+}
 function saveSCHEMA() { safeSave('ft_schema', JSON.stringify(SCHEMA)); }
 
 // === ACCOUNTS SYSTEM (v10.3) ===
@@ -277,6 +342,8 @@ let accNxId = 10;
 function loadACCOUNTS() {
   var raw = safeGet('ft_accounts');
   if (raw) { try { ACCOUNTS = JSON.parse(raw); } catch(e) {} }
+  if (!Array.isArray(ACCOUNTS)) ACCOUNTS = [];
+  ACCOUNTS = ACCOUNTS.filter(a => a && typeof a === 'object');
   var nid = safeGet('ft_accNxId');
   if (nid) accNxId = parseInt(nid);
 }
@@ -310,8 +377,12 @@ function ftSetAsideNet(tx) {
   return 0;
 }
 // Direction for category-linked goals: a withdrawal out of a savings account lowers the goal
+// V2.0.5: savings account -> savings account is just moving money (0), not new goal money
 function ftXferSign(tx) {
-  return tx.toAcc && ftIsSaveAcc(tx.acc) && !ftIsSaveAcc(tx.toAcc) ? -1 : 1;
+  if (!tx.toAcc) return 1;
+  var fromSave = ftIsSaveAcc(tx.acc), toSave = ftIsSaveAcc(tx.toAcc);
+  if (fromSave && toSave) return 0;
+  return fromSave && !toSave ? -1 : 1;
 }
 function ftTxnNet(tx) {
   if (tx.t === 'Income') return tx.a;
@@ -320,18 +391,59 @@ function ftTxnNet(tx) {
   return 0;
 }
 
+// === V2.0.5 KEY-IN RATE: foreign-currency balances never drift ===
+// tx.fx = exchange rates saved at the moment the transaction was keyed in (same format as exchangeRates).
+// Accounts and loans in another currency use THOSE rates, so today's rate never changes an old entry.
+function ftRateNow(c) {
+  var src = typeof exchangeRates !== 'undefined' ? exchangeRates : {};
+  var r = Number(src[c] || (typeof FALLBACK_RATES !== 'undefined' ? FALLBACK_RATES[c] : 0));
+  return isFinite(r) && r > 0 ? r : 0;
+}
+// Amount of a transaction in currency cur, at the key-in rate
+function ftTxAmtIn(tx, cur) {
+  var a = Number(tx.a) || 0;
+  if (!cur || cur === FT_BASE) return a;
+  var o = Number(tx.origAmt);
+  if (tx.cur === cur && isFinite(o) && o > 0) return o; // exactly what you typed
+  var fx = tx.fx, fb = fx ? Number(fx[FT_BASE]) : 0, fc = fx ? Number(fx[cur]) : 0;
+  if (isFinite(fb) && isFinite(fc) && fb > 0 && fc > 0) return a / fb * fc; // rate saved at key-in
+  return convertFromTo(a, FT_BASE, cur); // no saved rate yet (added on the next save / app start)
+}
+// Saves the missing rates on every transaction that touches another currency.
+// New entries get the rate right now (= the key-in rate). Entries from before this update get
+// today's rate ONCE and then stay frozen. Plain base-currency entries are left untouched.
+function ftStampFx() {
+  if (typeof TXN === 'undefined' || !Array.isArray(TXN)) return 0;
+  var accCur = {};
+  ACCOUNTS.forEach(function(a) { if (a && a.id !== undefined) accCur[a.id] = a.currency || FT_BASE; });
+  var changed = 0;
+  TXN.forEach(function(tx) {
+    if (!tx || typeof tx !== 'object') return;
+    var need = [FT_BASE];
+    if (tx.cur && typeof tx.cur === 'string') need.push(tx.cur);
+    [tx.acc, tx.toAcc, tx.liab].forEach(function(id) { if (id !== undefined && accCur[id]) need.push(accCur[id]); });
+    if (need.every(function(c) { return c === FT_BASE; })) return;
+    var old = (tx.fx && typeof tx.fx === 'object' && !Array.isArray(tx.fx)) ? tx.fx : null;
+    var out = {}, dirty = !old;
+    if (old) Object.keys(old).forEach(function(k) { var n = Number(old[k]); if (/^[A-Z]{3}$/.test(k) && isFinite(n) && n > 0) out[k] = n; else dirty = true; });
+    need.forEach(function(c) { if (!out[c]) { var r = ftRateNow(c); if (r) { out[c] = r; dirty = true; } } });
+    if (dirty) { tx.fx = out; changed++; }
+  });
+  return changed;
+}
+
 // Liability owed in its own currency. inRange(tx) optional: only count txns it accepts (for history charts).
 function ftLiabOwed(acc, inRange) {
   const cur = acc.currency || FT_BASE;
-  const nat = a => cur === FT_BASE ? a : convertFromTo(a, FT_BASE, cur);
+  const nat = tx => ftTxAmtIn(tx, cur); // V2.0.5: key-in rate, never today's
   let owed = acc.initialBalance || 0;
   TXN.forEach(tx => {
     if (inRange && !inRange(tx)) return;
-    if (tx.liab === acc.id && tx.t === 'Expense') owed -= nat(tx.a);
+    if (tx.liab === acc.id && tx.t === 'Expense') owed -= nat(tx);
     else if (tx.acc === acc.id) {
       // Legacy rows booked directly on a liability account (e.g. old CSV imports)
-      if (tx.t === 'Income') owed += nat(tx.a);
-      else if (tx.t === 'Expense') owed -= nat(tx.a);
+      if (tx.t === 'Income') owed += nat(tx);
+      else if (tx.t === 'Expense') owed -= nat(tx);
     }
   });
   return Math.max(0, owed);
@@ -340,7 +452,7 @@ function ftLiabOwed(acc, inRange) {
 // Total paid so far toward a liability (native currency), for display
 function ftLiabPaid(acc) {
   const cur = acc.currency || FT_BASE;
-  return TXN.reduce((s, tx) => tx.liab === acc.id && tx.t === 'Expense' ? s + (cur === FT_BASE ? tx.a : convertFromTo(tx.a, FT_BASE, cur)) : s, 0);
+  return TXN.reduce((s, tx) => tx.liab === acc.id && tx.t === 'Expense' ? s + ftTxAmtIn(tx, cur) : s, 0);
 }
 
 function getAccountBalance(accId) {
@@ -349,8 +461,9 @@ function getAccountBalance(accId) {
   if (acc.type === 'liability') return ftLiabOwed(acc);
   const cur = acc.currency || FT_BASE;
   const txnTotal = TXN.filter(tx => tx.acc === accId || tx.toAcc === accId).reduce((sum, tx) => {
-    // tx.a is stored in the base currency; convert back to native currency for correct balance
-    const nativeAmt = cur === FT_BASE ? tx.a : convertFromTo(tx.a, FT_BASE, cur);
+    // tx.a is stored in the base currency. V2.0.5: back to the account's currency at the KEY-IN rate
+    // (typed amount if same currency, else the saved rate), so the balance never moves with today's rate.
+    const nativeAmt = ftTxAmtIn(tx, cur);
     // Transfer: debit source, credit destination
     if (ftIsXfer(tx)) {
       let delta = 0;
@@ -364,7 +477,7 @@ function getAccountBalance(accId) {
     if (tx.t === 'Expense') return sum - nativeAmt;
     return sum;
   }, 0);
-  return acc.initialBalance + txnTotal;
+  return (Number(acc.initialBalance) || 0) + txnTotal; // V2.0.5: missing opening balance = 0, not NaN
 }
 
 // V2.0.4: balances in the BASE currency (FT_BASE; "MYR" in the name is historical).
@@ -453,13 +566,31 @@ function computeBalanceSeries(year) {
 function getNetWorthByPeriod(year, month) {
   // For trend/sparkline purposes: compute cumulative net flow up to the period
   // This gives a consistent time-series without double-counting
-  let nw = INITIAL_DEPOSIT;
   const inRange = tx => {
     const d = new Date(tx.d);
     if (month === 'total') return d.getFullYear() <= year;
     return d.getFullYear() < year || (d.getFullYear() === year && d.getMonth() <= +month);
   };
-  TXN.forEach(tx => { if (inRange(tx)) nw += ftTxnNet(tx); });
+  let nw;
+  const assets = ACCOUNTS.filter(a => a.type === 'asset');
+  if (assets.length) {
+    // V2.0.5: same model as getNetWorth(): account opening balances + account movements up to the period.
+    // (Old version started at the legacy Opening Balance and skipped account opening balances,
+    // so history charts disagreed with the Net Worth card.)
+    const isAsset = {}; assets.forEach(a => { isAsset[a.id] = true; });
+    nw = assets.reduce((s, a) => s + convertFromTo(Number(a.initialBalance) || 0, a.currency || FT_BASE, FT_BASE), 0);
+    TXN.forEach(tx => {
+      if (!inRange(tx)) return;
+      const amt = Number(tx.a) || 0;
+      if (ftIsXfer(tx)) { nw += (isAsset[tx.toAcc] ? amt : 0) - (isAsset[tx.acc] ? amt : 0); return; }
+      if (!isAsset[tx.acc]) return;
+      if (tx.t === 'Income') nw += amt; else if (tx.t === 'Expense') nw -= amt;
+    });
+  } else {
+    // No accounts set up: keep the simple Opening Balance + cash flow model
+    nw = INITIAL_DEPOSIT;
+    TXN.forEach(tx => { if (inRange(tx)) nw += ftTxnNet(tx); });
+  }
   // V2.0.4: subtract what was still OWED at the end of that period.
   // A loan payment lowers cash AND lowers the debt by the same amount, so net worth stays level (correct).
   ACCOUNTS.filter(a => a.type === 'liability').forEach(a => {
@@ -518,6 +649,8 @@ let reminderNxId = 1;
 function loadREMINDERS() {
   var raw = safeGet('ft_reminders');
   if (raw) { try { REMINDERS = JSON.parse(raw); } catch(e) {} }
+  if (!Array.isArray(REMINDERS)) REMINDERS = [];
+  REMINDERS = REMINDERS.filter(r => r && typeof r === 'object');
   var nid = safeGet('ft_reminderNxId');
   if (nid) reminderNxId = parseInt(nid);
 }
@@ -537,12 +670,15 @@ function getActiveReminders() {
 
 function getPendingReminderCount() { return getActiveReminders().filter(r => !r.dismissed).length; }
 
-function createBalanceAdjustment(accId, oldBal, newBal, reason) {
+// nat (optional) = { cur, amt }: the exact difference in the account's own currency.
+// V2.0.5: a foreign-currency account keeps that typed amount, so the new balance lands EXACTLY
+// on what you entered and never drifts later with exchange rates.
+function createBalanceAdjustment(accId, oldBal, newBal, reason, nat) {
   const diff = newBal - oldBal;
   if (diff === 0) return;
   const txn = {
     id: generateTxnId(),
-    d: new Date().toISOString().split('T')[0],
+    d: typeof ftLocalISO === 'function' ? ftLocalISO() : new Date().toISOString().split('T')[0], // V2.0.5: local date (SYS-25)
     t: diff > 0 ? 'Income' : 'Expense',
     c: 'Balance Adjustment',
     s: reason,
@@ -550,8 +686,10 @@ function createBalanceAdjustment(accId, oldBal, newBal, reason) {
     dt: `Adj: ${ACCOUNTS.find(a => a.id === accId)?.name || 'Account'}`,
     acc: accId
   };
+  if (nat && nat.cur && nat.cur !== FT_BASE && isFinite(nat.amt) && Math.abs(nat.amt) > 0) { txn.cur = nat.cur; txn.origAmt = Math.abs(nat.amt); }
   TXN.push(txn);
   saveTXN();
+  if (typeof ftSync !== 'undefined' && ftSync.pushTransaction) ftSync.pushTransaction(txn);
 }
 
 // Category CRUD helpers
@@ -588,9 +726,22 @@ function deleteSubcategory(type, category, subcategory) {
     INVESTMENTS.forEach(inv => { if (inv.txnLink && inv.txnLink.category === category && inv.txnLink.subcategory === subcategory) inv.txnLink = null; });
     if (typeof saveINV === 'function') saveINV();
   }
+  if (type === 'Expense') ftDropLiabLinks([subcategory]); // V2.0.5: no stale loan link left behind
   // Note: existing TXN history is preserved (tx.c and tx.s remain intact)
   saveSCHEMA();
   return true;
+}
+
+// V2.0.5: remove loan links for deleted Expense subcategories.
+// A link is kept if another Expense category still has a subcategory with the same name.
+function ftDropLiabLinks(subs) {
+  var map = getLiabMap(), changed = false;
+  (subs || []).forEach(function(sub) {
+    if (map[sub] === undefined) return;
+    var stillUsed = Object.keys(SCHEMA.Expense || {}).some(function(c) { return (SCHEMA.Expense[c] || []).indexOf(sub) !== -1; });
+    if (!stillUsed) { delete map[sub]; changed = true; }
+  });
+  if (changed) saveLiabMap(map);
 }
 
 function addCategory(type, category) {
@@ -617,7 +768,9 @@ function renameCategory(type, oldName, newName) {
 
 function deleteCategory(type, category) {
   if (!SCHEMA[type] || !SCHEMA[type][category]) return false;
+  var _goneSubs = (SCHEMA[type][category] || []).slice();
   delete SCHEMA[type][category];
+  if (type === 'Expense') ftDropLiabLinks(_goneSubs); // V2.0.5: no stale loan links left behind
   // Remove Investment txnLinks pointing to deleted Savings category
   if (type === 'Savings' && typeof INVESTMENTS !== 'undefined') {
     INVESTMENTS.forEach(inv => { if (inv.txnLink && inv.txnLink.category === category) inv.txnLink = null; });
@@ -636,7 +789,9 @@ function deleteCategory(type, category) {
 // === LIABILITY MAPPING (V2.0.3 — Smart multi-liability support) ===
 // Storage: ft_liab_map = { "Car": "acc_id" | ["acc_id1","acc_id2"], ... }
 // Supports both 1:1 (legacy) and 1:many mappings per subcategory
-function getLiabMap() { return JSON.parse(safeGet('ft_liab_map') || '{}'); }
+function getLiabMap() {
+  try { var m = JSON.parse(safeGet('ft_liab_map') || '{}'); return m && typeof m === 'object' && !Array.isArray(m) ? m : {}; } catch(e) { return {}; }
+}
 function saveLiabMap(map) { safeSave('ft_liab_map', JSON.stringify(map)); }
 
 // Returns single ID (legacy), array of IDs, or null
@@ -736,15 +891,25 @@ function generateTxnId() {
 
 const STORAGE_KEY = 'ft_txn_data';
 function saveTXN() {
+  ftStampFx(); // V2.0.5: lock in the key-in rate for any new foreign-currency entry
   safeSave(STORAGE_KEY, JSON.stringify(TXN));
   safeSave('ft_nxId', nxId);
 }
 function loadTXN() {
   const raw = safeGet(STORAGE_KEY);
   if (raw) { try { TXN = JSON.parse(raw); } catch(e) {} }
+  if (!Array.isArray(TXN)) TXN = [];
+  TXN = TXN.filter(tx => tx && typeof tx === 'object');
   // V2.0.4: one transfer type. Imported "Transfer" rows become Savings (the app's transfer type).
+  // V2.0.5: repair broken rows instead of letting NaN / odd types spread into every total
   let norm = 0;
-  TXN.forEach(tx => { if (tx && tx.t === 'Transfer') { tx.t = 'Savings'; norm++; } });
+  TXN.forEach(tx => {
+    if (tx.t === 'Transfer') { tx.t = 'Savings'; norm++; }
+    else if (tx.t !== 'Income' && tx.t !== 'Expense' && tx.t !== 'Savings') { tx.t = 'Expense'; norm++; }
+    if (typeof tx.a !== 'number' || !isFinite(tx.a)) { var n = Number(tx.a); tx.a = isFinite(n) ? Math.abs(n) : 0; norm++; }
+    if (typeof tx.d !== 'string') { tx.d = tx.d ? String(tx.d) : ''; norm++; }
+    if (tx.c !== undefined && typeof tx.c !== 'string') { tx.c = String(tx.c); norm++; }
+  });
   if (norm) safeSave(STORAGE_KEY, JSON.stringify(TXN));
   const sid = safeGet('ft_nxId');
   if (sid) nxId = parseInt(sid);
@@ -764,6 +929,8 @@ function loadAllModuleData() {
   // V2.0.4: base currency. Anyone with existing data stays MYR; a fresh install takes the region currency.
   if (typeof ftResolveBase === 'function') ftResolveBase(TXN.length > 0 || ACCOUNTS.length > 0 || !!safeGet('ft_goals') || !!safeGet('ft_investments'));
   ftMigrateLiabilities(); // V2.0.4: needs both ACCOUNTS and TXN
+  // V2.0.5: entries from before the key-in-rate update get today's rate once, then stay frozen
+  if (ftStampFx()) safeSave(STORAGE_KEY, JSON.stringify(TXN));
 }
 
 const BANKS = null; // Deprecated: use getBANKS() instead
