@@ -497,14 +497,21 @@ function renderMobileDashboard(c, year) {
   const periodBudget = mf !== 'total' ? getMonthlyBudget(year, +mf) : budgetTotal;
   const budgetUsed = periodBudget > 0 ? (te / periodBudget * 100).toFixed(0) : 0;
 
-  // Trend
-  const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
+  // V2.0.6: the line under Net Worth = how much NET WORTH changed in the picked month.
+  // (Old code showed the EXPENSE change here, so "▲ 15%" under Net Worth looked like net worth went up.)
   let trendLabel = '';
   let trendClass = 'pos';
-  if (prevMonth && prevMonth.e > 0) {
-    const pct = ((te - prevMonth.e) / prevMonth.e * 100).toFixed(0);
-    if (te > prevMonth.e) { trendLabel = `▲ ${pct}% vs last month`; trendClass = 'neg'; }
-    else { trendLabel = `▼ ${Math.abs(pct)}% vs last month`; trendClass = 'pos'; }
+  if (mf !== 'total') {
+    try {
+      const mi = +mf;
+      const nwEnd = Number(getNetWorthByPeriod(year, String(mi))) || 0;
+      const nwPrev = Number(mi > 0 ? getNetWorthByPeriod(year, String(mi - 1)) : getNetWorthByPeriod(year - 1, '11')) || 0;
+      const chg = Math.round((nwEnd - nwPrev) * 100) / 100;
+      if (chg !== 0) {
+        trendLabel = (chg > 0 ? '▲ ' : '▼ ') + '<span class="ft-amt">' + fmt(Math.abs(chg)) + '</span> in ' + MONTH_NAMES[mi];
+        trendClass = chg > 0 ? 'pos' : 'neg';
+      }
+    } catch (e) { trendLabel = ''; }
   }
 
   // Recent transactions (last 5)
@@ -526,6 +533,7 @@ function renderMobileDashboard(c, year) {
   // Budget categories progress (top 4)
   const expCats = computeExpenseCategoriesByPeriod(year, mf);
   const topCats = expCats.slice(0, 4);
+  const teCats = expCats.reduce((s, x) => s + (Number(x.a) || 0), 0);
   const PLANS_MOB = JSON.parse(safeGet('ft_budget_plans') || '{}');
   const mobYearKey = String(year);
   const mobMonthPlan = mf !== 'total' && PLANS_MOB[mobYearKey] ? PLANS_MOB[mobYearKey][+mf] : null;
@@ -544,9 +552,12 @@ function renderMobileDashboard(c, year) {
         }
       }
     }
-    const pct = catBudget > 0 ? Math.min(100, (cat.a / catBudget * 100)) : 50;
-    const fillClass = pct > 90 ? 'over' : pct > 70 ? 'warn' : 'safe';
-    return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${ftEsc(cat.n)}</span><span class="budget-prog-amt">${fmtD(cat.a)}${catBudget > 0 ? ' / ' + fmtD(catBudget) : ''}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="width:${pct}%"></div></div></div></div>`;
+    // V2.0.6: no budget for this category = bar shows its share of this period's spending (was a fake half-full bar)
+    const pct = catBudget > 0 ? Math.min(100, (cat.a / catBudget * 100)) : (teCats > 0 ? cat.a / teCats * 100 : 0);
+    const fillClass = catBudget > 0 ? (pct > 90 ? 'over' : pct > 70 ? 'warn' : 'safe') : '';
+    const fillStyle = 'width:' + pct.toFixed(0) + '%' + (catBudget > 0 ? '' : ';background:var(--accent);opacity:.55');
+    const note = catBudget > 0 ? ' / ' + fmtD(catBudget) : ' · ' + pct.toFixed(0) + '%';
+    return `<div class="budget-prog-item"><div class="budget-prog-cat">💸</div><div class="budget-prog-info"><div class="budget-prog-top"><span class="budget-prog-name">${ftEsc(cat.n)}</span><span class="budget-prog-amt">${fmtD(cat.a)}${note}</span></div><div class="budget-prog-bar"><div class="budget-prog-fill ${fillClass}" style="${fillStyle}"></div></div></div></div>`;
   }).join('');
 
   c.innerHTML = `<div class="mob-dash">
@@ -563,12 +574,13 @@ function renderMobileDashboard(c, year) {
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_expense')}</div><div class="mob-dash-stat-val" style="color:var(--rose)">${fmtD(te)}</div></div>
       <div class="mob-dash-stat"><div class="mob-dash-stat-label">${t('dash_savings')}</div><div class="mob-dash-stat-val" style="color:var(--blue)">${fmtD(ts)}</div></div>
     </div>
+    ${safeBuildForecastHtml('mobile')}
     ${getMobileOverspentHtml()}
     <div class="mob-dash-chart">
       <div class="mob-dash-chart-title">${t('dash_spending_trend')}</div>
       <div style="height:140px"><canvas id="mobDashChart"></canvas></div>
     </div>
-    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${budgetUsed}% ${t('dash_of_budget')}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
+    ${budgetBarsHtml ? `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:12px 14px"><div style="font-size:12px;font-weight:700;margin-bottom:10px;display:flex;justify-content:space-between"><span>${t('dash_top_spending')}</span><span style="font-size:10px;color:var(--text-tertiary);font-weight:500">${periodBudget > 0 ? budgetUsed + '% ' + t('dash_of_budget') : 'No budget set'}</span></div><div style="display:flex;flex-direction:column;gap:8px">${budgetBarsHtml}</div></div>` : ''}
     <div class="mob-dash-recent">
       <div class="mob-dash-recent-title"><span>${t('dash_recent')}</span><a onclick="navigate('transactions')">${t('dash_see_all')} →</a></div>
       ${recentHtml || '<div style="padding:16px;text-align:center;color:var(--text-tertiary);font-size:11px">' + t('txn_no_transactions') + '</div>'}
@@ -607,98 +619,410 @@ function renderMobileDashboard(c, year) {
   }, 50);
 }
 
-// === V1.0.0: All insight/health/AI functions moved to analytics.js ===
-// buildMobileInsightsTab, computeFinancialHealth, getHighLiquidityAssets,
-// buildDynamicAIInsights are now in analytics.js
+// === MOBILE INSIGHTS (V2.0.6 redesign): Home = right now, Insights = why ===
+// Health ring (real weights, tap for the reason), Trend, Where it went vs last month, Worth a look.
+// Wealth Summary / Cash Flow / Account Breakdown removed: Home and Accounts already show them.
+// (buildMobileInsightsTab, computeFinancialHealth, getHighLiquidityAssets, buildDynamicAIInsights all live in THIS file.)
+var FTI_M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var FTI_HUES = [275, 250, 75, 200, 162, 15, 320, 40, 130, 295, 225, 55];
+var FTI = { key: 'nw', trend: null, health: null, animKey: '', hover: null };
+
+function ftiHue(i, a) { var h = FTI_HUES[i % FTI_HUES.length]; return 'oklch(0.7 0.14 ' + h + (a ? ' / ' + a : '') + ')'; }
+function ftiPts(n) { return Number.isInteger(n) ? String(n) : n.toFixed(1); }
+function ftiSigned(n) { return (n >= 0 ? '+' : '-') + fmt(Math.abs(n)); }
+function ftiLabelOf(s) { return s >= 90 ? 'Excellent' : s >= 75 ? 'Good' : s >= 60 ? 'Fair' : s >= 40 ? 'Needs Work' : 'Critical'; }
+function ftiArc(a0, a1) {
+  var C = 118, R = 98;
+  var p = function(a) { return [C + R * Math.sin(a * Math.PI / 180), C - R * Math.cos(a * Math.PI / 180)]; };
+  var s = p(a0), e = p(a1);
+  return 'M ' + s[0].toFixed(2) + ' ' + s[1].toFixed(2) + ' A ' + R + ' ' + R + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + e[0].toFixed(2) + ' ' + e[1].toFixed(2);
+}
+
 function buildMobileInsightsTab(yearData, year, mf, ti, te, ts, nw, cf, budgetUsed, periodBudget) {
-  let html = '';
-  const banks = getBANKS();
-  const liabTotal = ftLiabilitiesMYR(); // V2.0.4: what you still owe (was the stored starting amount)
-  const totalAssets = banks.reduce((s, b) => s + b.balance, 0);
-  const netWorthLive = getNetWorth();
-
-  // 1. TOTAL ASSETS & NET WORTH
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
-    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💎 Wealth Summary</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Total Assets</div><div class="ft-amt" style="font-size:16px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalAssets)}</div></div>
-      <div style="padding:12px 10px;background:var(--bg-primary);border-radius:8px;text-align:center"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:4px">Net Worth</div><div class="ft-amt" style="font-size:16px;font-weight:800;color:${netWorthLive >= 0 ? 'var(--accent)' : 'var(--rose)'};font-feature-settings:'tnum'">${fmt(netWorthLive)}</div></div>
-    </div>
-    ${liabTotal > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--rose-light);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--rose)">Liabilities</span><span class="ft-amt" style="font-size:11px;font-weight:700;color:var(--rose);font-feature-settings:'tnum'">-${fmt(liabTotal)}</span></div>` : ''}
-  </div>`;
-
-  // 2. FINANCIAL HEALTH SCORE
-  const health = computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, mf);
-  const healthColor = health.score >= 80 ? 'var(--emerald)' : health.score >= 60 ? 'var(--amber)' : 'var(--rose)';
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center">
-    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💪 Financial Health</div>
-    <div style="font-size:42px;font-weight:900;color:${healthColor};line-height:1;margin-bottom:4px">${health.score}</div>
-    <div style="font-size:11px;font-weight:600;color:${healthColor};margin-bottom:10px">${health.label}</div>
-    <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;max-width:200px;margin:0 auto 12px"><div style="height:100%;width:${health.score}%;background:${healthColor};border-radius:3px"></div></div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center">
-      ${health.metrics.map(m => `<div style="padding:6px;background:var(--bg-primary);border-radius:6px"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">${m.label}</div><div style="font-size:11px;font-weight:700;color:${m.color}">${m.value}</div></div>`).join('')}
-    </div>
-  </div>`;
-
-  // 3. CASH FLOW SECTION
-  const prevMonth = mf === 'total' ? null : (+mf > 0 ? yearData[+mf - 1] : null);
-  const prevCf = prevMonth ? prevMonth.i - prevMonth.e : null;
-  const cfChange = prevCf !== null && prevCf !== 0 ? ((cf - prevCf) / Math.abs(prevCf) * 100).toFixed(0) : null;
-  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
-    <div style="font-size:12px;font-weight:700;margin-bottom:10px">💰 Cash Flow</div>
-    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px">
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Income</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(ti)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Expense</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:var(--rose);font-feature-settings:'tnum'">${fmt(te)}</div></div>
-      <div style="padding:10px 6px;background:var(--bg-primary);border-radius:8px;text-align:center;min-width:0;overflow:hidden"><div style="font-size:8px;color:var(--text-tertiary);text-transform:uppercase;margin-bottom:2px">Net</div><div class="ft-fit ft-amt" style="font-size:13px;font-weight:800;color:${cf >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-feature-settings:'tnum'">${cf >= 0 ? '+' : ''}${fmt(cf)}</div></div>
-    </div>
-    ${cfChange !== null ? `<div style="font-size:10px;color:${+cfChange >= 0 ? 'var(--emerald)' : 'var(--rose)'};font-weight:500;text-align:center">${+cfChange >= 0 ? '▲' : '▼'} ${Math.abs(cfChange)}% vs previous month</div>` : ''}
-    ${(() => { const sa = mf === 'total' ? yearData.reduce((s, m) => s + (m.sa || 0), 0) : (yearData[+mf].sa || 0); return sa !== 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:8px 10px;background:var(--bg-primary);border-radius:6px"><span style="font-size:10px;font-weight:600;color:var(--text-secondary)">🔒 Set aside (to Savings/Investment accounts)</span><span class="ft-amt" style="font-size:11px;font-weight:700;color:var(--blue);font-feature-settings:'tnum'">${fmt(sa)}</span></div>` : ''; })()}
-  </div>`;
-
-  // 4. CASH FLOW FORECAST
-  html += safeBuildForecastHtml('mobile');
-
-  // 5. EXPENSE BREAKDOWN
-  const expCats = computeExpenseCategoriesByPeriod(year, mf);
-  const totalExp = expCats.reduce((s, c) => s + c.a, 0);
-  const colors = ['#ef4444','#8b5cf6','#ec4899','#10b981','#f59e0b','#6366f1','#06b6d4','#f97316','#14b8a6','#a855f7'];
-  if (expCats.length) {
-    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:12px">📊 Expense Breakdown</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        ${expCats.slice(0, 8).map((cat, i) => {
-          const pct = totalExp > 0 ? (cat.a / totalExp * 100).toFixed(0) : 0;
-          return `<div style="display:flex;align-items:center;gap:10px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]};flex-shrink:0"></div><div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${ftEsc(cat.n)}</span><span class="ft-amt" style="font-size:11px;font-weight:700;font-feature-settings:'tnum';flex-shrink:0">${fmtD(cat.a)} (${pct}%)</span></div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${colors[i % colors.length]};border-radius:2px"></div></div></div></div>`;
-        }).join('')}
-      </div>
-      ${expCats.length > 8 ? `<div style="font-size:10px;color:var(--text-tertiary);text-align:center;margin-top:8px">+ ${expCats.length - 8} more categories</div>` : ''}
-    </div>`;
+  ftiEnsureCss();
+  var isMonth = mf !== 'total';
+  var ctx = { year: year, mf: mf, isMonth: isMonth, yd: yearData };
+  if (isMonth) {
+    var m = +mf;
+    ctx.py = m > 0 ? year : year - 1; ctx.pm = m > 0 ? m - 1 : 11; ctx.prevName = FTI_M[ctx.pm];
+    ctx.prevMD = m > 0 ? yearData[ctx.pm] : (computeMonthlyData(ctx.py) || [])[11];
+    ctx.prevCats = {};
+    (computeExpenseCategoriesByPeriod(ctx.py, String(ctx.pm)) || []).forEach(function(c) { ctx.prevCats[c.n] = (ctx.prevCats[c.n] || 0) + (Number(c.a) || 0); });
   }
+  ctx.cats = (computeExpenseCategoriesByPeriod(year, mf) || []).filter(function(c) { return c && c.a > 0; }).sort(function(a, b) { return b.a - a.a; });
 
-  // 6. ACCOUNT BREAKDOWN
-  const totalBal = banks.reduce((s, b) => s + b.balance, 0);
-  if (banks.length) {
-    const sorted = [...banks].sort((a, b) => b.balance - a.balance);
-    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div style="font-size:12px;font-weight:700">🏦 Account Breakdown</div><div class="ft-amt" style="font-size:12px;font-weight:800;color:var(--emerald);font-feature-settings:'tnum'">${fmt(totalBal)}</div></div>
-      <div style="height:10px;border-radius:5px;overflow:hidden;display:flex;margin-bottom:12px">
-        ${sorted.map((b, i) => { const w = totalBal > 0 ? (b.balance / totalBal * 100) : 0; return `<div style="height:100%;width:${w}%;background:${colors[i % colors.length]}"></div>`; }).join('')}
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px">
-        ${sorted.map((b, i) => {
-          const pct = totalBal > 0 ? (b.balance / totalBal * 100).toFixed(0) : 0;
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg-primary);border-radius:8px"><div style="display:flex;align-items:center;gap:8px"><div style="width:8px;height:8px;border-radius:50%;background:${colors[i % colors.length]}"></div><span style="font-size:11px;font-weight:600">${ftEsc(b.name)}</span></div><div style="display:flex;align-items:center;gap:8px"><span class="ft-amt" style="font-size:11px;font-weight:700;font-feature-settings:'tnum'">${fmt(b.balance)}</span><span style="font-size:9px;color:var(--text-tertiary);font-weight:600">${pct}%</span></div></div>`;
-        }).join('')}
-      </div>
-    </div>`;
-  }
+  var animKey = year + '|' + mf;
+  var animate = FTI.animKey !== animKey;
+  FTI.animKey = animKey;
 
-  // 7. DYNAMIC AI INSIGHTS
-  if (typeof buildDynamicAIInsights === 'function') {
-    html += buildDynamicAIInsights(yearData, year, mf, ti, te, ts, cf, expCats, periodBudget);
-  }
-
+  var html = '<div class="fti' + (animate ? '' : ' fti-still') + '">';
+  html += ftiHealthHtml(ctx, ti, te, ts, cf, budgetUsed, periodBudget, animate);
+  html += ftiTrendHtml(ctx);
+  html += ftiCatsHtml(ctx);
+  html += ftiTipsHtml(ctx, ti, te, cf);
+  html += '</div>';
+  setTimeout(function() { ftiMount(animate); }, 30);
   return html;
+}
+
+// --- 1. Financial health: ring cut into the real weights, fill = that part's score ---
+function ftiHealthHtml(ctx, ti, te, ts, cf, budgetUsed, periodBudget, animate) {
+  var h = computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, ctx.year, ctx.mf);
+  FTI.health = h;
+  var F = h.factors || [];
+  var col = h.score >= 80 ? 'var(--emerald)' : h.score >= 60 ? 'var(--amber)' : 'var(--rose)';
+
+  var delta = 'Whole year ' + ctx.year;
+  if (ctx.isMonth) {
+    var p = ctx.prevMD;
+    if (p && (p.i > 0 || p.e > 0)) {
+      var ph = computeFinancialHealth(p.i, p.e, p.s, p.i - p.e, 0, 0, ctx.py, String(ctx.pm));
+      var d = h.score - ph.score;
+      delta = d === 0 ? 'Same as ' + ctx.prevName : (d > 0 ? '+' : '') + d + ' vs ' + ctx.prevName;
+    } else delta = FTI_M[+ctx.mf] + ' ' + ctx.year;
+  }
+
+  var weakest = null, lost = 0.5;
+  F.forEach(function(f) { if (f.weight - f.pts > lost) { lost = f.weight - f.pts; weakest = f; } });
+
+  var GAP = 2.6, cum = 0, segs = '';
+  F.forEach(function(f, i) {
+    var a0 = cum / 100 * 360 + GAP / 2; cum += f.weight; var a1 = cum / 100 * 360 - GAP / 2;
+    var cut = a0 + (a1 - a0) * Math.max(0, Math.min(100, f.score)) / 100;
+    var fc = f.score >= 100 ? 'var(--emerald)' : 'var(--amber)';
+    segs += '<g class="fti-seg" data-f="' + f.id + '" onclick="ftiOpen(\'' + f.id + '\',1)">' +
+      '<path class="fti-track" d="' + ftiArc(a0, a1) + '"/>' +
+      (weakest && weakest.id === f.id && f.score < 100 ? '<path class="fti-glow" d="' + ftiArc(cut, a1) + '"/>' : '') +
+      (f.score >= 1 ? '<path class="fti-fill" pathLength="1" d="' + ftiArc(a0, cut) + '" style="stroke:' + fc + ';animation-delay:' + (0.2 + i * 0.13).toFixed(2) + 's"/>' : '') +
+      '<path class="fti-hit" d="' + ftiArc(a0, a1) + '"/></g>';
+  });
+
+  var lever;
+  if (weakest) {
+    var ns = Math.min(100, Math.round(h.raw - weakest.pts + weakest.weight));
+    lever = '<button class="fti-lever" onclick="ftiOpen(\'' + weakest.id + '\',1)"><i data-lucide="trending-up" width="18" height="18"></i><span>Fix <b>' + weakest.name.toLowerCase() + '</b> to reach <b>' + ns + ' · ' + ftiLabelOf(ns) + '</b></span></button>';
+  } else {
+    lever = '<div class="fti-lever fti-lever-ok"><i data-lucide="check-circle-2" width="18" height="18"></i><span>Every part is at full marks.</span></div>';
+  }
+
+  var openId = weakest ? weakest.id : null;
+  var rows = F.map(function(f) {
+    var isOpen = f.id === openId;
+    return '<button class="fti-row" id="ftiRow-' + f.id + '" aria-expanded="' + isOpen + '" onclick="ftiOpen(\'' + f.id + '\')">' +
+      '<span class="fti-dot" style="background:' + (f.score >= 100 ? 'var(--emerald)' : 'var(--amber)') + '"></span>' +
+      '<span class="fti-name">' + f.name + '<span class="fti-meta"><em>' + f.value + '</em> · aim ' + f.aim + '</span></span>' +
+      '<span class="fti-pts">' + ftiPts(f.pts) + '<span>/' + f.weight + '</span></span>' +
+      '<span class="fti-chev"><i data-lucide="chevron-right" width="16" height="16"></i></span></button>' +
+      '<div class="fti-why' + (isOpen ? ' open' : '') + '" id="ftiWhy-' + f.id + '"><div><p class="ft-amt">' + f.why + '</p></div></div>';
+  }).join('');
+
+  var countUp = animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  return '<section class="fti-card"><div class="fti-h"><h3>Financial health</h3><span>out of 100</span></div>' +
+    '<div class="fti-ring"><svg id="ftiRingSvg" viewBox="0 0 236 236" role="img" aria-label="Health score ' + h.score + ' out of 100, ' + h.label + '">' + segs + '</svg>' +
+    '<div class="fti-ring-c"><div class="fti-num" id="ftiNum" data-to="' + h.score + '"' + (countUp ? ' data-count="1">0' : '>' + h.score) + '</div><div class="fti-lbl" style="color:' + col + '">' + h.label + '</div><div class="fti-delta">' + delta + '</div></div></div>' +
+    lever + '<div class="fti-factors">' + rows + '</div></section>';
+}
+
+function ftiOpen(id, fromRing) {
+  var row = document.getElementById('ftiRow-' + id);
+  if (!row) return;
+  var wasOpen = row.getAttribute('aria-expanded') === 'true';
+  document.querySelectorAll('.fti-row').forEach(function(r) { r.setAttribute('aria-expanded', 'false'); });
+  document.querySelectorAll('.fti-why').forEach(function(w) { w.classList.remove('open'); });
+  var svg = document.getElementById('ftiRingSvg');
+  if (wasOpen && !fromRing) { if (svg) svg.classList.remove('has-sel'); return; }
+  row.setAttribute('aria-expanded', 'true');
+  var why = document.getElementById('ftiWhy-' + id);
+  if (why) why.classList.add('open');
+  if (svg) {
+    svg.classList.add('has-sel');
+    svg.querySelectorAll('.fti-seg').forEach(function(g) { g.classList.toggle('sel', g.getAttribute('data-f') === id); });
+  }
+}
+
+// --- 2. Trend: net worth / savings rate / spending, month by month ---
+var FTI_TM = {
+  nw: { tab: 'Net worth', label: 'Net worth', col: 'var(--emerald)', val: function(v) { return fmt(v); },
+    side: function(T) { return 'Since ' + T.months[0] + ' ' + ftiSigned(T.nw[T.nw.length - 1] - T.nw[0]); },
+    chg: function(v, p) { return { t: ftiSigned(v - p), good: v >= p }; } },
+  sav: { tab: 'Savings', label: 'Savings rate', col: 'var(--blue)', val: function(v) { return v + '%'; },
+    side: function(T) { return 'Avg ' + Math.round(T.sav.reduce(function(s, v) { return s + v; }, 0) / T.sav.length) + '%'; },
+    chg: function(v, p) { return { t: (v >= p ? '+' : '-') + Math.abs(v - p) + ' pts', good: v >= p }; } },
+  exp: { tab: 'Spending', label: 'Spending', col: 'var(--rose)', val: function(v) { return fmt(v); },
+    side: function(T) { return 'Avg ' + fmt(T.exp.reduce(function(s, v) { return s + v; }, 0) / T.exp.length); },
+    chg: function(v, p) { return p > 0 ? { t: (v >= p ? '+' : '-') + Math.abs(Math.round((v - p) / p * 100)) + '%', good: v <= p } : { t: ftiSigned(v - p), good: v <= p }; } }
+};
+var FTI_W = 322, FTI_H = 170, FTI_PX = 12, FTI_PT = 14, FTI_PB = 30;
+
+function ftiPoints(data) {
+  var mn = Math.min.apply(null, data), mx = Math.max.apply(null, data);
+  var pad = (mx - mn) * 0.16 || Math.abs(mx) * 0.1 || 1, lo = mn - pad, hi = mx + pad;
+  var step = (FTI_W - FTI_PX * 2) / Math.max(1, data.length - 1);
+  return data.map(function(v, i) { return [FTI_PX + i * step, FTI_PT + (1 - (v - lo) / (hi - lo)) * (FTI_H - FTI_PT - FTI_PB)]; });
+}
+// Monotone curve: the line never dips below or above a real month
+function ftiPath(p) {
+  var f = function(n) { return n.toFixed(2); }, n = p.length, dx = [], m = [], t = [], i;
+  for (i = 0; i < n - 1; i++) { dx[i] = p[i + 1][0] - p[i][0]; m[i] = (p[i + 1][1] - p[i][1]) / dx[i]; }
+  t[0] = m[0];
+  for (i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : 3 * (dx[i - 1] + dx[i]) / ((2 * dx[i] + dx[i - 1]) / m[i - 1] + (dx[i] + 2 * dx[i - 1]) / m[i]);
+  t[n - 1] = m[n - 2];
+  var d = 'M ' + f(p[0][0]) + ' ' + f(p[0][1]);
+  for (i = 0; i < n - 1; i++) { var hh = dx[i] / 3; d += ' C ' + f(p[i][0] + hh) + ' ' + f(p[i][1] + t[i] * hh) + ' ' + f(p[i + 1][0] - hh) + ' ' + f(p[i + 1][1] - t[i + 1] * hh) + ' ' + f(p[i + 1][0]) + ' ' + f(p[i + 1][1]); }
+  return d;
+}
+
+function ftiTrendHtml(ctx) {
+  var now = new Date(), yd = ctx.yd;
+  var last = ctx.isMonth ? +ctx.mf : (ctx.year === now.getFullYear() ? now.getMonth() : ctx.year < now.getFullYear() ? 11 : -1);
+  var first = -1, i;
+  for (i = 0; i <= last; i++) { if (yd[i] && (yd[i].i > 0 || yd[i].e > 0)) { first = i; break; } }
+  var head = '<section class="fti-card"><div class="fti-h"><h3>Trend</h3><span>' + (first >= 0 && last > first ? FTI_M[first] + ' to ' + FTI_M[last] : ctx.year) + '</span></div>';
+  FTI.trend = null; FTI.hover = null;
+  if (first < 0 || last - first < 1) return head + '<div class="fti-empty">Trend shows up once you have 2 months of data.</div></section>';
+  var idx = []; for (i = first; i <= last; i++) idx.push(i);
+  FTI.trend = {
+    months: idx.map(function(k) { return FTI_M[k]; }),
+    nw: idx.map(function(k) { return Number(getNetWorthByPeriod(ctx.year, String(k))) || 0; }),
+    sav: idx.map(function(k) { var m = yd[k]; return m.i > 0 ? Math.max(-100, Math.round(m.s / m.i * 100)) : 0; }),
+    exp: idx.map(function(k) { return Number(yd[k].e) || 0; })
+  };
+  if (!FTI_TM[FTI.key]) FTI.key = 'nw';
+  var tabs = Object.keys(FTI_TM).map(function(k) { return '<button class="' + (k === FTI.key ? 'on' : '') + '" data-k="' + k + '" onclick="ftiTrend(\'' + k + '\')">' + FTI_TM[k].tab + '</button>'; }).join('');
+  var ro = ftiReadout(null);
+  return head + '<div class="fti-seg3" id="ftiTabs">' + tabs + '</div>' +
+    '<div class="fti-ro-top"><span id="ftiRoLbl">' + ro.lbl + '</span><span id="ftiRoSide" class="ft-amt">' + ro.side + '</span></div>' +
+    '<div class="fti-ro-val ft-amt" id="ftiRoVal">' + ro.val + '</div><div class="fti-ro-chg ft-amt" id="ftiRoChg" style="color:' + ro.col + '">' + ro.chg + '</div>' +
+    '<svg id="ftiTrendSvg" class="fti-chart" viewBox="0 0 ' + FTI_W + ' ' + FTI_H + '">' + ftiTrendInner(false) + '</svg></section>';
+}
+
+function ftiTrendInner(anim) {
+  var T = FTI.trend, M = FTI_TM[FTI.key], data = T[FTI.key], pts = ftiPoints(data);
+  var line = ftiPath(pts), base = FTI_H - FTI_PB;
+  var area = line + ' L ' + pts[pts.length - 1][0].toFixed(2) + ' ' + base + ' L ' + pts[0][0].toFixed(2) + ' ' + base + ' Z';
+  var last = pts[pts.length - 1];
+  return '<g style="color:' + M.col + '"><defs><linearGradient id="ftiGrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="currentColor" stop-opacity="0.28"/><stop offset="1" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>' +
+    '<line class="fti-base" x1="0" x2="' + FTI_W + '" y1="' + base + '" y2="' + base + '"/>' +
+    '<path class="fti-area" d="' + area + '" fill="url(#ftiGrad)"/>' +
+    '<path class="fti-line' + (anim ? ' fti-anim' : '') + '" pathLength="1" d="' + line + '"/>' +
+    '<line id="ftiGuide" class="fti-guide" x1="0" x2="0" y1="' + (FTI_PT - 6) + '" y2="' + base + '" style="display:none"/>' +
+    '<circle id="ftiDot" class="fti-pt" r="5.5" cx="' + last[0].toFixed(2) + '" cy="' + last[1].toFixed(2) + '"/>' +
+    T.months.map(function(mo, j) { return '<text class="fti-tick" data-i="' + j + '" x="' + pts[j][0].toFixed(2) + '" y="' + (FTI_H - 8) + '" text-anchor="middle">' + mo + '</text>'; }).join('') + '</g>';
+}
+
+function ftiTrend(k) {
+  if (!FTI.trend || !FTI_TM[k]) return;
+  FTI.key = k; FTI.hover = null;
+  document.querySelectorAll('#ftiTabs button').forEach(function(b) { b.classList.toggle('on', b.getAttribute('data-k') === k); });
+  var svg = document.getElementById('ftiTrendSvg');
+  if (svg) svg.innerHTML = ftiTrendInner(true);
+  ftiTrendAt(null);
+}
+
+function ftiReadout(i) {
+  var T = FTI.trend, M = FTI_TM[FTI.key], data = T[FTI.key], k = i == null ? data.length - 1 : i;
+  var c = k > 0 ? M.chg(data[k], data[k - 1]) : null;
+  return { k: k, lbl: M.label + ' · ' + T.months[k], side: M.side(T), val: M.val(data[k]),
+    chg: c ? c.t + ' vs ' + T.months[k - 1] : 'First month shown',
+    col: c ? (c.good ? 'var(--emerald)' : 'var(--rose)') : 'var(--text-tertiary)' };
+}
+
+function ftiTrendAt(i) {
+  if (!FTI.trend) return;
+  FTI.hover = i;
+  var ro = ftiReadout(i), k = ro.k, pts = ftiPoints(FTI.trend[FTI.key]);
+  var set = function(id, txt) { var el = document.getElementById(id); if (el && el.textContent !== txt) el.textContent = txt; return el; };
+  set('ftiRoLbl', ro.lbl);
+  set('ftiRoSide', ro.side);
+  set('ftiRoVal', ro.val);
+  var chgEl = set('ftiRoChg', ro.chg);
+  if (chgEl) chgEl.style.color = ro.col;
+  var dot = document.getElementById('ftiDot'), guide = document.getElementById('ftiGuide');
+  if (dot) { dot.setAttribute('cx', pts[k][0].toFixed(2)); dot.setAttribute('cy', pts[k][1].toFixed(2)); }
+  if (guide) { guide.style.display = i == null ? 'none' : ''; guide.setAttribute('x1', pts[k][0].toFixed(2)); guide.setAttribute('x2', pts[k][0].toFixed(2)); }
+  document.querySelectorAll('#ftiTrendSvg .fti-tick').forEach(function(t) { t.classList.toggle('on', +t.getAttribute('data-i') === k); });
+}
+
+// --- 3. Where it went: every category, share, change vs last month ---
+function ftiCatsHtml(ctx) {
+  var list = ctx.cats, total = list.reduce(function(s, c) { return s + c.a; }, 0);
+  var sub = ctx.isMonth ? FTI_M[+ctx.mf] + ', compared with ' + ctx.prevName : 'Whole year ' + ctx.year;
+  var html = '<section class="fti-card"><div class="fti-h"><h3>Where it went</h3><span class="ft-amt">' + fmt(total) + '</span></div><div class="fti-sub">' + sub + '</div>';
+  if (!list.length) return html + '<div class="fti-empty">No spending recorded for this period.</div></section>';
+  var top = list.slice(0, 8), rest = list.slice(8).reduce(function(s, c) { return s + c.a; }, 0);
+  html += '<div class="fti-bar">' + top.map(function(c, i) { return '<div style="flex-grow:' + c.a + ';background:' + ftiHue(i) + '"></div>'; }).join('') +
+    (rest > 0 ? '<div style="flex-grow:' + rest + ';background:var(--border)"></div>' : '') + '</div>';
+  list.forEach(function(c, i) {
+    var em = (typeof SCHEMA !== 'undefined' && SCHEMA.Expense && SCHEMA.Expense[c.n] && SCHEMA.Expense[c.n].emoji) || '💸';
+    var chg = '';
+    if (ctx.isMonth) {
+      var p = ctx.prevCats[c.n] || 0;
+      if (p <= 0) chg = '<span class="fti-chg fti-same">New</span>';
+      else { var pct = Math.round((c.a - p) / p * 100); chg = pct === 0 ? '<span class="fti-chg fti-same">Same</span>' : '<span class="fti-chg ' + (pct > 0 ? 'fti-up' : 'fti-down') + '">' + (pct > 0 ? '+' : '') + pct + '%</span>'; }
+    }
+    html += '<div class="fti-cat' + (i >= 8 ? ' fti-hide' : '') + '"><span class="fti-ico" style="background:' + ftiHue(i, 0.16) + '">' + em + '</span>' +
+      '<span class="fti-name">' + ftEsc(c.n) + '<span class="fti-meta">' + Math.round(c.a / total * 100) + '% of spending</span></span>' +
+      '<span class="fti-amt"><span class="ft-amt">' + fmtD(c.a) + '</span>' + chg + '</span></div>';
+  });
+  if (list.length > 8) html += '<button class="fti-more" onclick="ftiMoreCats(this)">Show all ' + list.length + '</button>';
+  var sa = ctx.isMonth ? (Number(ctx.yd[+ctx.mf].sa) || 0) : ctx.yd.reduce(function(s, m) { return s + (Number(m.sa) || 0); }, 0);
+  if (sa > 0) html += '<div class="fti-note"><i data-lucide="lock" width="14" height="14"></i><span>Also moved <b class="ft-amt">' + fmt(sa) + '</b> into savings or investment accounts. Not spending.</span></div>';
+  return html + '</section>';
+}
+function ftiMoreCats(btn) {
+  var card = btn && btn.closest('.fti-card'); if (!card) return;
+  card.querySelectorAll('.fti-cat.fti-hide').forEach(function(el) { el.classList.remove('fti-hide'); });
+  btn.remove();
+}
+
+// --- 4. Worth a look: plain rules on your numbers (no AI) ---
+function ftiTipsHtml(ctx, ti, te, cf) {
+  var notes = [];
+  try {
+    var os = getDashboardOverspentCats();
+    if (os.length) notes.push({ ic: 'alert-triangle', h: 15, t: os.length + (os.length > 1 ? ' categories are' : ' category is') + ' over budget.', s: 'Over by ' + fmt(os.reduce(function(a, o) { return a + o.over; }, 0)) + ' in total.' });
+  } catch (e) {}
+  if (ti > 0 && cf < 0) notes.push({ ic: 'trending-down', h: 15, t: 'You spent more than you earned.', s: 'Short by ' + fmt(-cf) + '.' });
+  else if (ti <= 0 && te > 0) notes.push({ ic: 'info', h: 250, t: 'No income recorded for this period.', s: 'Add it for a fair health score.' });
+  if (ctx.isMonth) {
+    var best = null;
+    ctx.cats.forEach(function(c) {
+      var p = ctx.prevCats[c.n] || 0, up = c.a - p;
+      if (p > 0 && up / p >= 0.1 && up >= Math.max(1, te * 0.02) && (!best || up > best.up)) best = { n: c.n, a: c.a, p: p, up: up };
+    });
+    if (best) notes.push({ ic: 'trending-up', h: 75, t: ftEsc(best.n) + ' is up ' + Math.round(best.up / best.p * 100) + '% on ' + ctx.prevName + '.', s: fmtD(best.a) + ' against ' + fmtD(best.p) + '.' });
+  }
+  var r = FTI.health && FTI.health.reserve;
+  if (r && r.months < 6) notes.push({ ic: 'shield', h: 162, t: 'Your reserve lasts ' + r.months.toFixed(1) + ' months.', s: 'Six is the target. About ' + fmtD(Math.max(0, r.avgExp * 6 - r.liquid)) + ' to go.' });
+  var px = TXN.filter(function(tx) { if (tx.t !== 'Expense') return false; var d = new Date(tx.d); return d.getFullYear() === ctx.year && (!ctx.isMonth || d.getMonth() === +ctx.mf); });
+  if (px.length) {
+    var b = px.reduce(function(m, tx) { return tx.a > m.a ? tx : m; }, px[0]), bd = new Date(b.d);
+    notes.push({ ic: 'receipt', h: 275, t: 'Biggest single spend: ' + ftEsc(b.dt || b.c) + '.', s: fmt(b.a) + ' on ' + bd.getDate() + ' ' + FTI_M[bd.getMonth()] + '.' });
+  }
+  var html = '<section class="fti-card"><div class="fti-h"><h3>Worth a look</h3></div><div class="fti-sub">Rules run on your numbers. No AI.</div>';
+  if (!notes.length) return html + '<div class="fti-empty">Nothing stands out this period.</div></section>';
+  return html + notes.slice(0, 3).map(function(n) {
+    return '<div class="fti-tip"><span class="fti-ico" style="background:oklch(0.7 0.14 ' + n.h + ' / 0.16);color:oklch(0.72 0.14 ' + n.h + ')"><i data-lucide="' + n.ic + '" width="18" height="18"></i></span><p>' + n.t + '<span class="ft-amt">' + n.s + '</span></p></div>';
+  }).join('') + '</section>';
+}
+
+// --- after render: score count-up + chart scrubbing ---
+function ftiMount(animate) {
+  if (!document.querySelector('.fti')) return;
+  if (FTI.trend) {
+    ftiTrendAt(null);
+    var svg = document.getElementById('ftiTrendSvg');
+    if (svg && !svg._ftiBound) {
+      svg._ftiBound = true;
+      var at = function(e) {
+        var T = FTI.trend; if (!T) return;
+        var r = svg.getBoundingClientRect(), n = T.months.length;
+        var x = (e.clientX - r.left) / r.width * FTI_W;
+        var k = Math.round((x - FTI_PX) / ((FTI_W - FTI_PX * 2) / Math.max(1, n - 1)));
+        ftiTrendAt(Math.max(0, Math.min(n - 1, k)));
+      };
+      svg.addEventListener('pointerdown', at);
+      svg.addEventListener('pointermove', function(e) { if (e.pointerType === 'mouse' || e.buttons) at(e); });
+      svg.addEventListener('pointerleave', function(e) { if (e.pointerType === 'mouse') ftiTrendAt(null); });
+    }
+  }
+  var num = document.getElementById('ftiNum');
+  if (num && num.getAttribute('data-count')) {
+    var to = +num.getAttribute('data-to'), t0 = null;
+    num.removeAttribute('data-count');
+    var step = function(t) {
+      if (!num.isConnected) return;
+      if (t0 === null) t0 = t;
+      var p = Math.min(1, (t - t0) / 1200);
+      num.textContent = String(Math.round(to * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    setTimeout(function() { if (num.isConnected) num.textContent = String(to); }, 1600);
+  }
+}
+
+function ftiEnsureCss() {
+  if (document.getElementById('fti-css')) return;
+  var st = document.createElement('style');
+  st.id = 'fti-css';
+  st.textContent = [
+    '.fti{display:flex;flex-direction:column;gap:12px}',
+    '.fti-card{background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:16px}',
+    '.fti-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
+    '.fti-h h3{margin:0;font-size:16px;font-weight:700;letter-spacing:-.01em;color:var(--text-primary)}',
+    '.fti-h>span{font-size:13px;font-weight:500;color:var(--text-tertiary)}',
+    '.fti-sub{margin-top:2px;font-size:13px;color:var(--text-secondary)}',
+    '.fti-empty{padding:18px 0 4px;font-size:13px;text-align:center;color:var(--text-tertiary)}',
+    '.fti-ring{position:relative;width:220px;height:220px;margin:10px auto 4px}',
+    '.fti-ring svg{display:block;width:100%;height:100%;overflow:visible}',
+    '.fti-seg{cursor:pointer;transition:opacity .25s}',
+    '.fti-ring svg.has-sel .fti-seg:not(.sel){opacity:.3}',
+    '.fti-track,.fti-fill,.fti-glow,.fti-hit{fill:none;stroke-width:17}',
+    '.fti-track{stroke:var(--border)}',
+    '.fti-fill{stroke-dasharray:1;stroke-dashoffset:0;animation:ftiDraw .75s cubic-bezier(.22,1,.36,1) backwards}',
+    '.fti-glow{stroke:var(--amber);opacity:.14;animation:ftiBreathe 2.8s ease-in-out infinite}',
+    '.fti-hit{stroke:transparent;stroke-width:34}',
+    '@keyframes ftiDraw{from{stroke-dashoffset:1}}',
+    '@keyframes ftiBreathe{0%,100%{opacity:.06}50%{opacity:.26}}',
+    '@keyframes ftiFade{from{opacity:0}}',
+    '.fti-ring-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}',
+    '.fti-num{font-size:56px;font-weight:800;line-height:1;letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--text-primary)}',
+    '.fti-lbl{margin-top:6px;font-size:15px;font-weight:700}',
+    '.fti-delta{margin-top:2px;font-size:13px;color:var(--text-secondary)}',
+    '.fti-lever{display:flex;align-items:center;gap:10px;width:100%;margin:8px 0 4px;padding:11px 13px;border:0;border-radius:12px;font:inherit;font-size:14px;line-height:1.35;text-align:left;color:var(--text-primary);cursor:pointer;background:rgba(245,158,11,.1);background:color-mix(in srgb,var(--amber) 11%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--amber) 26%,transparent)}',
+    '.fti-lever b{font-weight:700;color:var(--text-primary)}',
+    '.fti-lever svg{flex-shrink:0;color:var(--amber)}',
+    '.fti-lever-ok{cursor:default;background:rgba(16,185,129,.1);background:color-mix(in srgb,var(--emerald) 11%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--emerald) 26%,transparent)}',
+    '.fti-lever-ok svg{color:var(--emerald)}',
+    '.fti-row{display:grid;grid-template-columns:10px 1fr auto 16px;align-items:center;gap:12px;width:100%;padding:11px 2px;border:0;border-top:1px solid var(--border);background:none;font:inherit;text-align:left;color:var(--text-primary);cursor:pointer}',
+    '.fti-factors>.fti-row:first-child{border-top:0}',
+    '.fti-dot{width:10px;height:10px;border-radius:3px}',
+    '.fti-name{min-width:0;font-size:15px;font-weight:600;color:var(--text-primary)}',
+    '.fti-meta{display:block;margin-top:1px;font-size:13px;font-weight:400;color:var(--text-secondary)}',
+    '.fti-meta em{font-style:normal;font-weight:600;color:var(--text-primary)}',
+    '.fti-pts{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}',
+    '.fti-pts span{font-weight:500;color:var(--text-tertiary)}',
+    '.fti-chev{display:flex;color:var(--text-tertiary);transition:transform .25s}',
+    '.fti-row[aria-expanded="true"] .fti-chev{transform:rotate(90deg)}',
+    '.fti-why{display:grid;grid-template-rows:0fr;transition:grid-template-rows .25s ease}',
+    '.fti-why.open{grid-template-rows:1fr}',
+    '.fti-why>div{overflow:hidden}',
+    '.fti-why p{margin:0 0 10px 22px;padding:9px 11px;border-radius:10px;background:var(--bg-primary);font-size:14px;line-height:1.45;color:var(--text-secondary)}',
+    '.fti-seg3{display:grid;grid-template-columns:repeat(3,1fr);padding:3px;margin:12px 0 14px;border-radius:11px;background:var(--bg-primary)}',
+    '.fti-seg3 button{height:34px;border:0;border-radius:9px;background:none;font:inherit;font-size:13px;font-weight:600;color:var(--text-tertiary);cursor:pointer;transition:background .2s,color .2s}',
+    '.fti-seg3 button.on{background:var(--bg-card);color:var(--text-primary);box-shadow:0 1px 3px rgba(0,0,0,.18)}',
+    '.fti-ro-top{display:flex;justify-content:space-between;gap:10px;font-size:13px;color:var(--text-secondary)}',
+    '.fti-ro-val{margin-top:3px;font-size:28px;font-weight:800;line-height:1.1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--text-primary)}',
+    '.fti-ro-chg{margin-top:2px;font-size:13px;font-weight:600}',
+    '.fti-chart{display:block;width:100%;height:auto;margin-top:8px;touch-action:pan-y;cursor:crosshair;-webkit-user-select:none;user-select:none}',
+    '.fti-base{stroke:var(--border)}',
+    '.fti-area{animation:ftiFade .6s ease .5s backwards}',
+    '.fti-line{fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:0;animation:ftiDraw 1s ease-in-out .15s backwards}',
+    '.fti-still .fti-line:not(.fti-anim),.fti-still .fti-area,.fti-still .fti-fill{animation:none}',
+    '.fti-guide{stroke:var(--text-tertiary);stroke-dasharray:3 4}',
+    '.fti-pt{fill:var(--bg-card);stroke:currentColor;stroke-width:2.6}',
+    '.fti-tick{font-size:11px;font-family:inherit;fill:var(--text-tertiary)}',
+    '.fti-tick.on{font-weight:600;fill:var(--text-primary)}',
+    '.fti-bar{display:flex;gap:3px;height:10px;margin:14px 0 4px}',
+    '.fti-bar div{flex-basis:0;min-width:3px;border-radius:3px}',
+    '.fti-cat,.fti-tip{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}',
+    '.fti-tip{grid-template-columns:34px 1fr;align-items:start}',
+    '.fti-bar+.fti-cat,.fti-sub+.fti-tip{border-top:0}',
+    '.fti-sub+.fti-tip{padding-top:14px}',
+    '.fti-ico{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;font-size:17px}',
+    '.fti-amt{text-align:right;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-primary)}',
+    '.fti-chg{display:block;margin-top:1px;font-size:13px;font-weight:600}',
+    '.fti-up{color:var(--rose)}.fti-down{color:var(--emerald)}.fti-same{color:var(--text-tertiary)}',
+    '.fti-hide{display:none}',
+    '.fti-more{width:100%;margin-top:4px;padding:10px;border:0;border-radius:10px;background:var(--bg-primary);font:inherit;font-size:13px;font-weight:600;color:var(--text-secondary);cursor:pointer}',
+    '.fti-note{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--bg-primary);font-size:13px;line-height:1.4;color:var(--text-secondary)}',
+    '.fti-note svg{flex-shrink:0;margin-top:1px;color:var(--blue)}',
+    '.fti-tip p{margin:0;font-size:15px;font-weight:600;line-height:1.35;color:var(--text-primary)}',
+    '.fti-tip p span{display:block;margin-top:2px;font-size:13px;font-weight:400;color:var(--text-secondary)}',
+    '@media (prefers-reduced-motion:reduce){.fti-fill,.fti-line,.fti-area,.fti-glow{animation:none}.fti-why,.fti-chev{transition:none}}'
+  ].join('\n');
+  document.head.appendChild(st);
 }
 
 // === V1.0.0: FINANCIAL HEALTH CALCULATION (CFP Board Standard) ===
@@ -776,13 +1100,15 @@ function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, 
   metrics.push({ label: 'Cash Flow', value: cfRatio.toFixed(0) + '%', target: '<75%', color: cfRatio < 75 ? 'var(--emerald)' : cfRatio <= 90 ? 'var(--amber)' : 'var(--rose)' });
 
   // 6. NET WORTH GROWTH (15%)
-  let nwGrowthPct = 0;
-  if (mf !== 'total' && +mf > 0) {
-    const cur = getNetWorthByPeriod(year, mf), prev = getNetWorthByPeriod(year, String(+mf - 1));
+  // V2.0.6: January now compares with December of last year (it used the whole-year number by mistake)
+  let nwGrowthPct = 0, nwDelta = 0;
+  if (mf !== 'total') {
+    const cur = getNetWorthByPeriod(year, mf), prev = +mf > 0 ? getNetWorthByPeriod(year, String(+mf - 1)) : getNetWorthByPeriod(year - 1, '11');
+    nwDelta = cur - prev;
     nwGrowthPct = prev !== 0 ? ((cur - prev) / Math.abs(prev) * 100) : (cur > 0 ? 100 : 0);
   } else {
     const am = yearData.filter(m => m.i > 0 || m.e > 0);
-    if (am.length >= 2) { const fi = yearData.indexOf(am[0]), li = yearData.indexOf(am[am.length-1]); const f = getNetWorthByPeriod(year, String(fi)), l = getNetWorthByPeriod(year, String(li)); nwGrowthPct = f !== 0 ? ((l - f) / Math.abs(f) * 100) : (l > 0 ? 100 : 0); }
+    if (am.length >= 2) { const fi = yearData.indexOf(am[0]), li = yearData.indexOf(am[am.length-1]); const f = getNetWorthByPeriod(year, String(fi)), l = getNetWorthByPeriod(year, String(li)); nwDelta = l - f; nwGrowthPct = f !== 0 ? ((l - f) / Math.abs(f) * 100) : (l > 0 ? 100 : 0); }
   }
   const nwScore = nwGrowthPct >= 5 ? 100 : nwGrowthPct >= 0 ? Math.round(50 + nwGrowthPct / 5 * 50) : Math.max(0, Math.round(50 + nwGrowthPct / 10 * 50));
   metrics.push({ label: 'Growth', value: (nwGrowthPct >= 0 ? '+' : '') + nwGrowthPct.toFixed(1) + '%', target: 'Positive', color: nwGrowthPct > 0 ? 'var(--emerald)' : nwGrowthPct === 0 ? 'var(--amber)' : 'var(--rose)' });
@@ -790,9 +1116,37 @@ function computeFinancialHealth(ti, te, ts, cf, budgetUsed, periodBudget, year, 
   // WEIGHTED SCORE
   const weights = [0.20, 0.15, 0.20, 0.15, 0.15, 0.15];
   const scores = [savScore, housingScore, debtScoreFinal, liquidityScore, cfScore, nwScore];
-  const finalScore = Math.round(scores.reduce((sum, s, i) => sum + s * weights[i], 0));
+  const rawScore = scores.reduce((sum, s, i) => sum + s * weights[i], 0);
+  const finalScore = Math.round(rawScore);
   const label = finalScore >= 90 ? 'Excellent' : finalScore >= 75 ? 'Good' : finalScore >= 60 ? 'Fair' : finalScore >= 40 ? 'Needs Work' : 'Critical';
-  return { score: Math.min(100, Math.max(0, finalScore)), label, metrics };
+
+  // V2.0.6: the "why" behind each part (mobile Insights shows it; nothing else changes)
+  const pc = n => Math.round(n) + '%';
+  const sg = n => (n >= 0 ? '+' : '-') + fmt(Math.abs(n));
+  const why = [
+    ti <= 0 ? 'No income recorded for this period, so there is nothing to save from yet.'
+      : ts < 0 ? 'You spent ' + fmt(-ts) + ' more than you earned. 20% saved or more = full marks.'
+      : 'You kept ' + fmt(ts) + ' of ' + fmt(ti) + '. 20% saved or more = full marks.',
+    housingExpense <= 0 ? 'No rent or mortgage found for this period, so full marks.'
+      : 'Housing ' + fmt(housingExpense) + ' is ' + pc(housingRatio) + ' of income. 28% or less = full marks.',
+    debtPayments <= 0 ? 'No loan payments found for this period, so full marks.'
+      : 'Loan payments ' + fmt(debtPayments) + ' are ' + pc(debtRatio) + ' of income. 20% or less = full marks.',
+    reserveMonths >= 6 ? 'Cash and savings ' + fmt(highLiquid) + ' cover ' + reserveMonths.toFixed(1) + ' months of spending. Full marks.'
+      : 'Cash and savings ' + fmt(highLiquid) + ' cover ' + reserveMonths.toFixed(1) + ' months of spending. 6 months (about ' + fmtD(avgMonthExp * 6) + ') = full marks.',
+    ti <= 0 ? 'No income recorded, so this part scores zero.'
+      : 'You spent ' + pc(cfRatio) + ' of what came in. 50% or less = full marks.',
+    'Net worth ' + (mf === 'total' ? 'this year: ' : 'this month: ') + sg(nwDelta) + '. +5% = full marks.'
+  ];
+  const meta = [
+    ['savings', 'Savings', savRate.toFixed(0) + '%', '20%+'],
+    ['housing', 'Housing', housingRatio.toFixed(0) + '%', '28% or less'],
+    ['debt', 'Debt', debtRatio.toFixed(0) + '%', '20% or less'],
+    ['reserve', 'Reserve', reserveMonths.toFixed(1) + ' months', '6 months'],
+    ['cashflow', 'Cash flow', cfRatio.toFixed(0) + '% spent', '50% or less'],
+    ['growth', 'Growth', (nwGrowthPct >= 0 ? '+' : '') + nwGrowthPct.toFixed(1) + '%', '+5%']
+  ];
+  const factors = meta.map((m, i) => ({ id: m[0], name: m[1], value: m[2], aim: m[3], weight: Math.round(weights[i] * 100), score: scores[i], pts: Math.round(scores[i] * weights[i] * 10) / 10, why: why[i] }));
+  return { score: Math.min(100, Math.max(0, finalScore)), label, metrics, factors, raw: rawScore, reserve: { months: reserveMonths, liquid: highLiquid, avgExp: avgMonthExp } };
 }
 
 // === V1.0.0: DYNAMIC AI INSIGHTS ===
