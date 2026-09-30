@@ -95,14 +95,16 @@ function renderCloudSyncUI() {
   var isLoggedIn = typeof ftAuth !== 'undefined' && ftAuth.isLoggedIn();
   var lastSync = safeGet('lastCloudSync');
   var lastLabel = lastSync ? new Date(lastSync).toLocaleString() : 'Never';
+  var syncErr = safeGet('ft_sync_err') || ''; // V2.0.6: last sync problem, cleared after a good sync
   if (isLoggedIn) {
-    return '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="cloud" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Cloud Connected</div><div style="font-size:10px;color:var(--text-tertiary)">' + ftEsc(ftAuth.user && ftAuth.user.email) + '</div></div></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:14px"><div style="font-size:11px;font-weight:500">Last Sync</div><div style="font-size:10px;color:var(--text-tertiary)">' + lastLabel + '</div></div><div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"><button class="btn bp" style="font-size:11px;padding:8px 14px" onclick="cloudSyncNow(\'push\')"><i data-lucide="upload" width="12" height="12"></i> Push to Cloud</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="cloudSyncNow(\'pull\')"><i data-lucide="download" width="12" height="12"></i> Pull from Cloud</button></div><div style="font-size:10px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6"><b>Push</b>: upload local → cloud. <b>Pull</b>: download cloud → local.</div><div style="border-top:1px solid var(--border);padding-top:14px"><button class="btn bs" style="font-size:11px;padding:6px 14px;color:var(--rose);border-color:var(--rose)" onclick="cloudSignOut()"><i data-lucide="log-out" width="12" height="12"></i> Sign Out</button></div></div>';
+    return '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="cloud" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Cloud Connected</div><div style="font-size:10px;color:var(--text-tertiary)">' + ftEsc(ftAuth.user && ftAuth.user.email) + '</div></div></div><div style="padding:10px 14px;background:var(--bg-primary);border-radius:8px;margin-bottom:14px"><div style="font-size:11px;font-weight:500">Last Sync</div><div style="font-size:10px;color:var(--text-tertiary)">' + lastLabel + '</div></div>' + (syncErr ? '<div style="padding:8px 12px;background:var(--rose-light);color:var(--rose);border-radius:8px;font-size:10px;margin-bottom:14px;line-height:1.5"><b>Last problem:</b> ' + ftEsc(syncErr) + '</div>' : '') + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px"><button class="btn bp" style="font-size:11px;padding:8px 14px" onclick="cloudSyncNow()"><i data-lucide="refresh-cw" width="12" height="12"></i> Sync now</button></div><div style="font-size:10px;color:var(--text-tertiary);margin-bottom:14px;line-height:1.6">Syncs by itself a few seconds after every change. Edits and deletes reach your other devices too. Covers transactions, accounts, goals, budgets, categories, loans, investments and reminders.</div><div style="border-top:1px solid var(--border);padding-top:14px"><button class="btn bs" style="font-size:11px;padding:6px 14px;color:var(--rose);border-color:var(--rose)" onclick="cloudSignOut()"><i data-lucide="log-out" width="12" height="12"></i> Sign Out</button></div></div>';
   }
   return '<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="cloud-off" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Cloud Sync</div><div style="font-size:10px;color:var(--text-tertiary)">Sign in to sync across devices</div></div></div><div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="cloud_email" placeholder="your@email.com"></div><div class="fg"><label class="fl">Password</label><input class="fi" type="password" id="cloud_pass" placeholder="Min 6 characters"></div><div id="cloudAuthErr" style="display:none;font-size:11px;color:var(--rose);margin-bottom:10px;padding:8px 12px;background:var(--rose-light);border-radius:7px"></div><div style="display:flex;gap:8px;margin-top:14px"><button class="btn bp" style="flex:1;justify-content:center" onclick="cloudSignIn()">Sign In</button><button class="btn bs" style="flex:1;justify-content:center" onclick="cloudSignUp()">Create Account</button></div><div style="margin-top:14px;font-size:10px;color:var(--text-tertiary);line-height:1.6">Cloud is optional. Local data works without it.</div></div>';
 }
 async function cloudSignIn() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signIn(e,p);toast('✅ Signed in!');renderSysSub('cloud');}catch(x){err.textContent=x.message||'Sign in failed';err.style.display='block';} }
 async function cloudSignUp() { var e=document.getElementById('cloud_email').value.trim(),p=document.getElementById('cloud_pass').value,err=document.getElementById('cloudAuthErr'); if(!e||!p){err.textContent='Enter email and password';err.style.display='block';return;} if(p.length<6){err.textContent='Password must be 6+ characters';err.style.display='block';return;} try{err.style.display='none';await ftAuth.signUp(e,p);toast('✅ Account created! Check email to confirm.');}catch(x){err.textContent=x.message||'Sign up failed';err.style.display='block';} }
-async function cloudSyncNow(dir) { if(typeof ftSync==='undefined'){toast('❌ Cloud module not loaded');return;} toast('☁️ Syncing...'); try{ftSync.lastPullAdded=0;if(dir==='push'){await ftSync.fullPush({throwOnError:true});toast('✅ Pushed to cloud');}else{await ftSync.fullPull({throwOnError:true});toast('✅ Pulled from cloud: '+(ftSync.lastPullAdded||0)+' new transactions');}renderSysSub('cloud');}catch(x){toast('❌ Sync failed: '+x.message);} }
+// V2.0.6: one two-way sync (the old Push/Pull never reached the cloud)
+async function cloudSyncNow() { if(typeof ftSync==='undefined'){toast('❌ Cloud module not loaded');return;} toast('☁️ Syncing...'); try{var r=await ftSync.sync({full:true,throwOnError:true});toast('✅ Synced · '+((r&&r.down)||0)+' in, '+((r&&r.up)||0)+' out');}catch(x){toast('❌ Sync failed: '+x.message);} renderSysSub('cloud'); }
 async function cloudSignOut() { if(!confirm('Sign out? Local data stays intact.'))return; try{await ftAuth.signOut();toast('👋 Signed out');renderSysSub('cloud');}catch(x){toast('❌ Sign out failed');} }
 
 // === CHECK FOR UPDATES (clears cache only, keeps data) ===
@@ -204,7 +206,7 @@ function renderSysSub(sub) {
     const lastBackup = safeGet('ft_last_backup_date');
     const lastLabel = lastBackup ? new Date(lastBackup).toLocaleString() : 'Never';
     html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px;margin-bottom:16px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--emerald-light);color:var(--emerald);display:flex;align-items:center;justify-content:center"><i data-lucide="download" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Export Data</div><div style="font-size:10px;color:var(--text-tertiary)">Last backup: ${lastLabel}</div></div></div><div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn bp" style="font-size:11px;padding:8px 14px" onclick="if(exportJSON()!==false)markBackupDone()"><i data-lucide="file-json" width="13" height="13"></i> JSON</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="if(exportCSV()!==false)markBackupDone()"><i data-lucide="file-text" width="13" height="13"></i> CSV</button><button class="btn bs" style="font-size:11px;padding:8px 14px" onclick="if(exportExcel()!==false)markBackupDone()"><i data-lucide="table" width="13" height="13"></i> Excel</button></div></div>`;
-    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="upload" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Import Data</div><div style="font-size:10px;color:var(--text-tertiary)">Restore from backup file</div></div></div><div style="display:flex;flex-direction:column;gap:8px"><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-json" width="13" height="13"></i> Import JSON<input type="file" accept=".json" style="display:none" onchange="importJSON(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-text" width="13" height="13"></i> Import CSV<input type="file" accept=".csv" style="display:none" onchange="importCSV(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="table" width="13" height="13"></i> Import Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="importExcel(this)"></label></div><div style="margin-top:10px;font-size:10px;color:var(--text-tertiary)">JSON: full backup (transactions + accounts + goals + settings). CSV/Excel: transactions only.</div></div>`;
+    html += `<div style="border:1px solid var(--border);border-radius:12px;padding:16px 18px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:14px"><div style="width:32px;height:32px;border-radius:8px;background:var(--accent-light);color:var(--accent);display:flex;align-items:center;justify-content:center"><i data-lucide="upload" width="15" height="15"></i></div><div><div style="font-size:13px;font-weight:600">Import Data</div><div style="font-size:10px;color:var(--text-tertiary)">Restore from backup file</div></div></div><div style="display:flex;flex-direction:column;gap:8px"><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-json" width="13" height="13"></i> Import JSON<input type="file" accept=".json" style="display:none" onchange="importJSON(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="file-text" width="13" height="13"></i> Import CSV<input type="file" accept=".csv" style="display:none" onchange="importCSV(this)"></label><label class="btn bs" style="font-size:11px;padding:8px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px"><i data-lucide="table" width="13" height="13"></i> Import Excel<input type="file" accept=".xls,.xlsx" style="display:none" onchange="importExcel(this)"></label></div><div style="margin-top:10px;font-size:10px;color:var(--text-tertiary)">JSON: full backup (transactions + accounts + goals + settings). CSV/Excel: transactions with their account, loan and currency links. Rows you already have are skipped, so importing twice never doubles anything.</div></div>`;
   }
   c.innerHTML = html; lucide.createIcons();
 }
@@ -575,7 +577,8 @@ function saveAccount(e, editId) {
     TXN.forEach(tx => { if (tx.acc === editId && tx.dt && tx.dt.includes('Adj:')) tx.dt = `Adj: ${name}`; });
     toast('✅ Account updated');
   } else {
-    const id = 'acc_' + (accNxId++);
+    accNxId++; // V2.0.6: counter kept, but ids are now unique per phone (two phones never make the same id)
+    const id = ftNewAccId();
     // V2.0.4: liabV2 = starts in the new model (owed = starting amount minus linked payments)
     ACCOUNTS.push({ id, name, type, accountType, currency, initialBalance: newInitialBalance, notes, createdAt: ftLocalISO(), liabV2: true });
     toast('✅ Account created');
@@ -583,6 +586,14 @@ function saveAccount(e, editId) {
   saveACCOUNTS(); saveTXN();
   document.getElementById('maccadd').remove(); document.body.style.overflow = '';
   ftRerenderAccounts();
+}
+
+// V2.0.6: 'acc_' + time + random, never clashes with another phone's new account (cloud sync)
+function ftNewAccId() {
+  var id;
+  do { id = 'acc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  while (ACCOUNTS.some(function(a) { return String(a.id) === id; }));
+  return id;
 }
 
 function openEditAccount(id) { const acc = ACCOUNTS.find(a => a.id === id); if (acc) openAccountModal(acc); }
@@ -959,7 +970,7 @@ function fallbackDownload(blob, filename) {
 // Security data (PIN, salt, biometric, recovery, API keys) is NEVER written to the backup file.
 var FT_BACKUP_CORE = ['ft_txn_data', 'ft_nxId', 'ft_accounts', 'ft_accNxId', 'ft_schema'];
 // V2.0.5: cloud owner, delete markers and the storage marker are per-phone, never backed up
-var FT_BACKUP_SKIP = /(^ft_pk|pin_lockout|salt|bio_cred|recovery|security|app_lock|api_key|apikey|gemini|groq|ai_key|ai_cooldown|desktop_mode|last_backup|hide_recovery|onboarded|cloud_uid|deleted_txn|ls_newer|pending)/i;
+var FT_BACKUP_SKIP = /(^ft_pk|pin_lockout|salt|bio_cred|recovery|security|app_lock|api_key|apikey|gemini|groq|ai_key|ai_cooldown|desktop_mode|last_backup|hide_recovery|onboarded|cloud_uid|deleted_txn|ls_newer|pending|sync_)/i; // V2.0.6: sync_ = per-phone cloud snapshot/errors
 
 function ftBackupKeyAllowed(k) {
   return typeof k === 'string' && k.indexOf('ft_') === 0 && FT_BACKUP_CORE.indexOf(k) < 0 && !FT_BACKUP_SKIP.test(k);
@@ -1000,8 +1011,11 @@ function ftBackupValueOk(key, n) {
   return typeof n === 'string' || typeof n === 'number' || typeof n === 'boolean' || isObj || Array.isArray(n);
 }
 
-// Merge one backup key into current data. Existing data always wins; backup fills the gaps.
-function ftMergeStoreValue(key, incoming) {
+// Merge one backup key into current data. Existing data wins; backup fills the gaps.
+// V2.0.6: preferIncoming (restore mode) = same-id items / keys take the BACKUP's version.
+// Base currency and the loan-migration stamp are never overridden; counters always take the bigger number.
+function ftMergeStoreValue(key, incoming, preferIncoming) {
+  if (preferIncoming && key !== 'ft_base_cur' && key !== 'ft_liab_v2_at' && !/nxid$/i.test(key)) return ftMergeStorePrefer(key, incoming);
   var cur = safeGet(key);
   var n;
   try { n = ftStripTags(JSON.parse(incoming)); } catch(e) { n = ftStripTags(String(incoming)); }
@@ -1027,6 +1041,32 @@ function ftMergeStoreValue(key, incoming) {
     safeSave(key, JSON.stringify(c)); return;
   }
   // Plain values (numbers/strings) already set: keep current
+}
+
+// V2.0.6: restore mode. Same id (lists) or same key (objects) = backup wins; things only on this phone stay.
+function ftMergeStorePrefer(key, incoming) {
+  var n;
+  try { n = ftStripTags(JSON.parse(incoming)); } catch(e) { n = ftStripTags(String(incoming)); }
+  if (!ftBackupValueOk(key, n)) { console.warn('[FinTrack] Backup key skipped (wrong shape):', key); return; }
+  var nStr = typeof n === 'string' ? n : JSON.stringify(n);
+  var c = null;
+  try { c = JSON.parse(safeGet(key)); } catch(e) { c = null; }
+  var isObj = function(x) { return x && typeof x === 'object' && !Array.isArray(x); };
+  if (Array.isArray(c) && Array.isArray(n)) {
+    var idOf = function(x) { return x && typeof x === 'object' && x.id !== undefined ? 'id:' + x.id : JSON.stringify(x); };
+    var pos = {};
+    c.forEach(function(x, i) { pos[idOf(x)] = i; });
+    n.forEach(function(x) { var k = idOf(x); if (pos[k] !== undefined) c[pos[k]] = x; else { pos[k] = c.length; c.push(x); } });
+    safeSave(key, JSON.stringify(c)); return;
+  }
+  if (isObj(c) && isObj(n)) {
+    Object.keys(n).forEach(function(k) {
+      if (isObj(c[k]) && isObj(n[k])) Object.keys(n[k]).forEach(function(k2) { c[k][k2] = n[k][k2]; });
+      else c[k] = n[k];
+    });
+    safeSave(key, JSON.stringify(c)); return;
+  }
+  safeSave(key, nStr);
 }
 
 // V2.0.5: hidden mode (eye off) blocks every export, same rule as Reports. Returns false when blocked.
@@ -1063,38 +1103,43 @@ function exportJSON() {
   toast('📥 Full backup exported (' + Object.keys(store).length + ' data sets)');
 }
 
+// === CSV / EXCEL ROUND TRIP (V2.0.6) ===
+// Export keeps every link (transfer To account, loan, fee, original currency, key-in rate), so importing
+// the file back gives the same transactions. Import skips rows you already have (same FinTrack ID, or same
+// date + type + amount + category + description + account), so importing twice never doubles anything.
+var FT_XLS_HEAD = ['Date', 'Type', 'Category', 'Subcategory', 'Amount', 'Currency', 'Description', 'Account', 'To Account', 'Loan', 'Original Amount', 'Original Currency', 'FinTrack ID', 'FinTrack Data'];
+var FT_TX_COLS = { id: 1, d: 1, t: 1, c: 1, s: 1, a: 1, dt: 1, cur: 1, origAmt: 1 };
+function ftAccNameOf(id) {
+  if (id === undefined || id === null || id === '') return '';
+  var a = ACCOUNTS.find(function(x) { return String(x.id) === String(id); });
+  return a ? String(a.name || '') : '';
+}
+function ftTxExportRow(tx) {
+  var extra = {};
+  Object.keys(tx).forEach(function(k) { if (!FT_TX_COLS[k] && tx[k] !== undefined && tx[k] !== null && tx[k] !== '') extra[k] = tx[k]; });
+  var oa = Number(tx.origAmt);
+  return [tx.d || '', tx.t || '', tx.c || '', tx.s || '', Number(tx.a) || 0, FT_BASE, tx.dt || '', ftAccNameOf(tx.acc), ftAccNameOf(tx.toAcc), ftAccNameOf(tx.liab), isFinite(oa) && oa > 0 ? oa : '', tx.cur || '', String(tx.id), Object.keys(extra).length ? JSON.stringify(extra) : ''];
+}
+
 function exportCSV() {
   if (ftExportBlocked()) return false;
-  const headers = ['Date','Type','Category','Subcategory','Amount','Description','Account'];
-  const rows = TXN.map(tx => {
-    const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
-    return [tx.d, tx.t, tx.c, tx.s || '', Number(tx.a) || 0, tx.dt || '', accName].map(ftCsvCell).join(',');
-  });
-  const csv = [headers.join(','), ...rows].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv' });
+  const rows = TXN.map(tx => ftTxExportRow(tx).map(ftCsvCell).join(','));
+  const csv = [FT_XLS_HEAD.join(','), ...rows].join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv' }); // BOM: Excel opens Malay/Chinese text correctly
   triggerDownload(blob, `fintrack-transactions-${ftLocalISO()}.csv`);
   toast('📥 CSV exported');
 }
 
 function exportExcel() {
   if (ftExportBlocked()) return false;
-  const headers = ['Date','Type','Category','Subcategory','Amount','Description','Account'];
+  const NUM = { 4: 1, 10: 1 }; // Amount + Original Amount are number cells
   let xml = '<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?>';
   xml += '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
   xml += '<Worksheet ss:Name="Transactions"><Table>';
-  xml += '<Row>' + headers.map(h => '<Cell><Data ss:Type="String">' + h + '</Data></Cell>').join('') + '</Row>';
+  xml += '<Row>' + FT_XLS_HEAD.map(h => '<Cell><Data ss:Type="String">' + h + '</Data></Cell>').join('') + '</Row>';
   TXN.forEach(tx => {
-    const accName = tx.acc ? (ACCOUNTS.find(a => a.id === tx.acc)?.name || '') : '';
-    xml += '<Row>';
-    // V2.0.5: every text cell escaped (a name with & or < broke the whole Excel file before)
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(tx.d) + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(tx.t) + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(tx.c) + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(tx.s || '') + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="Number">' + (Number(tx.a) || 0) + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(tx.dt || '') + '</Data></Cell>';
-    xml += '<Cell><Data ss:Type="String">' + ftXmlText(accName) + '</Data></Cell>';
-    xml += '</Row>';
+    // every text cell escaped (a name with an ampersand or < used to break the whole file)
+    xml += '<Row>' + ftTxExportRow(tx).map((v, i) => NUM[i] && v !== '' ? '<Cell><Data ss:Type="Number">' + (Number(v) || 0) + '</Data></Cell>' : '<Cell><Data ss:Type="String">' + ftXmlText(v) + '</Data></Cell>').join('') + '</Row>';
   });
   xml += '</Table></Worksheet></Workbook>';
   const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
@@ -1102,55 +1147,171 @@ function exportExcel() {
   toast('📥 Excel exported');
 }
 
+// Any date a bank / Excel / FinTrack file uses -> YYYY-MM-DD (d/m/y is read day first)
+function ftImpDate(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) return ftLocalISO(v);
+  var s = String(v === null || v === undefined ? '' : v).trim(), out = null;
+  if (!s) return null;
+  if (/^\d{5}(\.\d+)?$/.test(s)) { // Excel serial day number
+    var dd = new Date(Date.UTC(1899, 11, 30) + Math.floor(parseFloat(s)) * 86400000);
+    out = dd.getUTCFullYear() + '-' + String(dd.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dd.getUTCDate()).padStart(2, '0');
+  } else out = ftCsvDate(s);
+  if (!out) { var p = new Date(s); if (!isNaN(p.getTime())) out = ftLocalISO(p); }
+  if (!out || !/^\d{4}-\d{2}-\d{2}$/.test(out)) return null;
+  var m = +out.slice(5, 7), d = +out.slice(8, 10);
+  return m >= 1 && m <= 12 && d >= 1 && d <= 31 ? out : null;
+}
+function ftImpAmt(v) {
+  if (typeof v === 'number') return Math.abs(v);
+  var s = String(v === null || v === undefined ? '' : v).trim();
+  var n = parseFloat(s.replace(/[^\d.\-]/g, ''));
+  return isFinite(n) ? Math.abs(n) : NaN;
+}
+function ftImpType(v) {
+  var t = ftCsvType(v);
+  if (t) return t;
+  var s = String(v || '').toLowerCase();
+  if (/credit|kredit|\bcr\b|deposit|masuk/.test(s)) return 'Income';
+  return 'Expense'; // debit / blank / unknown
+}
+
+// rows = array of rows (CSV or Excel). Returns { txns, dup, skipped, total, cols } or { error }. Does NOT touch TXN.
+function ftRowsToTxns(rows, opts) {
+  opts = opts || {};
+  rows = (rows || []).filter(function(r) { return Array.isArray(r) && r.some(function(c) { return c !== null && c !== undefined && String(c).trim() !== ''; }); });
+  if (rows.length < 1) return { error: 'empty' };
+  var low = function(r) { return (r || []).map(function(c) { return String(c === null || c === undefined ? '' : c).toLowerCase().trim(); }); };
+  var hi = -1;
+  for (var i = 0; i < Math.min(rows.length, 5); i++) {
+    var L = low(rows[i]);
+    if (L.some(function(x) { return /date|tarikh/.test(x); }) && L.some(function(x) { return /amount|jumlah|amaun|amt|value|total/.test(x); })) { hi = i; break; }
+  }
+  var C = {}, data;
+  if (hi >= 0) {
+    var h = low(rows[hi]), used = {};
+    var spec = [
+      ['d', ['date', 'tarikh', 'transaction date'], ['date', 'tarikh']],
+      ['t', ['type', 'jenis'], ['type', 'jenis']],
+      ['c', ['category', 'kategori'], ['category', 'kategori']],
+      ['s', ['subcategory', 'sub category', 'subkategori', 'sub'], ['subcat', 'sub cat', 'subkat']],
+      ['a', ['amount', 'jumlah', 'amaun'], ['amount', 'jumlah', 'amaun', 'amt', 'value', 'total']],
+      ['cur', ['currency', 'matawang'], ['currency']],
+      ['dt', ['description', 'keterangan', 'details', 'note', 'notes', 'remark', 'remarks'], ['desc', 'detail', 'note', 'keterangan', 'remark']],
+      ['acc', ['account', 'akaun', 'bank', 'from account'], ['account', 'akaun']],
+      ['to', ['to account', 'to akaun', 'destination'], ['to account', 'to acc']],
+      ['liab', ['loan', 'liability', 'debt', 'hutang'], ['loan', 'liabil']],
+      ['oa', ['original amount'], ['original amount', 'orig amount']],
+      ['oc', ['original currency'], ['original cur', 'orig cur']],
+      ['id', ['fintrack id'], ['fintrack id']],
+      ['x', ['fintrack data'], ['fintrack data']]
+    ];
+    spec.forEach(function(sp) { for (var j = 0; j < sp[1].length; j++) { var k = h.indexOf(sp[1][j]); if (k >= 0 && !used[k]) { C[sp[0]] = k; used[k] = 1; return; } } });
+    var bad = { a: /original|orig/, cur: /original|orig/, acc: /^to |to account|loan/ };
+    spec.forEach(function(sp) {
+      if (C[sp[0]] !== undefined) return;
+      for (var j = 0; j < sp[2].length; j++) {
+        var k = h.findIndex(function(x, n) { return !used[n] && x.indexOf(sp[2][j]) >= 0 && !(bad[sp[0]] && bad[sp[0]].test(x)); });
+        if (k >= 0) { C[sp[0]] = k; used[k] = 1; return; }
+      }
+    });
+    data = rows.slice(hi + 1);
+  } else if (opts.positional && rows[0].length >= 5) {
+    C = { d: 0, t: 1, c: 2, s: 3, a: 4, dt: 5, acc: 6 }; // no header row: FinTrack's old column order
+    data = rows;
+  } else return { error: 'header' };
+  if (C.d === undefined || C.a === undefined) return { error: 'header' };
+
+  var get = function(r, k) { var i = C[k]; if (i === undefined || i >= r.length) return ''; var v = r[i]; return v === null || v === undefined ? '' : v; };
+  var clean = function(v) { return String(v === null || v === undefined ? '' : v).replace(/<[^>]*>/g, '').trim(); };
+  var byName = function(name, type) { var n = clean(name).toLowerCase(); if (!n) return null; var a = ACCOUNTS.find(function(x) { return String(x.name || '').trim().toLowerCase() === n && (!type || x.type === type); }); return a ? a.id : null; };
+  var byId = function(id, type) { if (id === undefined || id === null || id === '') return null; var a = ACCOUNTS.find(function(x) { return String(x.id) === String(id) && (!type || x.type === type); }); return a ? a.id : null; };
+  var okCur = function(c) { c = String(c || '').trim().toUpperCase(); return c && typeof CURRENCY_CONFIG !== 'undefined' && CURRENCY_CONFIG[c] ? c : ''; };
+  var r2 = function(n) { return Math.round(n * 100) / 100; };
+
+  // what you already have: ids + a count of each "fingerprint" (two identical coffees are two rows)
+  var haveId = new Set(TXN.map(function(t) { return String(t.id); }));
+  var fp = function(t) { return [t.d, t.t, r2(Number(t.a) || 0), t.c || '', t.s || '', t.dt || '', t.acc === undefined || t.acc === null ? '' : String(t.acc)].join('|'); };
+  var have = {}; TXN.forEach(function(t) { var k = fp(t); have[k] = (have[k] || 0) + 1; });
+
+  var txns = [], dup = 0, skipped = 0, taken = new Set();
+  data.forEach(function(r) {
+    var d = ftImpDate(get(r, 'd'));
+    var a = ftImpAmt(get(r, 'a'));
+    if (!d || !a || !isFinite(a) || a > 1e12) { skipped++; return; }
+    var cur = okCur(get(r, 'cur'));
+    if (cur && cur !== FT_BASE) a = r2(convertFromTo(a, cur, FT_BASE));
+    if (!(a > 0)) { skipped++; return; }
+    var tx = { d: d, t: ftImpType(get(r, 't')), c: clean(get(r, 'c')) || 'Uncategorized', s: clean(get(r, 's')), a: a, dt: clean(get(r, 'dt')) };
+    // FinTrack Data column: links and extra fields, checked one by one
+    var x = {};
+    try { var raw = String(get(r, 'x') || '').trim(); if (raw.charAt(0) === '{') x = ftStripTags(JSON.parse(raw)) || {}; } catch (e) { x = {}; }
+    if (!x || typeof x !== 'object' || Array.isArray(x)) x = {};
+    Object.keys(x).forEach(function(k) {
+      var v = x[k];
+      if (FT_TX_COLS[k] || FT_BAD_KEYS[k] || k === 'acc' || k === 'toAcc' || k === 'liab' || k === 'fx') return;
+      if (k === 'fee') { if (isFinite(Number(v)) && Number(v) >= 0) tx.fee = Number(v); return; }
+      if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') tx[k] = v;
+    });
+    if (x.fx && typeof x.fx === 'object' && !Array.isArray(x.fx)) {
+      var fx = {}; Object.keys(x.fx).forEach(function(k) { var n = Number(x.fx[k]); if (/^[A-Z]{3}$/.test(k) && isFinite(n) && n > 0) fx[k] = n; });
+      if (Object.keys(fx).length) tx.fx = fx;
+    }
+    var acc = byId(x.acc) || byName(get(r, 'acc'));
+    if (acc !== null) tx.acc = acc;
+    if (tx.t === 'Savings') { var to = byId(x.toAcc) || byName(get(r, 'to')); if (to !== null && to !== tx.acc) tx.toAcc = to; }
+    if (tx.t === 'Expense') { var lb = byId(x.liab, 'liability') || byName(get(r, 'liab'), 'liability'); if (lb !== null) tx.liab = lb; }
+    var oc = okCur(get(r, 'oc')), oa = ftImpAmt(get(r, 'oa'));
+    if (oc && isFinite(oa) && oa > 0) { tx.cur = oc; tx.origAmt = oa; }
+    // already in FinTrack?
+    var fid = clean(get(r, 'id'));
+    if (fid && haveId.has(fid)) { dup++; return; }
+    var k = fp(tx);
+    if (have[k] > 0) { have[k]--; dup++; return; }
+    // keep the file's id when it's free (same record on every device), else a new one
+    if (fid && !taken.has(fid) && fid.length <= 64) tx.id = /^\d{1,15}$/.test(fid) ? Number(fid) : fid;
+    else tx.id = generateTxnId();
+    taken.add(String(tx.id));
+    txns.push(tx);
+  });
+  return { txns: txns, dup: dup, skipped: skipped, total: data.length, cols: C };
+}
+
+// One confirm, then add only the new rows
+function ftImportRows(res, input, label) {
+  if (res.error === 'empty') { toast('❌ Empty ' + label + ' file'); input.value = ''; return; }
+  if (res.error === 'header') { toast('❌ Invalid ' + label + ': needs Date and Amount columns'); input.value = ''; return; }
+  if (!res.txns.length) { toast(res.dup ? '✅ Nothing new: all ' + res.dup + ' rows are already in FinTrack' : '❌ No valid rows found' + (res.skipped ? ' (' + res.skipped + ' skipped)' : '')); input.value = ''; return; }
+  var msg = 'Found ' + res.total + ' rows in this ' + label + ' file.\n\n' + res.txns.length + ' new transactions will be added.' + (res.dup ? '\n' + res.dup + ' rows are already in FinTrack (skipped).' : '') + (res.skipped ? '\n' + res.skipped + ' invalid rows skipped.' : '') + '\n\nContinue?';
+  if (!confirm(msg)) { input.value = ''; return; }
+  res.txns.forEach(function(tx) { TXN.push(tx); if (typeof tx.id === 'number' && tx.id >= nxId) nxId = tx.id + 1; });
+  saveTXN();
+  if (typeof render === 'function') render();
+  toast('✅ Imported ' + res.txns.length + ' transactions' + (res.dup ? ' · ' + res.dup + ' already there' : ''));
+  input.value = '';
+}
+
 function importExcel(input) {
   const file = input.files[0]; if (!file) return;
   if (ftImportTooBig(file, input)) return;
+  // Pinned library versions (a "latest" link could change under us)
   function loadSheetJS(callback) {
     if (window.XLSX) { callback(); return; }
     const script = document.createElement('script');
-    script.src = 'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js';
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
     script.onload = callback;
-    script.onerror = () => { const s2 = document.createElement('script'); s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'; s2.onload = callback; s2.onerror = () => { toast('❌ Failed to load Excel parser.'); input.value = ''; }; document.head.appendChild(s2); };
+    script.onerror = () => { const s2 = document.createElement('script'); s2.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'; s2.onload = callback; s2.onerror = () => { toast('❌ Failed to load Excel reader. Check your internet.'); input.value = ''; }; document.head.appendChild(s2); };
     document.head.appendChild(script);
   }
   loadSheetJS(() => {
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+        const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         if (!sheetName) { toast('❌ No sheets found'); input.value = ''; return; }
-        const sheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
-        if (rows.length < 2) { toast('❌ Empty file'); input.value = ''; return; }
-        let headerIdx = 0;
-        for (let i = 0; i < Math.min(rows.length, 5); i++) { const rowLower = (rows[i] || []).map(c => String(c || '').toLowerCase()).join(' '); if (rowLower.includes('date') && (rowLower.includes('type') || rowLower.includes('category') || rowLower.includes('amount'))) { headerIdx = i; break; } }
-        const headers = (rows[headerIdx] || []).map(h => String(h || '').toLowerCase().trim());
-        const dataRows = rows.slice(headerIdx + 1).filter(r => r && r.some(c => c !== null && c !== undefined && String(c).trim()));
-        if (!dataRows.length) { toast('❌ No data rows'); input.value = ''; return; }
-        const findCol = (...keywords) => headers.findIndex(h => keywords.some(k => h.includes(k)));
-        const colMap = {};
-        colMap.date = findCol('date', 'tarikh', 'dt'); colMap.type = findCol('type', 'jenis', 'category type'); colMap.category = findCol('category', 'kategori', 'cat'); colMap.subcategory = findCol('subcategory', 'sub', 'subcat', 'sub category'); colMap.amount = findCol('amount', 'jumlah', 'amt', 'value', 'total'); colMap.description = findCol('description', 'desc', 'details', 'note', 'keterangan', 'remark'); colMap.account = findCol('account', 'akaun', 'acc', 'bank');
-        if (colMap.date < 0 && colMap.amount < 0) { if (headers.length >= 5) { colMap.date = 0; colMap.type = 1; colMap.category = 2; colMap.subcategory = 3; colMap.amount = 4; colMap.description = 5; colMap.account = 6; } else { toast('❌ Cannot detect columns'); input.value = ''; return; } }
-        const detected = Object.entries(colMap).filter(([k,v]) => v >= 0).map(([k,v]) => k + '="' + (headers[v] || 'col' + v) + '"').join(', ');
-        if (!confirm(`Found ${dataRows.length} rows in sheet "${sheetName}".\nColumns: ${detected}\n\nThis will ADD new transactions. Continue?`)) { input.value = ''; return; }
-        let added = 0, skipped = 0;
-        dataRows.forEach(row => {
-          const getVal = (col) => col >= 0 && col < row.length ? String(row[col] || '').trim() : '';
-          let d = getVal(colMap.date); const tp = getVal(colMap.type) || 'Expense'; const cat = getVal(colMap.category); const sub = getVal(colMap.subcategory); let amtStr = getVal(colMap.amount); const desc = getVal(colMap.description); const accName = getVal(colMap.account);
-          amtStr = amtStr.replace(/[^\d.\-\(\)]/g, ''); if (amtStr.includes('(') && amtStr.includes(')')) amtStr = '-' + amtStr.replace(/[\(\)]/g, ''); const parsedAmt = parseFloat(amtStr); if (!parsedAmt || parsedAmt === 0) { skipped++; return; }
-          if (d) { if (/^\d{4}-\d{2}-\d{2}/.test(d)) { d = d.substring(0, 10); } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2}$/.test(d)) { const parts = d.split(/[\/\-]/); d = `20${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`; } else if (/^\d{5}$/.test(d)) { const excelEpoch = new Date(1899, 11, 30); const parsed = new Date(excelEpoch.getTime() + parseInt(d) * 86400000); d = ftLocalISO(parsed); } else { const parsed = new Date(d); if (!isNaN(parsed.getTime())) d = ftLocalISO(parsed); else { skipped++; return; } } } else { skipped++; return; }
-          if (Math.abs(parsedAmt) > 1e12) { skipped++; return; }
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { skipped++; return; }
-          let normalizedType = tp; const tpLower = tp.toLowerCase(); if (tpLower.includes('income') || tpLower.includes('pendapatan') || tpLower.includes('gaji')) normalizedType = 'Income'; else if (tpLower.includes('saving') || tpLower.includes('simpanan') || tpLower.includes('tabung') || tpLower.includes('transfer') || tpLower.includes('pindah')) normalizedType = 'Savings'; else if (tpLower.includes('expense') || tpLower.includes('belanja') || tpLower.includes('perbelanjaan')) normalizedType = 'Expense'; else if (!['Income', 'Expense', 'Savings'].includes(tp)) normalizedType = 'Expense';
-          const accMatch = accName ? ACCOUNTS.find(a => a.name.toLowerCase() === accName.toLowerCase()) : null;
-          const noTags = v => String(v || '').replace(/<[^>]*>/g, ''); // V2.0.5: same tag strip as JSON/CSV import
-          TXN.push({ id: nxId++, d, t: normalizedType, c: noTags(cat) || 'Uncategorized', s: noTags(sub), a: Math.abs(parsedAmt), dt: noTags(desc), acc: accMatch ? accMatch.id : undefined }); added++;
-        });
-        saveTXN(); toast(`✅ Imported ${added} transactions${skipped ? ' (' + skipped + ' skipped)' : ''}`);
-      } catch (err) { toast('❌ Error: ' + (err.message || 'Unknown')); console.error('Excel import error:', err); }
-      input.value = '';
+        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+        ftImportRows(ftRowsToTxns(rows, { positional: true }), input, 'Excel');
+      } catch (err) { toast('❌ Error: ' + (err.message || 'Unknown')); console.error('Excel import error:', err); input.value = ''; }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -1181,7 +1342,13 @@ function importJSON(input) {
         tx.a = amt;
         if (tx.t === 'Transfer') tx.t = 'Savings'; // V2.0.5: the app has one transfer type (Savings)
         if (!['Income', 'Expense', 'Savings'].includes(tx.t)) tx.t = 'Expense';
-        ['acc', 'toAcc', 'liab', 'cur'].forEach(function(k) { if (tx[k] !== undefined && typeof tx[k] !== 'string') delete tx[k]; });
+        // V2.0.6: numeric account links (old backups) become text; anything else odd is dropped
+        ['acc', 'toAcc', 'liab'].forEach(function(k) { if (typeof tx[k] === 'number' && isFinite(tx[k])) tx[k] = String(tx[k]); else if (tx[k] !== undefined && typeof tx[k] !== 'string') delete tx[k]; });
+        if (tx.cur !== undefined && typeof tx.cur !== 'string') delete tx.cur;
+        if (tx.fx !== undefined) { var fx = {}; if (tx.fx && typeof tx.fx === 'object' && !Array.isArray(tx.fx)) Object.keys(tx.fx).forEach(function(k) { var n = Number(tx.fx[k]); if (/^[A-Z]{3}$/.test(k) && isFinite(n) && n > 0) fx[k] = n; }); if (Object.keys(fx).length) tx.fx = fx; else delete tx.fx; }
+        if (tx.origAmt !== undefined && !(isFinite(Number(tx.origAmt)) && Number(tx.origAmt) > 0)) { delete tx.origAmt; delete tx.cur; }
+        if (tx.fee !== undefined && !(typeof tx.fee !== 'boolean' && tx.fee !== null && tx.fee !== '' && isFinite(Number(tx.fee)) && Number(tx.fee) >= 0)) delete tx.fee; else if (tx.fee !== undefined) tx.fee = Number(tx.fee);
+        if (tx.feeLinkedTo !== undefined && typeof tx.feeLinkedTo !== 'string' && typeof tx.feeLinkedTo !== 'number') delete tx.feeLinkedTo;
         Object.keys(FT_BAD_KEYS).forEach(function(k) { if (Object.prototype.hasOwnProperty.call(tx, k)) delete tx[k]; });
         if (tx.dt) tx.dt = String(tx.dt).replace(/<[^>]*>/g, '');
         if (tx.c) tx.c = String(tx.c).replace(/<[^>]*>/g, '');
@@ -1191,19 +1358,40 @@ function importJSON(input) {
       const count = validTxns.length;
       const hasStore = data.store && typeof data.store === 'object';
       const extras = hasStore ? ', plus goals, budget plans, investments & reminders' : (Array.isArray(data.goals) && data.goals.length ? ', ' + data.goals.length + ' goals' : '');
-      if (!confirm(`Import ${count} transactions${skipped ? ' (' + skipped + ' invalid skipped)' : ''}${data.accounts ? ', ' + data.accounts.length + ' accounts' : ''}${extras}? This will MERGE with existing data (nothing you already have is overwritten).`)) return;
+      if (!confirm(`Import ${count} transactions${skipped ? ' (' + skipped + ' invalid skipped)' : ''}${data.accounts ? ', ' + data.accounts.length + ' accounts' : ''}${extras}? This will MERGE with existing data.`)) { input.value = ''; return; }
       // V2.0.4 base currency: old backups are MYR. Empty phone adopts the backup's base;
       // a phone with data converts the imported amounts into its own base.
       const bBase = (data.store && data.store.ft_base_cur) || (data.settings && data.settings.baseCurrency) || 'MYR';
       const wasEmpty = !TXN.length;
       if (wasEmpty) ftSetBase(bBase, true);
       const needConv = !wasEmpty && CURRENCY_CONFIG[bBase] && bBase !== FT_BASE;
-      const existingIds = new Set(TXN.map(tx => tx.id));
-      let added = 0;
-      validTxns.forEach(tx => { if (!existingIds.has(tx.id)) { if (needConv) tx.a = Math.round(convertFromTo(tx.a, bBase, FT_BASE) * 100) / 100; TXN.push(tx); added++; } });
+      // V2.0.5/2.0.6: accounts need a text id (old numeric ids are turned into text), a name, asset/liability type and a number balance
+      const inAccs = [];
+      if (Array.isArray(data.accounts)) ftStripTags(data.accounts).forEach(acc => { if (!acc || typeof acc !== 'object' || Array.isArray(acc)) return; if (typeof acc.id === 'number' && isFinite(acc.id)) acc.id = String(acc.id); if (typeof acc.id !== 'string' || !acc.id) return; if (acc.type !== 'asset' && acc.type !== 'liability') return; acc.name = String(acc.name || 'Account'); acc.initialBalance = isFinite(Number(acc.initialBalance)) ? Number(acc.initialBalance) : 0; if (acc.currency && !CURRENCY_CONFIG[acc.currency]) acc.currency = FT_BASE; inAccs.push(acc); });
+      // The backup's goals (new backups keep them in store, old ones in data.goals)
+      let inGoals = null;
+      try { if (hasStore && data.store.ft_goals !== undefined) { const gv = data.store.ft_goals; inGoals = typeof gv === 'string' ? JSON.parse(gv) : gv; } else if (Array.isArray(data.goals)) inGoals = data.goals; } catch(ge) { inGoals = null; }
+      if (!Array.isArray(inGoals)) inGoals = [];
+      // V2.0.6: same id on both sides but different content? Ask ONCE which version wins (old code always kept the phone's)
+      const stab = typeof ftStable === 'function' ? ftStable : JSON.stringify;
+      const noC = g => { const o = Object.assign({}, g); delete o.c; return o; }; // linked goal "saved" is recalculated anyway
+      const txAt = new Map(TXN.map((t, i) => [String(t.id), i]));
+      const accAt = new Map(ACCOUNTS.map((a, i) => [String(a.id), i]));
+      const phoneGoals = typeof GOALS !== 'undefined' && Array.isArray(GOALS) ? GOALS : [];
+      const goalOf = new Map(phoneGoals.map(g => [String(g.id), g]));
+      let diff = 0;
+      if (!needConv) validTxns.forEach(tx => { const i = txAt.get(String(tx.id)); if (i !== undefined && stab(TXN[i]) !== stab(tx)) diff++; });
+      inAccs.forEach(a => { const i = accAt.get(a.id); if (i !== undefined && stab(ACCOUNTS[i]) !== stab(a)) diff++; });
+      inGoals.forEach(g => { if (!g || typeof g !== 'object') return; const o = goalOf.get(String(g.id)); if (o && stab(noC(o)) !== stab(noC(g))) diff++; });
+      const restore = diff > 0 && confirm(diff + ' item' + (diff === 1 ? ' is' : 's are') + ' on this phone AND in the backup, but different.\n\nOK = use the BACKUP version\nCancel = keep this phone\'s version');
+      let added = 0, updated = 0;
+      validTxns.forEach(tx => {
+        const i = txAt.get(String(tx.id));
+        if (i === undefined) { if (needConv) tx.a = Math.round(convertFromTo(tx.a, bBase, FT_BASE) * 100) / 100; TXN.push(tx); txAt.set(String(tx.id), TXN.length - 1); added++; }
+        else if (restore && !needConv && stab(TXN[i]) !== stab(tx)) { TXN[i] = tx; updated++; }
+      });
       if (needConv) toast('💱 Backup amounts converted ' + bBase + ' → ' + FT_BASE);
-      // V2.0.5: accounts need a text id, a name, asset/liability type and a real number balance
-      if (data.accounts && Array.isArray(data.accounts)) { const existingAccIds = new Set(ACCOUNTS.map(a => a.id)); ftStripTags(data.accounts).forEach(acc => { if (!acc || typeof acc !== 'object' || Array.isArray(acc) || typeof acc.id !== 'string' || !acc.id || existingAccIds.has(acc.id)) return; if (acc.type !== 'asset' && acc.type !== 'liability') return; acc.name = String(acc.name || 'Account'); acc.initialBalance = isFinite(Number(acc.initialBalance)) ? Number(acc.initialBalance) : 0; if (acc.currency && !CURRENCY_CONFIG[acc.currency]) acc.currency = FT_BASE; ACCOUNTS.push(acc); existingAccIds.add(acc.id); }); saveACCOUNTS(); }
+      if (inAccs.length) { inAccs.forEach(acc => { const i = accAt.get(acc.id); if (i === undefined) { ACCOUNTS.push(acc); accAt.set(acc.id, ACCOUNTS.length - 1); } else if (restore && stab(ACCOUNTS[i]) !== stab(acc)) { ACCOUNTS[i] = acc; updated++; } }); saveACCOUNTS(); }
       // V2.0.5: only Income / Expense / Savings, each category a list of text subcategories
       if (data.schema && typeof data.schema === 'object' && !Array.isArray(data.schema)) { Object.entries(ftStripTags(data.schema)).forEach(([type, cats]) => { if (['Income', 'Expense', 'Savings'].indexOf(type) < 0 || !cats || typeof cats !== 'object' || Array.isArray(cats)) return; if (!SCHEMA[type]) SCHEMA[type] = {}; Object.entries(cats).forEach(([cat, subs]) => { if (!SCHEMA[type][cat]) SCHEMA[type][cat] = []; (Array.isArray(subs) ? subs : []).forEach(sub => { if (typeof sub === 'string' && sub && !SCHEMA[type][cat].includes(sub)) SCHEMA[type][cat].push(sub); }); }); }); saveSCHEMA(); }
       // V2.0.4: restore everything else (goals, budget plans, investments, reminders, mappings, opening balance...)
@@ -1211,11 +1399,20 @@ function importJSON(input) {
         Object.keys(data.store).forEach(function(k) {
           if (!ftBackupKeyAllowed(k)) return;
           var v = data.store[k];
-          ftMergeStoreValue(k, typeof v === 'string' ? v : JSON.stringify(v));
+          ftMergeStoreValue(k, typeof v === 'string' ? v : JSON.stringify(v), restore);
         });
       } else if (Array.isArray(data.goals) && data.goals.length) {
         // Old backups (before V2.0.4) only carried goals
-        ftMergeStoreValue('ft_goals', JSON.stringify(data.goals));
+        ftMergeStoreValue('ft_goals', JSON.stringify(data.goals), restore);
+      }
+      // V2.0.6: merged goals can add up past 100% of one account. Trim them; the winning side keeps its %.
+      if (typeof ftGoalRepairShares === 'function') {
+        const gl = ftJSON('ft_goals', []);
+        if (Array.isArray(gl) && gl.length) {
+          const prefer = (restore ? inGoals : phoneGoals).map(g => g && g.id);
+          const fixes = ftGoalRepairShares(gl, prefer);
+          if (fixes.length) { safeSave('ft_goals', JSON.stringify(gl)); setTimeout(() => toast('⚖️ Goal % fixed: ' + fixes[0] + (fixes.length > 1 ? ' (+' + (fixes.length - 1) + ' more)' : '')), 2600); }
+        }
       }
       // Numeric IDs only (UUID string IDs used to make this NaN)
       var numIds = TXN.map(tx => tx.id).filter(id => typeof id === 'number' && !isNaN(id));
@@ -1223,7 +1420,7 @@ function importJSON(input) {
       saveTXN();
       if (typeof loadAllModuleData === 'function') loadAllModuleData();
       if (typeof render === 'function') render();
-      toast(`✅ Imported ${added} new transactions${hasStore ? ' + all other data' : ''}`);
+      toast(`✅ Imported ${added} new transactions${updated ? ' · ' + updated + ' updated from backup' : ''}${hasStore ? ' + all other data' : ''}`);
     } catch (err) { toast('❌ Error: invalid or corrupted file'); console.error('Import error:', err); }
     input.value = '';
   };
@@ -1271,46 +1468,16 @@ function ftCsvDate(d) {
 }
 
 // Parses CSV text into validated transactions. Does NOT touch TXN.
-function ftCsvToTxns(text) {
-  var rows = ftParseCSV(text);
-  if (rows.length < 2) return { error: 'empty' };
-  var h = rows[0].map(function(x) { return String(x).toLowerCase().trim(); });
-  var col = function(names, fallback) { for (var i = 0; i < names.length; i++) { var k = h.indexOf(names[i]); if (k >= 0) return k; } return fallback; };
-  var C = { d: col(['date', 'tarikh'], 0), t: col(['type', 'jenis'], 1), c: col(['category', 'kategori'], 2), s: col(['subcategory', 'sub category', 'subkategori'], 3), a: col(['amount', 'jumlah', 'amaun'], 4), dt: col(['description', 'keterangan', 'details', 'note'], 5), acc: col(['account', 'akaun'], 6) };
-  if (h.indexOf('date') < 0 && h.indexOf('tarikh') < 0) return { error: 'header' };
-  if (h.indexOf('amount') < 0 && h.indexOf('jumlah') < 0 && h.indexOf('amaun') < 0) return { error: 'header' };
-  var clean = function(v) { return String(v === undefined ? '' : v).replace(/<[^>]*>/g, '').trim(); };
-  var txns = [], skipped = 0;
-  rows.slice(1).forEach(function(r) {
-    var d = ftCsvDate(r[C.d]);
-    var t = ftCsvType(r[C.t]);
-    var a = Math.abs(parseFloat(clean(r[C.a]).replace(/[^\d.\-]/g, '')));
-    if (!d || !t || !a || isNaN(a) || a > 1e12) { skipped++; return; }
-    var accName = clean(r[C.acc]).toLowerCase();
-    var accMatch = accName ? ACCOUNTS.find(function(x) { return String(x.name).toLowerCase() === accName; }) : null;
-    txns.push({ id: generateTxnId(), d: d, t: t, c: clean(r[C.c]) || 'Uncategorized', s: clean(r[C.s]), a: a, dt: clean(r[C.dt]), acc: accMatch ? accMatch.id : undefined });
-  });
-  return { txns: txns, skipped: skipped };
-}
+// V2.0.6: same reader as Excel (links, currencies, duplicate guard)
+function ftCsvToTxns(text) { return ftRowsToTxns(ftParseCSV(text), {}); }
 
 function importCSV(input) {
   const file = input.files[0]; if (!file) return;
   if (ftImportTooBig(file, input)) return;
   const reader = new FileReader();
   reader.onload = function(e) {
-    try {
-      // V2.0.4: real CSV parser (old regex split every row wrongly, so 0 rows ever imported)
-      const res = ftCsvToTxns(e.target.result);
-      if (res.error === 'empty') { toast('❌ Empty CSV file'); input.value = ''; return; }
-      if (res.error === 'header') { toast('❌ Invalid CSV: needs Date and Amount columns'); input.value = ''; return; }
-      if (!res.txns.length) { toast('❌ No valid rows found' + (res.skipped ? ' (' + res.skipped + ' skipped)' : '')); input.value = ''; return; }
-      if (!confirm(`Import ${res.txns.length} transactions from CSV${res.skipped ? ' (' + res.skipped + ' invalid rows skipped)' : ''}? This will ADD new transactions.`)) { input.value = ''; return; }
-      res.txns.forEach(tx => TXN.push(tx));
-      saveTXN();
-      if (typeof render === 'function') render();
-      toast(`✅ Imported ${res.txns.length} transactions from CSV`);
-    } catch (err) { toast('❌ Error reading CSV file'); console.error('CSV import error:', err); }
-    input.value = '';
+    try { ftImportRows(ftCsvToTxns(e.target.result), input, 'CSV'); }
+    catch (err) { toast('❌ Error reading CSV file'); console.error('CSV import error:', err); input.value = ''; }
   };
   reader.readAsText(file);
 }
